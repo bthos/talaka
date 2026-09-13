@@ -121,26 +121,64 @@ LINES_FMT="${G}+${LINES_ADD}${Z}/${R}-${LINES_DEL}${Z}"
 
 L1="${L1} ${D}|${Z} ${BAR} ${PCT}% ${D}|${Z} ${COST_FMT} ${D}|${Z} ${LINES_FMT}"
 
-# Usage limits — show the tightest window, so one segment answers "how close am
-# I to being cut off". Colour by headroom, not by which window it came from.
-LIM_WORST=-1; LIM_LABEL=""; LIM_RESET=""
-if [ "$LIM_5H" -ge 0 ] && [ "$LIM_5H" -gt "$LIM_WORST" ]; then
-  LIM_WORST=$LIM_5H; LIM_LABEL="5h"; LIM_RESET=$(fmt_until "$RESET_5H")
+# Usage limits — a pacing verdict rather than a bare percentage. Per window,
+# surplus = quota left − time left, in points of the window: positive means
+# capacity will go unused at the current straight-line pace, negative means the
+# window runs dry before it resets. Inputs are the payload and the clock only.
+#   ■ wait   a window is ≥95% used
+#   ▼ slow   7d surplus ≤ −10, or 5h surplus ≤ −15
+#   ▲ push   5h resets within its last fifth with ≥20 points spare and the week
+#            is not behind; or 7d surplus ≥ +10 and 5h is not burning
+#   ● steady otherwise
+# The suffix names the window that decided it. Checks run in the order above.
+NOW=$(date +%s)
+W5H=18000; W7D=604800
+
+pace() {  # pace USED RESETS_AT WINDOW_SECS → sets P_SURPLUS, P_TLEFT (empty when unknown)
+  P_SURPLUS=""; P_TLEFT=""
+  local used="$1" at="$2" win="$3" left
+  { [ "$used" -ge 0 ] && [ "$at" -gt "$NOW" ]; } 2>/dev/null || return 0
+  left=$(( at - NOW )); [ "$left" -gt "$win" ] && left=$win
+  P_TLEFT=$(( left * 100 / win ))
+  P_SURPLUS=$(( 100 - used - P_TLEFT ))
+}
+pace "$LIM_5H" "$RESET_5H" "$W5H"; S5=$P_SURPLUS; T5=$P_TLEFT
+pace "$LIM_7D" "$RESET_7D" "$W7D"; S7=$P_SURPLUS
+
+VERDICT=""
+if   [ "$LIM_7D" -ge 95 ]; then VERDICT="${R}■ wait:7d${Z}"
+elif [ "$LIM_5H" -ge 95 ]; then VERDICT="${R}■ wait:5h${Z}"
+elif [ -n "$S7" ] && [ "$S7" -le -10 ]; then VERDICT="${Y}▼ slow:7d${Z}"
+elif [ -n "$S5" ] && [ "$S5" -le -15 ]; then VERDICT="${Y}▼ slow:5h${Z}"
+elif [ -n "$S5" ] && [ "$T5" -le 20 ] && [ "$S5" -ge 20 ] && [ "${S7:-0}" -ge 0 ]; then
+  VERDICT="${G}▲ push:5h${Z}"
+elif [ -n "$S7" ] && [ "$S7" -ge 10 ] && [ "${S5:-0}" -ge -5 ]; then
+  VERDICT="${G}▲ push:7d${Z}"
+elif [ -n "$S5$S7" ]; then VERDICT="${D}● steady${Z}"
 fi
-if [ "$LIM_7D" -ge 0 ] && [ "$LIM_7D" -gt "$LIM_WORST" ]; then
-  LIM_WORST=$LIM_7D; LIM_LABEL="7d"; LIM_RESET=$(fmt_until "$RESET_7D")
-fi
-if [ "$LIM_SPEND" -ge 0 ] && [ "$LIM_SPEND" -gt "$LIM_WORST" ]; then
-  LIM_WORST=$LIM_SPEND; LIM_LABEL="spend"; LIM_RESET=""
-fi
-if [ "$LIM_WORST" -ge 0 ]; then
-  if   [ "$LIM_WORST" -lt 50 ]; then LIM_COLOR="$G"
-  elif [ "$LIM_WORST" -lt 80 ]; then LIM_COLOR="$Y"
-  else LIM_COLOR="$R"; fi
-  LIM_SEG="${LIM_COLOR}${LIM_LABEL} ${LIM_WORST}%${Z}"
-  [ -n "$LIM_RESET" ] && LIM_SEG="${LIM_SEG}${D}→${LIM_RESET}${Z}"
-  L1="${L1} ${D}|${Z} ${LIM_SEG}"
-fi
+
+lim_seg() {  # lim_seg LABEL USED SURPLUS RESETS_AT — empty when the window is absent
+  local lbl="$1" used="$2" surplus="$3" at="$4" col until
+  [ "$used" -ge 0 ] || return 0
+  if   [ "$used" -ge 95 ]; then col="$R"
+  elif [ -n "$surplus" ] && [ "$surplus" -lt -5 ]; then col="$Y"
+  elif [ -n "$surplus" ]; then col="$G"
+  elif [ "$used" -ge 80 ]; then col="$R"
+  elif [ "$used" -ge 50 ]; then col="$Y"
+  else col="$G"; fi
+  printf '%s' "${col}${lbl} ${used}%${Z}"
+  until=$(fmt_until "$at")
+  [ -n "$until" ] && printf '%s' "${D}→${until}${Z}"
+  return 0
+}
+
+LIM_SEGS=""
+for _seg in "$VERDICT" "$(lim_seg 5h "$LIM_5H" "$S5" "$RESET_5H")" \
+            "$(lim_seg 7d "$LIM_7D" "$S7" "$RESET_7D")"; do
+  [ -n "$_seg" ] && LIM_SEGS="${LIM_SEGS:+$LIM_SEGS }${_seg}"
+done
+[ "$LIM_SPEND" -ge 50 ] && LIM_SEGS="${LIM_SEGS:+$LIM_SEGS }$(lim_seg spend "$LIM_SPEND" "" 0)"
+[ -n "$LIM_SEGS" ] && L1="${L1} ${D}|${Z} ${LIM_SEGS}"
 
 echo -e "$L1"
 
@@ -150,7 +188,7 @@ ALERTS=()
 # --- Alert: usage limit running out ---
 # Computed before the .tlk guard below: running out of quota matters whether or
 # not this project has the kit installed.
-# Line 1 shows the tightest window; line 2 names every window that is actually
+# Line 1 carries the pace verdict; line 2 names every window that is actually
 # tight, because "7d at 92%" and "5h at 85%" mean different things for the day.
 for _lim in "5h:$LIM_5H:$RESET_5H" "7d:$LIM_7D:$RESET_7D" "spend:$LIM_SPEND:0"; do
   _lbl="${_lim%%:*}"; _rest="${_lim#*:}"; _pct="${_rest%%:*}"; _at="${_rest##*:}"

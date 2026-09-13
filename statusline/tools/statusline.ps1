@@ -30,7 +30,7 @@ $reset7d  = if ($null -ne $data.rate_limits.seven_day.resets_at) { [long]$data.r
 
 function Format-Until([long]$at) {
     if ($at -le 0) { return "" }
-    $delta = $at - [long][double]::Parse((Get-Date -UFormat %s))
+    $delta = $at - [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
     if ($delta -le 0) { return "" }
     if     ($delta -ge 86400) { return "$([math]::Floor($delta / 86400))d" }
     elseif ($delta -ge 3600)  { return "$([math]::Floor($delta / 3600))h" }
@@ -127,20 +127,47 @@ $linesFmt = "${green}+${linesAdded}${reset}/${red}-${linesRemoved}${reset}"
 
 $l1 += " ${dim}|${reset} ${bar} ${pct}% ${dim}|${reset} ${costFmt} ${dim}|${reset} ${linesFmt}"
 
-# Usage limits — the tightest window, so one segment answers "how close am I to
-# being cut off". Coloured by headroom, not by which window it came from.
-$limWorst = -1; $limLabel = ""; $limReset = ""
-if ($lim5h    -ge 0 -and $lim5h    -gt $limWorst) { $limWorst = $lim5h;    $limLabel = "5h";    $limReset = Format-Until $reset5h }
-if ($lim7d    -ge 0 -and $lim7d    -gt $limWorst) { $limWorst = $lim7d;    $limLabel = "7d";    $limReset = Format-Until $reset7d }
-if ($limSpend -ge 0 -and $limSpend -gt $limWorst) { $limWorst = $limSpend; $limLabel = "spend"; $limReset = "" }
-if ($limWorst -ge 0) {
-    if     ($limWorst -lt 50) { $limColor = $green }
-    elseif ($limWorst -lt 80) { $limColor = $yellow }
-    else                      { $limColor = $red }
-    $limSeg = "${limColor}${limLabel} ${limWorst}%${reset}"
-    if ($limReset) { $limSeg += "${dim}$([char]0x2192)${limReset}${reset}" }
-    $l1 += " ${dim}|${reset} ${limSeg}"
+# Usage limits — a pacing verdict rather than a bare percentage. Same rules as
+# statusline.sh (see the comment there): surplus = quota left − time left.
+function Get-Pace([int]$used, [long]$at, [long]$win) {
+    $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+    if ($used -lt 0 -or $at -le $now) { return $null }
+    $left = [math]::Min($at - $now, $win)
+    $tleft = [math]::Floor($left * 100 / $win)
+    return @{ Surplus = [int](100 - $used - $tleft); TLeft = [int]$tleft }
 }
+$p5 = Get-Pace $lim5h $reset5h 18000
+$p7 = Get-Pace $lim7d $reset7d 604800
+$s7OrZero = if ($p7) { $p7.Surplus } else { 0 }
+$s5OrZero = if ($p5) { $p5.Surplus } else { 0 }
+
+$verdict = ""
+if     ($lim7d -ge 95) { $verdict = "${red}$([char]0x25A0) wait:7d${reset}" }
+elseif ($lim5h -ge 95) { $verdict = "${red}$([char]0x25A0) wait:5h${reset}" }
+elseif ($p7 -and $p7.Surplus -le -10) { $verdict = "${yellow}$([char]0x25BC) slow:7d${reset}" }
+elseif ($p5 -and $p5.Surplus -le -15) { $verdict = "${yellow}$([char]0x25BC) slow:5h${reset}" }
+elseif ($p5 -and $p5.TLeft -le 20 -and $p5.Surplus -ge 20 -and $s7OrZero -ge 0) { $verdict = "${green}$([char]0x25B2) push:5h${reset}" }
+elseif ($p7 -and $p7.Surplus -ge 10 -and $s5OrZero -ge -5) { $verdict = "${green}$([char]0x25B2) push:7d${reset}" }
+elseif ($p5 -or $p7) { $verdict = "${dim}$([char]0x25CF) steady${reset}" }
+
+function Format-Limit($lbl, [int]$used, $pace, [long]$at) {
+    if ($used -lt 0) { return "" }
+    if     ($used -ge 95)                     { $col = $red }
+    elseif ($pace -and $pace.Surplus -lt -5)  { $col = $yellow }
+    elseif ($pace)                            { $col = $green }
+    elseif ($used -ge 80)                     { $col = $red }
+    elseif ($used -ge 50)                     { $col = $yellow }
+    else                                      { $col = $green }
+    $seg = "${col}${lbl} ${used}%${reset}"
+    $until = Format-Until $at
+    if ($until) { $seg += "${dim}$([char]0x2192)${until}${reset}" }
+    return $seg
+}
+
+$limSegs = @($verdict, (Format-Limit "5h" $lim5h $p5 $reset5h), (Format-Limit "7d" $lim7d $p7 $reset7d))
+if ($limSpend -ge 50) { $limSegs += Format-Limit "spend" $limSpend $null 0 }
+$limSegs = @($limSegs | Where-Object { $_ })
+if ($limSegs.Count -gt 0) { $l1 += " ${dim}|${reset} " + ($limSegs -join " ") }
 
 Write-Host $l1
 
