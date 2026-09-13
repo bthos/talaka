@@ -7,9 +7,11 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib.sh"
 TOOL="$KIT_ROOT/templates/autoresearch/tools/collect-usage.sh"
 PRICING="$KIT_ROOT/templates/autoresearch/tools/pricing.json"
 
+# jq is a real dependency of the tool; the no-python CI image has none, so skip
+# there the way statusline.test.sh does rather than report a failure.
 _need_jq() {
   command -v jq >/dev/null 2>&1 && return 0
-  fail "jq not available — collect-usage cannot be exercised"
+  skip_test "jq absent — collect-usage cannot be exercised"
   return 1
 }
 

@@ -134,8 +134,11 @@ skip_test() {        # skip_test "reason" — abandons the current test as skipp
 # Cleaned up automatically at process exit.
 _TMP_DIRS=()
 make_tmp_project() {
-  local d
-  d=$(mktemp -d "${TMPDIR:-/tmp}/tlk-test.XXXXXX")
+  local d tmp="${TMPDIR:-/tmp}"
+  # macOS sets TMPDIR with a trailing slash. Left in, the path reads ".../T//tlk-…"
+  # while every tool's `pwd` reports ".../T/tlk-…", so string matches between
+  # the test's $proj and the tool's PROJECT_ROOT silently miss.
+  d=$(mktemp -d "${tmp%/}/tlk-test.XXXXXX")
   _TMP_DIRS+=( "$d" )
   ( cd "$d" && git init -q && git config user.email t@t && git config user.name t ) 2>/dev/null || true
   printf '%s' "$d"

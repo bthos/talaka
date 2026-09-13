@@ -286,4 +286,17 @@ test_shell_scripts_are_syntactically_valid() {
   [ "$bad" -eq 0 ] || true
 }
 
+test_tracked_shell_scripts_are_executable() {
+  # The mode git records is what every clone gets. On Windows (core.fileMode=false)
+  # a new script is added as 100644 no matter what, and CI then fails far from
+  # the cause — exit 126 inside some unrelated test. Name the file here instead.
+  command -v git >/dev/null 2>&1 && git -C "$KIT_ROOT" rev-parse --git-dir >/dev/null 2>&1 \
+    || { skip_test "not a git checkout"; return; }
+  local mode _obj _stage path
+  while read -r mode _obj _stage path; do
+    [ "$mode" = "100755" ] && continue
+    fail "not executable in git: $path — run: git update-index --chmod=+x $path"
+  done < <(git -C "$KIT_ROOT" ls-files -s -- '*.sh')
+}
+
 run_tests "$@"

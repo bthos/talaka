@@ -126,6 +126,32 @@ EOF
   assert_eq "1" "$v" "both placeholders substituted into the prompt"
 }
 
+test_prompt_substitution_keeps_multiline_text_verbatim() {
+  # Eval-set requirements span lines, and BSD awk refused those as -v values —
+  # every ratchet round on macOS scored on a broken judge. "&" and "\" must also
+  # survive: gsub used to rewrite "&" into the placeholder it replaced.
+  local proj; proj=$(make_tmp_project)
+  local art="$proj/.tlk"; mkdir -p "$art"
+  local fake="$proj/fakejudge.sh"
+  cat > "$fake" <<'EOF'
+#!/usr/bin/env bash
+p=$(cat)
+want_req=$'line one\nA & B \\ C'
+want_out=$'first\nsecond & third'
+case "$p" in
+  *"$want_req"*"$want_out"*) printf 1 ;;
+  *) printf 0 ;;
+esac
+EOF
+  chmod +x "$fake"
+  printf -- '- **Judge command:** `bash %s`\n' "$fake" > "$art/PROJECT.md"
+  local v rc=0
+  v=$(ARTEFACTS_DIR="$art" bash "$JUDGE" --requirement $'line one\nA & B \\ C' \
+        --output $'first\nsecond & third' 2>/dev/null) || rc=$?
+  assert_eq "0" "$rc" "multi-line requirement does not break the judge pipeline"
+  assert_eq "1" "$v" "multi-line text with & and \\ reaches the judge verbatim"
+}
+
 test_missing_output_errors() {
   local art; art=$(_art_with_judge "printf 1")
   ( ARTEFACTS_DIR="$art" bash "$JUDGE" --requirement "only req" >/dev/null 2>&1 ) \

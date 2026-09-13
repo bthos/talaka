@@ -17,9 +17,11 @@ _project_with_kit() {
 
 _tool() { printf '%s' "talaka/shared/lifecycle/tools/install-output-style.sh"; }
 
+# jq is a real dependency of the tool; the no-python CI image has none, so skip
+# there the way statusline.test.sh does rather than report a failure.
 _need_jq() {
   command -v jq >/dev/null 2>&1 && return 0
-  fail "jq not available — install-output-style cannot be exercised"
+  skip_test "jq absent — install-output-style cannot be exercised"
   return 1
 }
 

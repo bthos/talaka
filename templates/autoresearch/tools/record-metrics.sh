@@ -52,6 +52,10 @@ fi
 
 PROJECT_ROOT="$(pwd)"
 ARTEFACTS="${ARTEFACTS_DIR:-$PROJECT_ROOT/.tlk}"
+# Normalise to the shape `pwd` prints (no "//", no trailing "/"), or the
+# project-relative prefix match below misses and rows record an absolute path.
+while [[ $ARTEFACTS == *//* ]]; do ARTEFACTS=${ARTEFACTS//\/\//\/}; done
+[ "$ARTEFACTS" = "/" ] || ARTEFACTS=${ARTEFACTS%/}
 RUNS_DIR="$ARTEFACTS/autoresearch/runs"
 COST_LOG="$RUNS_DIR/cost.jsonl"
 mkdir -p "$ARTEFACTS" "$RUNS_DIR"

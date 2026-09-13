@@ -112,4 +112,15 @@ test_json_records_the_resolved_feature_path() {
     "the row carries the resolved path, not the bare slug"
 }
 
+test_unnormalised_artefacts_dir_still_records_a_relative_path() {
+  # "…//.tlk/" is what a TMPDIR or config ending in "/" produces; pwd never
+  # prints that shape, so an unnormalised prefix match fell back to absolute.
+  local proj; proj=$(_proj_with_feature)
+  ( cd "$proj" && ARTEFACTS_DIR="${proj}//.tlk/" bash "$METRICS" \
+      --feature "2026-08-10-club-invite-link" --agent mokash >/dev/null 2>&1 )
+  assert_file_contains "$proj/.tlk/features/2026-08-10-club-invite-link/metrics.jsonl" \
+    '"feature":".tlk/features/2026-08-10-club-invite-link"' \
+    "a doubled or trailing slash does not turn the row's path absolute"
+}
+
 run_tests "$@"

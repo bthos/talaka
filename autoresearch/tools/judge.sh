@@ -79,15 +79,12 @@ if [ ! -f "$JUDGE_TEMPLATE" ]; then
   exit 2
 fi
 
-# Substitute placeholders
-prompt=$(awk -v req="$req" -v out="$out" '
-  {
-    line=$0
-    gsub(/\{\{requirement\}\}/, req, line)
-    gsub(/\{\{output\}\}/, out, line)
-    print line
-  }
-' "$JUDGE_TEMPLATE")
+# Substitute placeholders. Not awk: BSD awk (macOS) rejects a -v value that
+# spans lines — and eval-set requirements always do — while gsub turns any "&"
+# in the text into the matched placeholder. Quoted bash replacement is literal.
+prompt=$(<"$JUDGE_TEMPLATE")
+prompt=${prompt//"{{requirement}}"/"$req"}
+prompt=${prompt//"{{output}}"/"$out"}
 
 # Resolve judge command:
 #   1) .tlk/PROJECT.md  →  - **Judge command:** `<cmd>`
