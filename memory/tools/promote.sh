@@ -431,8 +431,9 @@ regen_root() {
       | head -n 10 || echo "_(none yet)_"
     echo
     echo "## Recent decisions ($dec_t total — newest first)"
-    awk '/^- id:/ {id=$3} /^[[:space:]]+decided:/ {d=$2} /^[[:space:]]+text:/ {gettext=1; next} gettext && /^[[:space:]]+/ {gsub(/^[[:space:]]+/,""); printf "- %s (%s) — %s\n", id, d, $0; gettext=0}' \
-      "$MEM_DIR/decisions.md" 2>/dev/null | tac | head -n 10 || echo "_(none yet)_"
+    # Reversed in awk: macOS has no `tac`.
+    awk '/^- id:/ {id=$3} /^[[:space:]]+decided:/ {d=$2} /^[[:space:]]+text:/ {gettext=1; next} gettext && /^[[:space:]]+/ {gsub(/^[[:space:]]+/,""); out[n++] = sprintf("- %s (%s) — %s", id, d, $0); gettext=0} END {for (i = n - 1; i >= 0; i--) print out[i]}' \
+      "$MEM_DIR/decisions.md" 2>/dev/null | head -n 10 || echo "_(none yet)_"
     echo
     echo "## Recent supersessions"
     grep -RnE '\[superseded by mem_' "$MEM_DIR/" 2>/dev/null | head -n 10 \
@@ -457,7 +458,7 @@ if $PROPOSE_HARDENING; then
     id=$(printf '%s' "$line" | awk '{print $3}')
     text_block=$(grep -A12 "^- id: $id" "$MEM_DIR"/*.md 2>/dev/null \
                  | sed -nE 's/^[[:space:]]+text:.*$//; /text: \|/,/^- /p' | head -n 4 \
-                 | grep -v '^- id:' | sed 's/^[[:space:]]\+//')
+                 | grep -v '^- id:' | sed -E 's/^[[:space:]]+//')
     case "$line" in
       *preferences.md*) agent="cmok" ;;
       *system.md*)      agent="architecture-planning" ;;
@@ -469,7 +470,7 @@ if $PROPOSE_HARDENING; then
     {
       echo ""
       echo "### Hardening proposal — $id ($TODAY)"
-      echo "_Promoted from L3; high confidence. Source: $line_"
+      echo "_Promoted from L3; high confidence. Source: ${line}_"
       echo ""
       echo "$text_block"
     } >> "$out"
