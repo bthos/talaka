@@ -1,0 +1,30 @@
+{
+  "_what": "Token prices, USD per million tokens, per model and per token kind.",
+  "_source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
+  "_refresh": "tools/fetch-pricing.sh — re-reads the page above and rewrites this file. Prices change; a number typed into a script does not.",
+  "_verified": false,
+  "_fetched": null,
+  "_seeded": "2026-09-12",
+  "_note": "verified:false means these are the shipped seed, not a fetch. They are transcribed from the source URL on the seeded date and are used as a fallback so cost is never zero — but run fetch-pricing.sh before trusting a cost figure, and re-run it whenever a model ships. analyze-metrics.sh prints this file's age.",
+  "_partners": "Bedrock, Vertex and Foundry are partner-priced and are NOT on the page above. If your team runs there, replace these values with the partner rates and set _verified manually.",
+  "default_model": "claude-sonnet-5",
+  "models": {
+    "claude-opus-5":     { "input": 5.00,  "output": 25.00, "cache_write_5m": 6.25,  "cache_write_1h": 10.00, "cache_read": 0.50 },
+    "claude-opus-4-8":   { "input": 5.00,  "output": 25.00, "cache_write_5m": 6.25,  "cache_write_1h": 10.00, "cache_read": 0.50 },
+    "claude-opus-4-7":   { "input": 5.00,  "output": 25.00, "cache_write_5m": 6.25,  "cache_write_1h": 10.00, "cache_read": 0.50 },
+    "claude-opus-4-6":   { "input": 5.00,  "output": 25.00, "cache_write_5m": 6.25,  "cache_write_1h": 10.00, "cache_read": 0.50 },
+    "claude-opus-4-5":   { "input": 5.00,  "output": 25.00, "cache_write_5m": 6.25,  "cache_write_1h": 10.00, "cache_read": 0.50 },
+    "claude-sonnet-5":   { "input": 2.00,  "output": 10.00, "cache_write_5m": 2.50,  "cache_write_1h": 4.00,  "cache_read": 0.20 },
+    "claude-sonnet-4-6": { "input": 3.00,  "output": 15.00, "cache_write_5m": 3.75,  "cache_write_1h": 6.00,  "cache_read": 0.30 },
+    "claude-sonnet-4-5": { "input": 3.00,  "output": 15.00, "cache_write_5m": 3.75,  "cache_write_1h": 6.00,  "cache_read": 0.30 },
+    "claude-haiku-4-5":  { "input": 1.00,  "output": 5.00,  "cache_write_5m": 1.25,  "cache_write_1h": 2.00,  "cache_read": 0.10 },
+    "claude-fable-5-1":  { "input": 10.00, "output": 50.00, "cache_write_5m": 12.50, "cache_write_1h": 20.00, "cache_read": 0.25 },
+    "claude-fable-5":    { "input": 10.00, "output": 50.00, "cache_write_5m": 12.50, "cache_write_1h": 20.00, "cache_read": 1.00 }
+  },
+  "_fallback_multipliers": {
+    "_use": "Applied to a model's input price only when that model has no explicit per-kind entry above — a model released after the last fetch, for instance.",
+    "cache_write_5m": 1.25,
+    "cache_write_1h": 2.00,
+    "cache_read": 0.10
+  }
+}

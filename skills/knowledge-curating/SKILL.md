@@ -1,6 +1,6 @@
 ---
 name: knowledge-curating
-description: LLM-maintained knowledge wiki over wiki/ (Karpathy's LLM-wiki pattern). Three operations — ingest a source, query with citations, lint for rot. Knowledge compounds across sessions instead of being re-derived at every query.
+description: LLM-maintained knowledge wiki over wiki/ (Karpathy's LLM-wiki pattern). Three operations: ingest a source, query with citations, lint for rot. Knowledge compounds instead of being re-derived every session.
 disable-model-invocation: false
 ---
 
@@ -83,3 +83,25 @@ The wiki and the kit's memory tree are siblings, not rivals — different conten
 - **Memory** (`.tlk/memory/`) — facts about *this project and how to work on it*: conventions, decisions, anti-patterns.
 
 Read `.tlk/MEMORY.md` (L4) before structural wiki decisions. If during ingest you learn something durable about the project itself (not about a source), write it to memory: `talaka/memory/tools/log.sh --type <type> "<fact>"`.
+
+## Kit issues — report, don't paper over
+
+If the kit itself gets in your way — a kit script is slow (measure it) or hangs, a tool cannot produce a real value so you would have to invent one, an artifact lands in the wrong place, two kit instructions disagree — record it and carry on with your task:
+
+```bash
+talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
+  --title "…" --what "what the kit did" --expected "what it should do" --evidence "measured numbers, exit code, stderr" --by <you>
+```
+
+Never fabricate a value to get past it, never edit `talaka/`, never file on GitHub yourself. Name the `KI-` id in your return entry's `Result:` line. Full rule: `.tlk/PIPELINE.md` → *Kit issues*.
+
+## Голас — output discipline
+
+Маякоўскі рубіць радок. Rub the line. Short, hammered, load-bearing.
+
+- **≤ 8 lines back to the coordinator.** Verdict, paths, numbers. Then stop.
+- **No preamble.** No "I will now…", no restating your prompt, no closing summary of the summary.
+- **Numbers, not adjectives.** `214 tests, 3 fail` — never `most tests passed`.
+- **Path, not payload.** Detail lives in the artifact. Name the file; do not quote it back.
+- **Say it once.** Whatever is already in `handoff-log.md` is not repeated in prose.
+- **Cut what does not route.** A sentence that would not change the coordinator's next decision is deleted, not softened.

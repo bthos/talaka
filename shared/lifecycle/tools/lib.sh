@@ -182,38 +182,56 @@ _kit_resolve_sha_cmd() {
   fi
 }
 
+# Resolve once, here, in the sourcing shell. Callers run these helpers inside
+# $(…), so a lazy resolve would be thrown away with each subshell and re-run on
+# every call. Failure is left for the first hash call to report.
+_kit_resolve_sha_cmd 2>/dev/null || true
+
+# Process spawns are the cost that matters: on Git Bash a fork is tens to
+# hundreds of ms, and an install hashes hundreds of files. So each helper runs
+# the hash command once and trims its output with parameter expansion, not awk.
 kit_sha256_file() {
-  local f="$1"
+  local f="$1" out
   if [ ! -f "$f" ] || [ -L "$f" ]; then
     printf ''
     return 1
   fi
   _kit_resolve_sha_cmd || return 1
-  $_KIT_SHA_CMD "$f" | awk '{print $1}'
+  out=$($_KIT_SHA_CMD "$f") || return 1
+  printf '%s\n' "${out%% *}"
 }
 
 kit_sha256_stream_aggregate() {
   _kit_resolve_sha_cmd || return 1
-  $_KIT_SHA_CMD | awk '{print $1}'
+  local out
+  out=$($_KIT_SHA_CMD) || return 1
+  printf '%s\n' "${out%% *}"
 }
 
+# Hash of the sorted list of per-file hashes. One hash command covers every file
+# in the tree (its output order follows its argument order, which is the sorted
+# path list); an empty tree hashes the empty list.
 kit_sha256_tree() {
   local dir="$1"
   if [ ! -d "$dir" ] || [ -L "$dir" ]; then
     printf ''
     return 1
   fi
+  _kit_resolve_sha_cmd || return 1
   (
     cd "$dir" || exit 1
-    find . -type f | LC_ALL=C sort | while read -r rp; do
-      kit_sha256_file "$rp" || true
-    done
+    local -a files=()
+    mapfile -t files < <(find . -type f | LC_ALL=C sort)
+    [ "${#files[@]}" -gt 0 ] || exit 0
+    $_KIT_SHA_CMD "${files[@]}" | awk '{print $1}'
   ) | kit_sha256_stream_aggregate
 }
 
 kit_sha256_string() {
   _kit_resolve_sha_cmd || return 1
-  printf '%s' "$1" | $_KIT_SHA_CMD | awk '{print $1}'
+  local out
+  out=$(printf '%s' "$1" | $_KIT_SHA_CMD) || return 1
+  printf '%s\n' "${out%% *}"
 }
 
 # ---------------------------------------------------------------------------
@@ -249,9 +267,11 @@ kit_base_has()   { [ -e "$(kit_base_path "$1")" ]; }
 kit_base_write() {
   local rel="$1" src="$2" dest
   [ "${DRY_RUN:-false}" = "true" ] && return 0
-  dest="$(kit_base_path "$rel")"
-  mkdir -p "$(dirname "$dest")" 2>/dev/null || true
-  rm -rf "$dest" 2>/dev/null || true
+  dest="$KIT_BASE_DIR/$rel"
+  # Builtin tests before each spawn: a fresh install has no parent and no
+  # previous snapshot, so it pays for the copy alone.
+  [ -d "${dest%/*}" ] || mkdir -p "${dest%/*}" 2>/dev/null || true
+  if [ -e "$dest" ] || [ -L "$dest" ]; then rm -rf "$dest" 2>/dev/null || true; fi
   if [ -d "$src" ]; then cp -R "$src" "$dest"; else cp "$src" "$dest"; fi
 }
 
@@ -621,14 +641,15 @@ talaka_gitignore_render() {
   local claude_lines="" f name
   for f in "$SCRIPT_DIR"/agents/*.md; do
     [ -e "$f" ] || continue
-    name=$(basename "$f")
+    name=${f##*/}
     claude_lines+=".claude/agents/$name"$'\n'
   done
   for f in "$SCRIPT_DIR"/skills/*/; do
     [ -d "$f" ] || continue
-    name=$(basename "$f")
+    name=${f%/}; name=${name##*/}
     claude_lines+=".claude/skills/$name/"$'\n'
   done
+  [ -f "$SCRIPT_DIR/templates/loop.md.template" ] && claude_lines+=".claude/loop.md"$'\n'
   cat <<EOF
 $TALAKA_GITIGNORE_BEGIN
 # Managed by talaka — a per-developer tool, NOT intended for team sync.
@@ -643,7 +664,7 @@ $TALAKA_GITIGNORE_BEGIN
 # --- Artefacts: all per-developer pipeline state (memory, features, PIPELINE.md, PROJECT.md, …) ---
 $ARTEFACTS_NAME/
 #
-# --- Kit-installed agent + skill copies (personal; Veles ratchets these in place) ---
+# --- Kit-installed agent, skill and goal-loop copies (personal; Veles ratchets these) ---
 ${claude_lines}$TALAKA_GITIGNORE_END
 EOF
 }

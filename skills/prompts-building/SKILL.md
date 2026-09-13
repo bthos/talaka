@@ -1,6 +1,6 @@
 ---
 name: prompts-building
-description: Build and improve agent/skill prompts, then validate them by execution. Two collaborating personas — Builder writes the prompt, Tester runs it literally and reports what the instructions actually produce — iterate until the prompt yields consistent, correct output that follows the kit's own conventions. Use when authoring a new agent/skill prompt, hardening an existing one, or diagnosing why a prompt behaves inconsistently.
+description: Build and harden agent/skill prompts, validated by execution. Builder writes the prompt; Tester runs it literally and reports what the instructions actually produce. Iterate until the output is consistent and follows kit conventions. Use when authoring a new prompt or diagnosing an inconsistent one.
 disable-model-invocation: false
 ---
 
@@ -66,7 +66,7 @@ Invoked ad hoc, not as a fixed pipeline stage. When you improve a prompt inside 
 ```bash
 .tlk/autoresearch/tools/record-metrics.sh \
   --feature <feature-path> --agent prompts-building \
-  --tokens <approx_tokens_used> --wall-ms $(( ($(date +%s) - start) * 1000 ))
+  --since "$start" --wall-ms $(( ($(date +%s) - start) * 1000 ))
 ```
 
 If the improved prompt is a proposed hardening of a shipped agent, write it to `.tlk/proposed-patches/<agent>.md` and let `shared/learning/tools/apply-patches.sh` land it (manifest hash refresh) rather than overwriting the installed copy directly.
@@ -94,3 +94,25 @@ Record in-flight calls as you make them with `talaka/memory/tools/session.sh dec
 - **No conflicting instructions.** A prompt you ship must not contradict itself — resolve clashes in favour of the authoritative source.
 - **Never finalize without a Tester cycle.** At least one full Builder→Tester→Builder loop, with Tester's output visible in the conversation, before you call a prompt done.
 - **Respect the L0 manifest.** Hardening a shipped kit prompt is an L0 change — prefer the `apply-patches.sh` route so `.tlk/.talaka.files` stays consistent and teardown still recognizes the file.
+
+## Kit issues — report, don't paper over
+
+If the kit itself gets in your way — a kit script is slow (measure it) or hangs, a tool cannot produce a real value so you would have to invent one, an artifact lands in the wrong place, two kit instructions disagree — record it and carry on with your task:
+
+```bash
+talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
+  --title "…" --what "what the kit did" --expected "what it should do" --evidence "measured numbers, exit code, stderr" --by <you>
+```
+
+Never fabricate a value to get past it, never edit `talaka/`, never file on GitHub yourself. Name the `KI-` id in your return entry's `Result:` line. Full rule: `.tlk/PIPELINE.md` → *Kit issues*.
+
+## Голас — output discipline
+
+Маякоўскі рубіць радок. Rub the line. Short, hammered, load-bearing.
+
+- **≤ 8 lines back to the coordinator.** Verdict, paths, numbers. Then stop.
+- **No preamble.** No "I will now…", no restating your prompt, no closing summary of the summary.
+- **Numbers, not adjectives.** `214 tests, 3 fail` — never `most tests passed`.
+- **Path, not payload.** Detail lives in the artifact. Name the file; do not quote it back.
+- **Say it once.** Whatever is already in `handoff-log.md` is not repeated in prose.
+- **Cut what does not route.** A sentence that would not change the coordinator's next decision is deleted, not softened.

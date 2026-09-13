@@ -152,6 +152,120 @@ test_bagnik_owns_full_regression() {
     || fail "bagnik.md: no longer states that it runs the full suite"
 }
 
+test_every_worker_carries_the_output_discipline_block() {
+  # The kit runs a coordinator plus six agents and fourteen skills, all of them
+  # narrating. Concise output is a shipped rule, not a preference: a worker that
+  # inherits it only from PIPELINE.md loses it on a trimmed context.
+  local f
+  for f in "$KIT_ROOT"/agents/*.md "$KIT_ROOT"/skills/*/SKILL.md; do
+    [ -f "$f" ] || continue
+    # Skills without frontmatter are not kit-shipped prompts; skip them.
+    [ "$(head -n1 "$f")" = "---" ] || continue
+    grep -q 'output discipline' "$f" \
+      || fail "${f#"$KIT_ROOT"/}: missing the output-discipline block"
+  done
+}
+
+test_every_worker_carries_the_kit_issues_block() {
+  # Workers are the ones who hit a slow script or a tool that cannot measure.
+  # A worker that inherits the reporting rule only from PIPELINE.md loses it on
+  # a trimmed context — and then works around the problem in silence.
+  local f
+  for f in "$KIT_ROOT"/agents/*.md "$KIT_ROOT"/skills/*/SKILL.md; do
+    [ -f "$f" ] || continue
+    [ "$(head -n1 "$f")" = "---" ] || continue
+    grep -q 'shared/feedback/tools/kit-issue.sh add' "$f" \
+      || fail "${f#"$KIT_ROOT"/}: missing the kit-issues block"
+  done
+  assert_file_contains "$KIT_ROOT/templates/PIPELINE.md.template" '## Kit issues' \
+    "PIPELINE.md carries the full kit-issues rule"
+  assert_file_exists "$KIT_ROOT/shared/feedback/tools/kit-issue.sh" \
+    "the tool the prompts point at ships"
+}
+
+test_frontmatter_descriptions_stay_short() {
+  # A description is loaded into context for every session, whether or not the
+  # worker runs. Long ones are a standing tax.
+  local f name desc len
+  for f in "$KIT_ROOT"/agents/*.md "$KIT_ROOT"/skills/*/SKILL.md; do
+    [ -f "$f" ] || continue
+    [ "$(head -n1 "$f")" = "---" ] || continue
+    desc=$(_frontmatter_value "$f" description)
+    len=${#desc}
+    [ "$len" -le 420 ] \
+      || fail "${f#"$KIT_ROOT"/}: description is $len chars (max 420)"
+  done
+}
+
+test_no_guessed_token_counts_in_metrics_calls() {
+  # record-metrics.sh takes --since "$start" and measures. A prompt that tells a
+  # worker to pass its own token estimate feeds the ratchet a number the model
+  # invented about itself.
+  # Prompt files only — a tool's own docs may quote the banned form to explain
+  # why it is banned.
+  local hits
+  hits=$(grep -rInE --include='*.md' --include='*.template' -- '--tokens[[:space:]]+<' \
+           "$KIT_ROOT/agents" "$KIT_ROOT/skills" "$KIT_ROOT/templates" 2>/dev/null \
+         | grep -vE ':[[:space:]]*#' || true)
+  if [ -n "$hits" ]; then
+    fail "prompt tells a worker to estimate its own token use:"
+    printf '        %s\n' "$hits" >&2
+  fi
+}
+
+test_metrics_callers_capture_a_start_time() {
+  # --since "$start" only measures if the prompt told the worker to capture
+  # $start on entry. Without it the shell expands to empty and the row silently
+  # degrades to unmeasured.
+  local f
+  for f in "$KIT_ROOT"/agents/*.md "$KIT_ROOT"/skills/*/SKILL.md; do
+    [ -f "$f" ] || continue
+    grep -q -- '--since "\$start"' "$f" || continue
+    grep -q 'start=\$(date +%s)' "$f" \
+      || fail "${f#"$KIT_ROOT"/}: uses --since \"\$start\" but never sets start=\$(date +%s)"
+  done
+}
+
+test_pricing_table_is_not_hardcoded_in_scripts() {
+  # Prices belong in pricing.json (fetched, dated, replaceable), never inlined
+  # in a script where they go stale invisibly.
+  local f hits
+  for f in "$KIT_ROOT"/templates/autoresearch/tools/*.sh "$KIT_ROOT"/autoresearch/tools/*.sh; do
+    [ -f "$f" ] || continue
+    case "$(basename "$f")" in fetch-pricing.sh) continue ;; esac
+    hits=$(grep -nE 'COST_PER_TOKEN:-0\.0000[0-9]|input.*=.*[0-9]+\.[0-9]+.*MTok' "$f" 2>/dev/null \
+           | grep -v '^[[:space:]]*#' || true)
+    [ -z "$hits" ] || fail "${f#"$KIT_ROOT"/}: looks like an inlined price — use pricing.json"
+  done
+}
+
+test_pricing_json_declares_its_provenance() {
+  local f="$KIT_ROOT/templates/autoresearch/tools/pricing.json"
+  assert_file_exists "$f" "pricing.json ships with the kit"
+  [ -f "$f" ] || return
+  assert_file_contains "$f" '_source_url' "pricing.json names its source"
+  assert_file_contains "$f" '_verified'   "pricing.json says whether it was fetched"
+  if command -v jq >/dev/null 2>&1; then
+    assert_eq "false" "$(jq -r '._verified' "$f")" \
+      "the shipped seed is marked unverified until fetch-pricing.sh runs"
+  fi
+}
+
+test_goal_loop_ships_without_shadowing_builtin_goal() {
+  # /goal and /loop are built into Claude Code, and a bare /loop runs
+  # .claude/loop.md. The kit ships the protocol only; a kit-defined /goal
+  # command would shadow the built-in.
+  assert_file_exists "$KIT_ROOT/templates/loop.md.template" "goal loop template ships"
+  assert_file_absent "$KIT_ROOT/templates/commands/goal.md" "no kit /goal command shadows the built-in"
+  # A scheduled /loop fire delivers built-in commands as plain text, so
+  # `/loop 8h /goal` never runs anything — and loop.md is ignored whenever
+  # /loop is given a prompt. The goal loop is started with a bare /loop.
+  local hits
+  hits=$(grep -rnE '/loop( [0-9]+[smhd])? /goal' "$KIT_ROOT/templates" "$KIT_ROOT/agents" \
+           "$KIT_ROOT/skills" "$KIT_ROOT/README.md" 2>/dev/null || true)
+  [ -z "$hits" ] || fail "shipped docs schedule /goal through /loop (it runs as plain text): $hits"
+}
+
 test_managed_block_markers_are_balanced() {
   # lib.sh defines paired begin/end markers; render output must contain both.
   source "$KIT_ROOT/shared/lifecycle/tools/lib.sh"

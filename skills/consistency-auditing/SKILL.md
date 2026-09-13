@@ -1,6 +1,6 @@
 ---
 name: consistency-auditing
-description: Cross-corpus consistency audit. Sweeps a set of files (agents, skills, scripts, docs, config) for drift — hardcoded values that should be variables, contradictory or duplicated instructions, terminology mismatches, gaps, and platform pitfalls. Produces a ranked audit.md with every file:line location and a recommended fix per finding. No code edits. Hand off to @cmok to apply the fixes.
+description: Cross-corpus drift audit. Sweeps agents, skills, scripts, docs and config for hardcoded values, contradictions, terminology drift, gaps and platform pitfalls. Writes a ranked audit.md — every finding with file:line and a fix. No code edits; hands the fixes to @cmok.
 disable-model-invocation: false
 ---
 
@@ -69,3 +69,25 @@ A good finding is:
 ## Memory
 
 Read L4 first (`.tlk/MEMORY.md`); drill into `memory/anti-patterns.md` if present. When the audit confirms a convention the whole corpus must follow (the canonical home for a value, the agreed term), log it so future audits and agents enforce it: `talaka/memory/tools/log.sh --type decision "<the convention>"`.
+
+## Kit issues — report, don't paper over
+
+If the kit itself gets in your way — a kit script is slow (measure it) or hangs, a tool cannot produce a real value so you would have to invent one, an artifact lands in the wrong place, two kit instructions disagree — record it and carry on with your task:
+
+```bash
+talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
+  --title "…" --what "what the kit did" --expected "what it should do" --evidence "measured numbers, exit code, stderr" --by <you>
+```
+
+Never fabricate a value to get past it, never edit `talaka/`, never file on GitHub yourself. Name the `KI-` id in your return entry's `Result:` line. Full rule: `.tlk/PIPELINE.md` → *Kit issues*.
+
+## Голас — output discipline
+
+Маякоўскі рубіць радок. Rub the line. Short, hammered, load-bearing.
+
+- **≤ 8 lines back to the coordinator.** Verdict, paths, numbers. Then stop.
+- **No preamble.** No "I will now…", no restating your prompt, no closing summary of the summary.
+- **Numbers, not adjectives.** `214 tests, 3 fail` — never `most tests passed`.
+- **Path, not payload.** Detail lives in the artifact. Name the file; do not quote it back.
+- **Say it once.** Whatever is already in `handoff-log.md` is not repeated in prose.
+- **Cut what does not route.** A sentence that would not change the coordinator's next decision is deleted, not softened.

@@ -10,6 +10,25 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Added — kit issues: agents report what the kit got wrong
+
+- **The problem.** Installed kits fail in ways only the running model sees: a per-write script that
+  takes 40 s on Git Bash, a metrics tool with nothing to measure so a number gets guessed, a row
+  written to a directory nothing reads. The model worked around these and moved on, so the same
+  defect shipped to every project and maintainers heard about it only by accident.
+- **`shared/feedback/tools/kit-issue.sh`.** `add` records a structured field report (kind, command,
+  observed vs expected, evidence, kit version, platform) in `.tlk/kit-issues.md`. A repeat title
+  bumps `Seen:` instead of duplicating. `slow`/`hang` require measured `--evidence`. Project-root
+  and `$HOME` paths are redacted, including `D:/…` and `D:\…` forms. `submit` previews the
+  issue body and searches for similar issues. `submit --confirm` runs `gh issue create` on
+  `bthos/talaka` (`TALAKA_ISSUES_REPO` overrides). `link` and `dismiss` close the loop.
+- **Prompts.** `PIPELINE.md` gains *Kit issues — report what the kit got wrong*: what counts, the
+  command, and the rules (never fabricate to get past it, never edit `talaka/`, never file without
+  the user). The coordinator offers pending entries to the user once per session at STOP/END.
+  Every agent and skill carries a short *Kit issues* block, guarded by
+  `tests/lint/structure.test.sh`.
+- **`kit.sh`** lists them under *Kit issues (field reports)*.
+
 ### Fixed — `promote.sh` no longer spawns a subprocess per file and per entry
 
 - **The Stop hook stalled for minutes on Windows/Git-Bash.** `promote.sh` runs after every memory

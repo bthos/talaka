@@ -10,7 +10,15 @@ composite = accuracy_score − λ · cost_normalized
 ```
 
 - **accuracy_score ∈ [0, 1]** — fraction of acceptance criteria from `eval-set/*.md` that LLM-as-judge marks as satisfied. Computed by `tools/judge.sh`.
-- **cost_normalized ∈ [0, 1]** — `(wall_clock_seconds × $/min + tokens × $/token)` for the run, divided by the 95th-percentile of the last 50 recorded runs in `runs/cost.jsonl`. Capped at 1.0.
+- **cost_normalized ∈ [0, 1]** — the run's measured USD cost, divided by the 95th-percentile of the last 50 **measured** runs in `runs/cost.jsonl`. Capped at 1.0.
+
+### Where cost comes from
+
+`tools/collect-usage.sh` reads the per-message `usage` blocks out of the Claude Code session transcript — real input, output, cache-write and cache-read counts per model — and prices them from `tools/pricing.json`. `tools/record-metrics.sh --since "$start"` writes that as a row tagged `"source":"measured"`.
+
+Rows tagged `"estimated"` (a `--tokens N` the caller asserted) and `"none"` (nothing measurable) exist so the gap is visible. They are **not** inputs to the composite.
+
+`pricing.json` is yours to maintain: it carries list prices, the date they were checked, and the cache multipliers. Partner platforms (Bedrock, Vertex, Foundry) price differently — put your real rates there.
 
 `λ = 0.3` means accuracy is the primary objective; cost is penalised but never dominates. Tweak only with deliberate intent — most teams should leave it alone.
 
@@ -25,7 +33,8 @@ composite = accuracy_score − λ · cost_normalized
 7. **Manifest integrity.** After every accepted mutation, `.tlk/.talaka.files` must record the new SHA-256 for the changed file. `teardown.sh` must still recognise the file as kit-managed.
 8. **Coordinator routing is sacred.** Never introduce an agent-to-agent invocation into any prompt. A mutation must not add instructions to launch, spawn, or auto-invoke another agent or skill (Agent/Task tool calls, "auto-invoke `@x`", "then launch `/y`"). Workers log, return, and *recommend*; the coordinator routes. A proposal that adds one is rejected regardless of its composite score. See `.tlk/PIPELINE.md` → Coordinator Protocol.
 9. **The handoff log is sacred.** Never remove or weaken a prompt's logging instructions — neither the single return entry nor the mid-run progress entries. Logging costs tokens, so the cost term will always favour deleting it; that trade is not Veles's to make. The log is the pipeline's only chain of custody, and progress entries are the only record that survives an interrupted run. A proposal that strips either is rejected regardless of its composite score.
-10. **Test scope is fixed by role.** Never move full-regression duty off Bagnik, and never put it back on Cmok. Cmok runs focused tests covering what it changed; Bagnik's gate runs the full suite. A mutation may reword the instruction but must not flip which worker runs what — deleting Cmok's focused-test rule looks like a cost win on a single build and silently doubles every fix loop.
+10. **Measurements are not to be invented.** The cost term may only be computed from rows tagged `"source":"measured"`. Never pass `--tokens` with a self-estimated number, never edit a row's `source` tag, and never substitute an estimate when a measurement is missing — report the gap and drop the cost term for that round instead. A guessed cost makes the ratchet optimise for whichever agent guessed highest, which is worse than not optimising at all.
+11. **Test scope is fixed by role.** Never move full-regression duty off Bagnik, and never put it back on Cmok. Cmok runs focused tests covering what it changed; Bagnik's gate runs the full suite. A mutation may reword the instruction but must not flip which worker runs what — deleting Cmok's focused-test rule looks like a cost win on a single build and silently doubles every fix loop.
 
 ## Allowed mutation targets
 
@@ -56,7 +65,7 @@ Veles stops a session when **any** of the following hold:
 
 Every round appends to `runs/`:
 
-- **`runs/cost.jsonl`** — one row per evaluated run: `{ts, run_id, file, variant, tokens, wall_ms, cost_usd, accuracy, composite}`.
+- **`runs/cost.jsonl`** — one row per evaluated run: `{ts, run_id, feature, agent, variant, tokens, wall_ms, cost_usd, accuracy, source}`. `source` is `measured` | `estimated` | `none`; only `measured` feeds the composite. Read it back with `tools/analyze-metrics.sh --report`.
 - **`runs/ratchet.jsonl`** — one row per accepted mutation: `{ts, round, file, baseline_composite, proposal_composite, delta, rationale}`.
 - **`runs/rejected.jsonl`** — one row per rejected mutation: `{ts, round, file, baseline_composite, proposal_composite, reason}`.
 
