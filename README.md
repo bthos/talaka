@@ -1,6 +1,6 @@
 # Talaka
 
-A reusable AI development pipeline — 6 agents, 13 skills, and a coordinator-driven handoff protocol. Installs one Claude-shaped layout (`.claude/agents/`, `.claude/skills/`) with two entry-point files at the project root: **`CLAUDE.md`** (read natively by Claude Code) and **`AGENTS.md`** (the cross-IDE convention — read by any workspace-aware tool that follows the AGENTS.md spec). One install covers every IDE.
+A reusable AI development pipeline — 6 agents, 14 skills, and a coordinator-driven handoff protocol. Installs one Claude-shaped layout (`.claude/agents/`, `.claude/skills/`) with two entry-point files at the project root: **`CLAUDE.md`** (read natively by Claude Code) and **`AGENTS.md`** (the cross-IDE convention — read by any workspace-aware tool that follows the AGENTS.md spec). One install covers every IDE.
 
 The kit is **minimally invasive** and **per-developer** (it commits nothing of its own): every kit-touched path is either inside the git-ignored `.tlk/`, inside `.claude/`, the optional committed `wiki/`, or wrapped in a removable `<!-- talaka:start --> … <!-- talaka:end -->` block in `CLAUDE.md` / `AGENTS.md` / `.gitignore`. `teardown.sh` strips the block (or removes the file when its SHA-256 still matches the kit copy recorded in `.tlk/.talaka.files`), so manual edits are always preserved.
 
@@ -42,6 +42,7 @@ This keeps routing observable and interruptible: the coordinator holds the whole
 | requirements-eliciting  | Spec & requirements          |
 | ux-designing    | UX design                    |
 | mockups-creating | UX mockups                   |
+| design-generating | Design system extraction — tokens, fonts, assets, components, UI kits copied from real sources into the design system directory |
 | architecture-planning   | Architecture & tests         |
 | bugs-diagnosing | Hypothesis design for hard bugs |
 | knowledge-curating    | Knowledge wiki — ingest / query / lint over `wiki/` (Karpathy's LLM-wiki pattern) |
@@ -125,6 +126,8 @@ That's it.
 │   └── .talaka.files                    ← SHA manifest for teardown (gitignored)
 │
 ├── .claude/                                  ← agent + skill copies (kit copies git-ignored; Veles ratchets them)
+│   └── loop.md                               ← goal-loop protocol (default prompt of a bare /loop)
+│   (settings.json also gets statusLine + outputStyle: Concise)
 │
 ├── wiki/                                      ← knowledge-curating knowledge wiki — committed knowledge (project root, outside .tlk/)
 │
@@ -158,7 +161,9 @@ The one deliberate exception is **knowledge-curating's `wiki/`**, which lives at
 3. After any fresh copy of `PROJECT.md`, optionally fills placeholders via **`claude -p`** (Claude Code). If stdin is not a TTY but `/dev/tty` exists, the Y/n prompt is read from `/dev/tty` so the step is not skipped silently in some IDE terminals.
 4. Copies `agents/*.md` → `.claude/agents/` (records SHA-256 in **`.tlk/.talaka.files`**).
 5. Copies `skills/*/` → `.claude/skills/` (same).
-6. Adds the managed include block to `CLAUDE.md` and `AGENTS.md` (creates a stub if absent; appends to existing file if present).
+6. Copies `templates/loop.md.template` → `.claude/loop.md` — the goal-loop protocol, which Claude Code's bundled `/loop` runs when given no prompt (same SHA tracking). The kit ships no `/goal` or `/loop` command of its own, so the built-ins are never shadowed.
+7. Sets `"outputStyle": "Concise"` in `.claude/settings.json`, but **only when the key is unset** — a style you chose yourself is never overwritten. Undo with `talaka/shared/lifecycle/tools/install-output-style.sh --remove`, or toggle it in `kit.sh` → *Manage components*.
+8. Adds the managed include block to `CLAUDE.md` and `AGENTS.md` (creates a stub if absent; appends to existing file if present).
 
 **`.tlk/.talaka.files`** records SHA-256 per kit-managed path (paths are relative to the **project root**, e.g. `.claude/agents/bagnik.md`). It sits beside `.tlk/.talaka.cfg` and is listed in the managed `.gitignore` block so it stays local to each checkout.
 
@@ -251,6 +256,22 @@ The kit ships a three-layer self-tuning system so installed agents adapt to your
 | **1. Probe** | `shared/project/tools/probe-project.sh` writes `.tlk/PROJECT_PROFILE.md` (stack, frameworks, test/build commands, conventions). All skills read it before starting. | `talaka/shared/lifecycle/tools/init.sh --tune` (or run `probe-project.sh` directly) |
 | **2. Lesson distillation** | After each archived feature, `shared/learning/tools/distill-lessons.sh` turns `LESSONS.md` files into structured entries across the **memory tree** (see below). With `--target=agents` it also proposes targeted patches to specific agent files; review with `shared/learning/tools/apply-patches.sh`. | Manual: `distill-lessons.sh --target=both` |
 | **3. AutoResearch ratchet (Veles)** | `talaka/autoresearch/` — `program.md` (invariants + composite formula `accuracy − 0.3·cost`), `judge.md` (LLM-as-judge), `eval-set/` (auto-built from archive), `run.sh` (mutate → score → ratchet). Veles only accepts mutations that don't regress the composite metric and never edits tests, eval-set, or the judge. Mutation prompts now retrieve **prior rejected variants** and **top memory hits** before proposing — the **Karpathy AutoResearch** pattern that prevents reproposing already-failed ideas. | After Zlydni archive (auto, 2 rounds) or manual: `talaka/autoresearch/run.sh --rounds=N` |
+
+### Measured cost, not estimated cost
+
+The composite metric Veles ratchets on is `accuracy − λ·cost`. That only means anything if the cost term is real, so nothing in the metrics path is allowed to guess:
+
+| Tool | What it does |
+|------|--------------|
+| `collect-usage.sh` | Reads the per-message `usage` blocks out of the Claude Code session transcript — input, output, 5-minute cache writes, 1-hour cache writes and cache reads, per model. Exits 3 rather than return a number it could not measure. |
+| `pricing.json` | Prices per model **and per token kind**. The two cache-write TTLs are priced differently (1.25× and 2× input), so folding them together understates a Claude Code session badly. Carries `_source_url`, `_fetched` and `_verified`. |
+| `fetch-pricing.sh` | Rewrites `pricing.json` from Anthropic's published price list. Run it before trusting a dollar figure; `--check` exits 4 when the table is stale. |
+| `record-metrics.sh --since "$start"` | Writes the row and tags it `"source":"measured"`. Without `--since` the row is `"estimated"` (a caller's assertion) or `"none"` — and only `measured` rows feed the composite. |
+| `analyze-metrics.sh` | Reads the rows back. Ranks agents and skills by measured cost against the accuracy it bought, names the one with composite headroom, and prints how old the price table is. Veles runs this before picking a target. |
+
+Every agent and skill prompt passes `--since "$start"`; none of them estimates its own token use. An agent's guess about itself is not evidence, and a ratchet fed guesses optimises for whichever worker guessed highest.
+
+The statusline is on the same footing: session cost, context percentage, and the 5-hour / 7-day / spend limits all come from the JSON Claude Code hands the status line on stdin. The kit renders them; it does not compute them.
 
 ### Memory layers
 
@@ -413,6 +434,29 @@ Bootstrap with `.claude/skills/knowledge-curating/new-wiki.sh`. The wiki lives a
 
 The skill is design-only and plugs into the normal pipeline: it bootstraps `.tlk/features/YYYY-MM-DD-cli-<slug>/` (via `.claude/skills/cli-designing/new-cli.sh`) with `research-brief.md`, `design.md` (the agent-native contract: typed exit codes `0/2/3/4/5/7`, `--json`/`--compact`/`--dry-run`/`--stdin`, auto-JSON when piped, bounded output), and `scorecard.md` — a two-tier 100-point QA contract. Then it hands off to `/architecture-planning`; **Bagnik gates code QA at ≥85/100** with mechanical verification layers (scorecard → dogfood → proof-of-behaviour → optional read-only live smoke test).
 
+## Goal loop (`/loop` + `.claude/loop.md`)
+
+The feature pipeline answers *build this thing*. The goal loop answers everything else the kit can do and rarely gets asked to — and that gap is the point: mapping, drift audits, assumption challenges, pre-planning research and the Veles ratchet are the techniques that sit unused because no one thinks to invoke them by name.
+
+The entry point is Claude Code's bundled **`/loop`**. Given no prompt — `/loop` (self-paced) or `/loop 30m` (fixed interval) — it runs **`.claude/loop.md`** on every iteration; `/loop <prompt>` ignores the file. `init.sh` installs only that protocol file and defines no `/loop` or `/goal` command of its own, so the built-ins are never shadowed. (`/goal <condition>` is a separate built-in: it keeps a session working until a condition holds and does not read `loop.md`.) The loop first settles which goal to work: it resumes the one open goal under `.tlk/goals/`, asks which one when there are several, and asks for an objective when there are none (*improve this codebase — nothing above P2 left in the audit*, *find the architecture gaps, stop at a plan*, *ratchet the agents — one Veles round, then report*). One goal in, many iterations out; each iteration is *assess → pick ONE technique → invoke it → read the return entry → log → decide*. Artifacts land in `.tlk/goals/<date>-<slug>/` (`goal.md`, `handoff-log.md`, `summary.md`, `metrics.jsonl`), which the managed `.gitignore` block already covers.
+
+It obeys the same routing rule as the pipeline — the coordinator invokes, workers return — and it cannot write code except through `@cmok` → `@bagnik` → `@zlydni`. Stop conditions are explicit: definition of done met, budget spent, two iterations with nothing new, or the same finding failing twice.
+
+It is safe to leave running. `/loop 8h` over an open goal runs read-only and self-improving techniques only — never a build, never a commit — and leaves a log rather than a surprise. A nightly wake refreshes `pricing.json`, reads `analyze-metrics.sh --report`, and hands Veles the costliest prompt with accuracy headroom. `/loop` fires only while the session is open, and a recurring loop expires after seven days. Use a Desktop scheduled task when the session will not stay open.
+
+## Kit issues (field reports)
+
+The agents running the kit are the only ones who see it misbehave in a real project: a hook that takes a minute on Git Bash, a tool that cannot measure and leaves a number to be guessed, an artifact written one directory off. Every worker prompt, and `.tlk/PIPELINE.md` → *Kit issues*, tells them to **report it instead of working around it in silence**:
+
+```bash
+talaka/shared/feedback/tools/kit-issue.sh add --kind slow --title "log.sh takes ~40s per write" \
+  --what "…" --expected "…" --evidence "time: 41.2s, 40.8s" --by cmok
+```
+
+Entries land in `.tlk/kit-issues.md` (git-ignored). Repeats bump a `Seen:` count instead of duplicating. `slow` and `hang` reports are refused without a measured `--evidence`. Paths under the project root and `$HOME` are redacted.
+
+Nothing leaves the machine on its own. When a pipeline stops or ends, the coordinator lists pending entries and asks you once whether to file them. `kit-issue.sh submit KI-001` previews the exact issue body and any similar existing issues. Only `submit KI-001 --confirm`, after you approve, runs `gh issue create` on `github.com/bthos/talaka` (override with `TALAKA_ISSUES_REPO`). `dismiss` and `link` cover "not a kit problem" and "filed by hand / commented on an existing issue". The `kit.sh` menu lists them under *Kit issues*.
+
 ## Feature artifacts
 
 All feature work lives under `.tlk/`:
@@ -431,9 +475,11 @@ requirements-eliciting creates the feature folder automatically when starting a 
 
 | What | How |
 |------|-----|
+| Work a goal in iterations (not a build) | `/loop` or `/loop <interval>` — no prompt, so it runs `.claude/loop.md` |
 | Write or update spec | `/requirements-eliciting` |
 | Design UX | `/ux-designing` |
 | Create UX mockups | `/mockups-creating` |
+| Build the design system from code / Figma / brand assets | `/design-generating` |
 | Architecture & tests | `/architecture-planning` |
 | Run test gate or code QA | `@bagnik` |
 | Build | `@cmok` |
@@ -477,6 +523,7 @@ Each skill bundles its own script. Shared scripts live under `talaka/shared/<cat
 | `talaka/shared/project/tools/bump-version.sh patch\|minor` | Bumps version in all files listed in `.tlk/PROJECT.md` (Cmok uses `patch`, Zlydni uses `minor`) — run from project root |
 | `talaka/shared/project/tools/validate-config.sh` | Checks `.tlk/PROJECT.md` for unfilled `<placeholder>` values — run after `init.sh` |
 | `talaka/shared/project/tools/feature-status.sh` | Shows pipeline status for active features in `.tlk/features/` |
+| `talaka/shared/feedback/tools/kit-issue.sh add\|list\|show\|submit\|link\|dismiss` | Field reports about the kit itself: agents record slow/hanging scripts, fabrication pressure, misplaced artifacts in `.tlk/kit-issues.md`; `submit` previews, `submit --confirm` files a GitHub issue after the user agrees. See *Kit issues* above. |
 | `talaka/shared/debug/tools/debug-log-server.py` | Local debug log server (Python 3 stdlib, loopback only). Captures runtime probes from instrumented code into `<investigation>/runtime.jsonl`. Endpoints: `/log`, `/console`, `/network`, `/tail`, `/stream`, `/shutdown`. |
 | `talaka/shared/debug/tools/debug-log-server.sh` | Degraded `nc`-based fallback when `python3` is unavailable. Same investigation contract, no SSE. |
 | `talaka/shared/debug/tools/debug-strip.sh <id>` | Removes every line carrying the `DEBUG:<id>` sentinel. Self-blocks (non-zero exit) if residue remains. |

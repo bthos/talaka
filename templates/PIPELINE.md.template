@@ -39,6 +39,8 @@ Everything kit-touched is either inside `.tlk/`, inside `.claude/`, or wrapped i
 
 - Skills copied to `.claude/skills/`
 - Agents copied to `.claude/agents/`
+- Goal loop at `.claude/loop.md` — the iteration protocol for work that is not "build this thing" (mapping, drift audits, research, the Veles ratchet), the default prompt of Claude Code's bundled `/loop` (bare `/loop`, or `/loop <interval>`). See **Goal loop** below.
+- `"outputStyle": "Concise"` in `.claude/settings.json`, only when that key is unset
 - Pipeline entry-point: managed include block in `CLAUDE.md` and `AGENTS.md`, both pointing to `@.tlk/PIPELINE.md`
 
 Any workspace-aware IDE discovers the kit through `CLAUDE.md` or `AGENTS.md` (the cross-IDE convention). One install covers all of them.
@@ -96,6 +98,7 @@ Concretely, in every agent and skill prompt in this kit:
 | requirements-eliciting   | Spec & requirements           |
 | ux-designing     | UX design                     |
 | mockups-creating | UX mockups               |
+| design-generating | Design system extraction — copied from real sources, read by mockups-creating |
 | architecture-planning    | Architecture & tests          |
 | bugs-diagnosing | Hypothesis design for hard bugs |
 | knowledge-curating     | Knowledge wiki — ingest / query / lint over `wiki/` |
@@ -111,7 +114,7 @@ Concretely, in every agent and skill prompt in this kit:
 
 | Kind | Names |
 |------|--------|
-| Skills | `/requirements-eliciting`, `/ux-designing`, `/architecture-planning`, `/mockups-creating`, `/bugs-diagnosing`, `/knowledge-curating`, `/cli-designing`, `/codebase-mapping`, `/consistency-auditing`, `/patterns-adapting`, `/tasks-researching`, `/prompts-building`, `/assumptions-challenging` |
+| Skills | `/requirements-eliciting`, `/ux-designing`, `/architecture-planning`, `/mockups-creating`, `/design-generating`, `/bugs-diagnosing`, `/knowledge-curating`, `/cli-designing`, `/codebase-mapping`, `/consistency-auditing`, `/patterns-adapting`, `/tasks-researching`, `/prompts-building`, `/assumptions-challenging` |
 | Agents | `@bagnik`, `@cmok` (build), `@mokash`, `@veles`, `@yaga`, `@zlydni` |
 
 The build implementation after Bagnik passes is the `@cmok` agent. The mockup phase uses the `/mockups-creating` skill. They are distinct roles: the build agent keeps the mythology name `cmok`, while skills use purpose-based names.
@@ -251,6 +254,19 @@ An agent cannot detect any of these — it sees only its own invocation. This is
 - **Partial results are still results** — "built but untested", "tests run, three failures found" belong in the log the moment they are true, not only when the run ends. A run that dies mid-way should still have left something useful behind.
 - **Justify routing** — The coordinator states why the next worker is the right one.
 
+### Голас — output discipline
+
+Маякоўскі рубіць радок. Rub the line. Short, hammered, load-bearing. Every worker prompt in this kit carries this block; it is restated here because the coordinator is held to it too.
+
+- **≤ 8 lines back to the coordinator.** Verdict, paths, numbers. Then stop.
+- **No preamble.** No "I will now…", no restating the prompt, no closing summary of the summary.
+- **Numbers, not adjectives.** `214 tests, 3 fail` — never `most tests passed`.
+- **Path, not payload.** Detail lives in the artifact. Name the file; do not quote it back.
+- **Say it once.** Whatever is already in `handoff-log.md` is not repeated in prose.
+- **Cut what does not route.** A sentence that would not change the next decision is deleted, not softened.
+
+The kit also sets `"outputStyle": "Concise"` in `.claude/settings.json` at install (`talaka/shared/lifecycle/tools/install-output-style.sh`, removable with `--remove`). The prompt block and the setting do the same job at two different levels — prompts govern workers, the setting governs the coordinator session.
+
 ### Invocation Prompt Template
 
 What the **coordinator** puts in the prompt when it launches a worker. The worker cannot see the previous worker's context, so the coordinator carries it forward:
@@ -330,6 +346,71 @@ Running the full suite on every build and every fix-loop iteration is the single
 | architecture-planning | Full suite via `check-coverage.sh` | Establishes the coverage baseline before any build exists. |
 
 Cmok runs the full suite in exactly two cases: the change is cross-cutting (shared config, build tooling, dependency bump, wide rename) so no meaningful subset exists, or the coordinator asked for it in the invocation prompt. Cmok's return entry names which tests it ran — a Cmok "done" never means "regression is green".
+
+## Goal loop
+
+The routing table above covers *build this thing*. The goal loop covers everything else the kit can do: mapping an unfamiliar codebase, auditing a corpus for drift, challenging an approach before it is locked, researching before planning, ratcheting the agents themselves. Those techniques exist and almost never get invoked, because nothing routes to them.
+
+The protocol lives at **`.claude/loop.md`** (installed by `init.sh`), which is the default prompt of Claude Code's bundled **`/loop`**: a `/loop` with no prompt runs it on every iteration, and a `/loop <prompt>` ignores it. It works one goal at a time, one `/loop` iteration per protocol iteration: settle which goal → assess → pick ONE technique from its menu → invoke it → read its return entry → log → decide. Artifacts land in `.tlk/goals/<YYYY-MM-DD>-<slug>/`.
+
+Same rules as the pipeline, no exceptions: the coordinator invokes, workers log and return, nothing ships without Bagnik, and the loop writes code only through `@cmok` → `@bagnik` → `@zlydni`. `/loop 8h` over an open goal makes it a scheduled maintenance pass — read-only and self-improving techniques only.
+
+## Metrics are measured, never estimated
+
+When autoresearch is initialised, every worker records a row before returning:
+
+```bash
+.tlk/autoresearch/tools/record-metrics.sh \
+  --feature <feature-path> --agent <name> \
+  --since "$start" --wall-ms $(( ($(date +%s) - start) * 1000 ))
+```
+
+`--since "$start"` is what makes the row real: `collect-usage.sh` reads the actual per-message token counts out of the Claude Code session transcript and prices them per model and per token kind from `pricing.json`. The row is tagged `"source":"measured"`.
+
+**Never pass `--tokens` with a number you estimated about yourself.** Veles ratchets on `accuracy − λ·cost`; a guessed cost term makes the ratchet optimise for whichever worker guessed highest. When nothing can be measured, the row records `null` and says so — which is useful, where a fabricated number is not.
+
+`analyze-metrics.sh --report` reads the rows back, and `fetch-pricing.sh` keeps the price table current.
+
+## Kit issues — report what the kit got wrong
+
+You are the only one watching this kit run in a real project. Its maintainers see none of it. A hook that takes a minute, a tool that cannot measure and leaves you to guess, an artifact written one directory off: if you work around it and say nothing, it happens in every project that installed the kit, forever. **Reporting is part of the job, not a distraction from it.**
+
+**Report when the kit, not the project, costs you time, correctness, or a workaround.** Known shapes, but the list is open and the maintainers would rather triage a false alarm than never hear about a real one:
+
+| Kind | Looks like |
+|------|-----------|
+| `slow` | A kit script takes seconds where it should take milliseconds — worst when it runs on every write, every worker, or every session exit (`log.sh`, `session.sh`, `record-metrics.sh`, the Stop hook). **Measure it** (`time …`, two or three runs) before reporting. |
+| `hang` | A kit script waits on input nobody will give, or never returns. Record how long you waited before killing it. |
+| `fabrication` | A tool cannot produce a real value (no transcript, no test output, missing dependency) and the prompt still expects a number — so the easy path is to invent one. |
+| `wrong-location` | An artifact lands outside where the docs say: a stray directory at the project root, a doubled or drive-mangled path, a row in a file nothing reads. |
+| `error` | A kit script fails — often only on one platform (Windows / Git Bash, macOS bash 3.2) or without an optional tool (`jq`, `python3`). |
+| `docs-mismatch` | Two kit instructions contradict each other, or an instruction contradicts what the script actually does. |
+| `other` | Anything else where you had to invent a workaround for the kit itself. |
+
+**Record it and keep going** — one command, local only, nothing leaves the machine:
+
+```bash
+talaka/shared/feedback/tools/kit-issue.sh add --kind slow \
+  --title "log.sh takes ~40s per write on Git Bash" \
+  --command "talaka/memory/tools/log.sh --type tool \"…\"" \
+  --what "each call blocked 39–41s; three workers skipped memory writes because of it" \
+  --expected "well under a second — it runs on every memory write" \
+  --evidence "time: 41.2s, 40.8s, 39.9s" --by cmok
+```
+
+It appends to `.tlk/kit-issues.md`. The same title again bumps that entry's `Seen:` count instead of duplicating it — how often a problem bites is the most useful thing a maintainer can learn. Add `--evidence-file <log>` to attach the tail of an error log.
+
+- **Never fabricate to get past it.** A value the kit could not measure is recorded as missing, with the reason. That is the report. See *Metrics are measured, never estimated*.
+- **Never fix the kit in place.** Do not edit `talaka/` or patch around it silently; the user's task is still the task.
+- **Never file on GitHub yourself.** Issues are public. The user decides.
+- **Describe the kit, not the project.** No source code, secrets, customer data or internal hostnames in any field. The tool redacts paths under the project root and `$HOME`; everything else is on you.
+- **Workers** name the `KI-` id in the `Result:` line of their return entry (and in `Blockers:` if it stopped them).
+
+**Coordinator — offer to file.** When the pipeline reaches a STOP or END, or the user's task is done, run `talaka/shared/feedback/tools/kit-issue.sh list`. If anything is pending, say it in one line — `2 kit issues recorded (KI-001 log.sh slow, KI-002 stray metrics dir). File them on GitHub?` — and ask once per session, not on every turn.
+
+- **Yes** → `kit-issue.sh submit KI-001`. That is a preview: it prints the exact issue body and any similar issues already open. Show it to the user. Only after they approve it: `kit-issue.sh submit KI-001 --confirm`. If a similar issue exists, offer to comment on it instead (the preview prints the command), then `kit-issue.sh link KI-001 <url>`.
+- **No, not a kit problem** → `kit-issue.sh dismiss KI-001 --reason "…"`.
+- **Not now** → leave it pending; it will be offered again next session.
 
 ## Shell command conventions
 

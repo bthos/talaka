@@ -111,6 +111,13 @@ for _d in "$SCRIPT_DIR"/skills/*/; do
     kit_base_write "$_rel" "${_d%/}"; _seeded=$((_seeded + 1))
   fi
 done
+# The goal loop is edited by users just as often as prompts are, so it gets the
+# same 3-way merge treatment rather than an overwrite.
+if [ -f "$SCRIPT_DIR/templates/loop.md.template" ] \
+   && [ -e "$PROJECT_ROOT/.claude/loop.md" ] && ! kit_base_has ".claude/loop.md"; then
+  kit_base_write ".claude/loop.md" "$SCRIPT_DIR/templates/loop.md.template"; _seeded=$((_seeded + 1))
+fi
+
 if [ "$_seeded" -gt 0 ]; then
   info "Seeded $_seeded merge-base snapshot(s) under $ARTEFACTS_NAME/.base/ (first update)."
 else

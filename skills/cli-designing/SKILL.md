@@ -1,6 +1,6 @@
 ---
 name: cli-designing
-description: CLI factory — design an agent-native CLI for any API (printing-press pattern). Finds the API's non-obvious value, absorbs the feature set of every competing tool, designs a deep command surface with local persistence, and writes the 100-point scorecard the build is gated on. Logs and returns to the coordinator, recommending /architecture-planning for the build pipeline.
+description: CLI factory — design an agent-native CLI for any API (printing-press pattern). Names the non-obvious insight, absorbs competitor table stakes, designs a deep command surface with local persistence, and writes the 100-point scorecard the build is gated on. Hands off to /architecture-planning.
 disable-model-invocation: false
 ---
 
@@ -103,3 +103,25 @@ From there the coordinator runs the normal route: architecture-planning → `@ba
 Read `.tlk/MEMORY.md` (L4) first — prior CLI features may have settled stack, auth-storage, or distribution decisions; don't relitigate them. When the design lands a durable decision (store schema, exit-code extension, language choice), log it: `talaka/memory/tools/log.sh --type decision "<the decision>"`.
 
 Record design decisions in L1 as you make them: `talaka/memory/tools/session.sh decision "Chose X over Y because …"` — these accumulate in the hot state and Zlydni promotes them to L2 when the CLI feature is committed.
+
+## Kit issues — report, don't paper over
+
+If the kit itself gets in your way — a kit script is slow (measure it) or hangs, a tool cannot produce a real value so you would have to invent one, an artifact lands in the wrong place, two kit instructions disagree — record it and carry on with your task:
+
+```bash
+talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
+  --title "…" --what "what the kit did" --expected "what it should do" --evidence "measured numbers, exit code, stderr" --by <you>
+```
+
+Never fabricate a value to get past it, never edit `talaka/`, never file on GitHub yourself. Name the `KI-` id in your return entry's `Result:` line. Full rule: `.tlk/PIPELINE.md` → *Kit issues*.
+
+## Голас — output discipline
+
+Маякоўскі рубіць радок. Rub the line. Short, hammered, load-bearing.
+
+- **≤ 8 lines back to the coordinator.** Verdict, paths, numbers. Then stop.
+- **No preamble.** No "I will now…", no restating your prompt, no closing summary of the summary.
+- **Numbers, not adjectives.** `214 tests, 3 fail` — never `most tests passed`.
+- **Path, not payload.** Detail lives in the artifact. Name the file; do not quote it back.
+- **Say it once.** Whatever is already in `handoff-log.md` is not repeated in prose.
+- **Cut what does not route.** A sentence that would not change the coordinator's next decision is deleted, not softened.

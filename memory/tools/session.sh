@@ -48,8 +48,9 @@ EOF
 set_section() {
   local hdr="$1" body="$2" tmp
   tmp="$(mktemp "${TMPDIR:-/tmp}/tlk-session.XXXXXX")"
-  awk -v hdr="$hdr" -v body="$body" '
-    BEGIN { done=0; skip=0 }
+  # body goes through the environment: macOS awk rejects a multi-line -v value.
+  SECTION_BODY="$body" awk -v hdr="$hdr" '
+    BEGIN { done=0; skip=0; body=ENVIRON["SECTION_BODY"] }
     {
       if ($0 == hdr) { print; print body; skip=1; done=1; next }
       if (skip==1) {

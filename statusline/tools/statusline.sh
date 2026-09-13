@@ -8,12 +8,36 @@ set -euo pipefail
 input=$(cat)
 
 # --- JSON fields ---
+# Everything here is computed by Claude Code and handed to us on stdin: the
+# cost is its own accounting, the context percentage its own token count, and
+# the rate-limit percentages come from the service. Nothing on this line is
+# estimated by the kit — see statusline docs for the full payload schema.
 MODEL=$(echo "$input" | jq -r '.model.display_name // "?"')
 PROJECT_DIR=$(echo "$input" | jq -r '.workspace.project_dir // .workspace.current_dir // "."')
 PCT=$(echo "$input" | jq -r '.context_window.used_percentage // 0' | cut -d. -f1)
 COST=$(echo "$input" | jq -r '.cost.total_cost_usd // 0')
 LINES_ADD=$(echo "$input" | jq -r '.cost.total_lines_added // 0')
 LINES_DEL=$(echo "$input" | jq -r '.cost.total_lines_removed // 0')
+
+# Usage limits. Absent on older Claude Code builds and on plans without them —
+# every field defaults to empty and the segment is simply not rendered. "-1"
+# stands for absent so a real 0% still prints.
+LIM_5H=$(echo "$input"  | jq -r '.rate_limits.five_hour.used_percentage   // -1' | cut -d. -f1)
+LIM_7D=$(echo "$input"  | jq -r '.rate_limits.seven_day.used_percentage   // -1' | cut -d. -f1)
+LIM_SPEND=$(echo "$input" | jq -r '.rate_limits.spend_limit.used_percentage // -1' | cut -d. -f1)
+RESET_5H=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at // 0')
+RESET_7D=$(echo "$input" | jq -r '.rate_limits.seven_day.resets_at // 0')
+
+# Compact "time until" for a reset epoch: 3h, 45m, or empty when unknown/past.
+fmt_until() {
+  local at="$1" now delta
+  [ -n "$at" ] && [ "$at" != "0" ] && [ "$at" != "null" ] || { printf ''; return; }
+  now=$(date +%s); delta=$(( at - now ))
+  [ "$delta" -le 0 ] && { printf ''; return; }
+  if   [ "$delta" -ge 86400 ]; then printf '%dd' $(( delta / 86400 ))
+  elif [ "$delta" -ge 3600 ];  then printf '%dh' $(( delta / 3600 ))
+  else printf '%dm' $(( delta / 60 )); fi
+}
 
 # --- Colors ---
 C='\033[36m'; M='\033[35m'; G='\033[32m'; Y='\033[33m'; R='\033[31m'
@@ -97,12 +121,59 @@ LINES_FMT="${G}+${LINES_ADD}${Z}/${R}-${LINES_DEL}${Z}"
 
 L1="${L1} ${D}|${Z} ${BAR} ${PCT}% ${D}|${Z} ${COST_FMT} ${D}|${Z} ${LINES_FMT}"
 
+# Usage limits — show the tightest window, so one segment answers "how close am
+# I to being cut off". Colour by headroom, not by which window it came from.
+LIM_WORST=-1; LIM_LABEL=""; LIM_RESET=""
+if [ "$LIM_5H" -ge 0 ] && [ "$LIM_5H" -gt "$LIM_WORST" ]; then
+  LIM_WORST=$LIM_5H; LIM_LABEL="5h"; LIM_RESET=$(fmt_until "$RESET_5H")
+fi
+if [ "$LIM_7D" -ge 0 ] && [ "$LIM_7D" -gt "$LIM_WORST" ]; then
+  LIM_WORST=$LIM_7D; LIM_LABEL="7d"; LIM_RESET=$(fmt_until "$RESET_7D")
+fi
+if [ "$LIM_SPEND" -ge 0 ] && [ "$LIM_SPEND" -gt "$LIM_WORST" ]; then
+  LIM_WORST=$LIM_SPEND; LIM_LABEL="spend"; LIM_RESET=""
+fi
+if [ "$LIM_WORST" -ge 0 ]; then
+  if   [ "$LIM_WORST" -lt 50 ]; then LIM_COLOR="$G"
+  elif [ "$LIM_WORST" -lt 80 ]; then LIM_COLOR="$Y"
+  else LIM_COLOR="$R"; fi
+  LIM_SEG="${LIM_COLOR}${LIM_LABEL} ${LIM_WORST}%${Z}"
+  [ -n "$LIM_RESET" ] && LIM_SEG="${LIM_SEG}${D}→${LIM_RESET}${Z}"
+  L1="${L1} ${D}|${Z} ${LIM_SEG}"
+fi
+
 echo -e "$L1"
 
 # === LINE 2: Conditional alerts (only if something fires) ===
-[ ! -d "$AKT" ] && exit 0
-
 ALERTS=()
+
+# --- Alert: usage limit running out ---
+# Computed before the .tlk guard below: running out of quota matters whether or
+# not this project has the kit installed.
+# Line 1 shows the tightest window; line 2 names every window that is actually
+# tight, because "7d at 92%" and "5h at 85%" mean different things for the day.
+for _lim in "5h:$LIM_5H:$RESET_5H" "7d:$LIM_7D:$RESET_7D" "spend:$LIM_SPEND:0"; do
+  _lbl="${_lim%%:*}"; _rest="${_lim#*:}"; _pct="${_rest%%:*}"; _at="${_rest##*:}"
+  [ "$_pct" -ge 80 ] 2>/dev/null || continue
+  _until=$(fmt_until "$_at")
+  _msg="${_lbl} limit ${_pct}%"
+  [ -n "$_until" ] && _msg="${_msg} (resets ${_until})"
+  if [ "$_pct" -ge 95 ]; then ALERTS+=("${R}${_msg}${Z}"); else ALERTS+=("${Y}${_msg}${Z}"); fi
+done
+
+render_alerts() {
+  [ ${#ALERTS[@]} -gt 0 ] || return 0
+  local line2="" i
+  for i in "${!ALERTS[@]}"; do
+    [ "$i" -gt 0 ] && line2="${line2} ${D}|${Z} "
+    line2="${line2}${ALERTS[$i]}"
+  done
+  echo -e "${Y}⚠${Z} ${line2}"
+}
+
+# Everything below reads the kit's own state. Without .tlk there is none, so
+# emit whatever limit alerts fired and stop.
+if [ ! -d "$AKT" ]; then render_alerts; exit 0; fi
 
 # --- Alert: Memory stale (SESSION-STATE.md > 24h) ---
 if [ -f "$AKT/SESSION-STATE.md" ]; then
@@ -181,11 +252,4 @@ if [ "$FEAT_COUNT" -gt 1 ]; then
 fi
 
 # Output line 2 only if alerts exist
-if [ ${#ALERTS[@]} -gt 0 ]; then
-  LINE2=""
-  for i in "${!ALERTS[@]}"; do
-    [ "$i" -gt 0 ] && LINE2="${LINE2} ${D}|${Z} "
-    LINE2="${LINE2}${ALERTS[$i]}"
-  done
-  echo -e "${Y}⚠${Z} ${LINE2}"
-fi
+render_alerts

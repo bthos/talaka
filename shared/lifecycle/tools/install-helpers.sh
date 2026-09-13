@@ -23,7 +23,7 @@ install_kit_copy_file() {
   local saved_patches=""
 
   want=$(kit_sha256_file "$src_file") || return 1
-  mkdir -p "$(dirname "$target")"
+  [ -d "${target%/*}" ] || mkdir -p "${target%/*}"
   recorded=$(manifest_get_hash "$rel_path" || true)
 
   # Branch 1: missing or symlink
@@ -160,8 +160,10 @@ install_kit_copy_file() {
       printf '\n%s\n' "$saved_patches" >> "$target"
       _post_label="${_post_label:-} + patches preserved"
     fi
-    local final_hash
-    final_hash=$(kit_sha256_file "$target")
+    # cp reproduces the source byte for byte, so its hash is $want — rehash
+    # only when patches were appended after the copy.
+    local final_hash="$want"
+    [ -n "$saved_patches" ] && final_hash=$(kit_sha256_file "$target")
     manifest_set_hash "$rel_path" "$final_hash"
     success "$label ${_post_label:-}"
     unset _post_label
@@ -179,7 +181,7 @@ install_kit_copy_tree() {
   local saved_patches_dir=""
 
   want=$(kit_sha256_tree "$src_dir") || return 1
-  mkdir -p "$(dirname "$target")"
+  [ -d "${target%/*}" ] || mkdir -p "${target%/*}"
   recorded=$(manifest_get_hash "$rel_path" || true)
 
   if [ ! -e "$target" ] || [ -L "$target" ]; then
@@ -270,11 +272,12 @@ install_kit_copy_tree() {
   fi
 
   if $copy_now; then
-    # Save project-patch blocks from .md files before overwriting
-    saved_patches_dir=$(kit_mktemp "tlk-tree-patches") || true
+    # Save project-patch blocks from .md files before overwriting. A fresh
+    # install has no target and so nothing to save.
+    if [ -d "$target" ]; then
+      saved_patches_dir=$(kit_mktemp -d "tlk-tree-patches") || true
+    fi
     if [ -n "$saved_patches_dir" ] && [ -d "$target" ]; then
-      rm -f "$saved_patches_dir"
-      mkdir -p "$saved_patches_dir"
       local md_file
       for md_file in "$target"/*.md; do
         [ -f "$md_file" ] || continue
@@ -284,7 +287,7 @@ install_kit_copy_tree() {
       done
     fi
 
-    rm -rf "$target"
+    if [ -e "$target" ] || [ -L "$target" ]; then rm -rf "$target"; fi
     cp -R "$src_dir" "$target"
     kit_base_write "$rel_path" "$src_dir"
 
@@ -303,8 +306,8 @@ install_kit_copy_tree() {
       done
     fi
 
-    local final_hash
-    final_hash=$(kit_sha256_tree "$target")
+    local final_hash="$want"
+    $had_patches && final_hash=$(kit_sha256_tree "$target")
     manifest_set_hash "$rel_path" "$final_hash"
     if $had_patches; then
       _post_label="${_post_label:-} + patches preserved"

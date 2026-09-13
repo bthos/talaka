@@ -1,0 +1,161 @@
+# Goal loop — Талака
+
+The default prompt for Claude Code's bundled `/loop`. A `/loop` with no prompt (`/loop`, or `/loop 30m`) runs `.claude/loop.md` on every iteration; a `/loop <prompt>` ignores it. **Each `/loop` iteration is one iteration of this protocol.** The coordinator works the goal that way until it is met, blocked, or out of budget, then ends the loop instead of scheduling another wake.
+
+The feature pipeline (`.tlk/PIPELINE.md`) is for *build this thing*. This loop is for everything else the kit can do and almost never gets asked to: map a codebase, audit it for drift, challenge an approach, research before planning, ratchet the agents themselves. One goal in, many small iterations, one worker per iteration.
+
+**Read `.tlk/PIPELINE.md` first.** Routing, log formats and the no-invocation rule come from there and are not restated here.
+
+---
+
+## Contract
+
+- **One worker per iteration.** The coordinator invokes it. Workers never invoke each other.
+- **Every iteration is logged.** `.tlk/goals/<YYYY-MM-DD>-<slug>/handoff-log.md`, same entry formats as the pipeline.
+- **Every iteration ends in a decision**: continue, escalate to the build pipeline, stop, or ask the user.
+- **Nothing ships without Bagnik.** The loop may write code only through `@cmok` → `@bagnik` → `@zlydni`. It never edits and commits on its own.
+- **Terse.** The Голас block applies — verdict, paths, numbers, stop.
+
+---
+
+## Which goal
+
+A bare `/loop` carries no objective, so settle that first:
+
+- **Exactly one open goal** in `.tlk/goals/` (a `goal.md` with no `summary.md` beside it) → resume it.
+- **Several open** → list them in one line each and ask which.
+- **None** → ask the user for the objective, then run *Setup*.
+
+## Setup (first iteration only)
+
+```bash
+mkdir -p .tlk/goals/$(date +%F)-<slug>
+```
+
+Write `goal.md` in that folder before anything else:
+
+```markdown
+# Goal: <one line>
+
+**Definition of done:** <observable, checkable — not "better", but "no finding above P2 in audit.md">
+**Out of scope:** <what this loop must not touch>
+**Budget:** <N iterations | until done | nightly>
+**Started:** YYYY-MM-DD
+```
+
+If the definition of done is not observable, fix that with the user before iteration 1. A loop with a vague target never terminates — it just gets expensive.
+
+---
+
+## The iteration
+
+1. **Assess.** Read `goal.md`, the last entries of `handoff-log.md`, and `.tlk/MEMORY.md`. State in one line where the goal stands.
+2. **Pick ONE technique** from the menu below. Prefer the cheapest technique that can move the goal; prefer a technique that produces an artifact over one that produces an opinion.
+3. **Invoke it** with the standard invocation prompt (PIPELINE.md → *Invocation Prompt Template*), passing `.tlk/goals/<slug>/` as the feature path.
+4. **Read the return entry.** Not the worker's prose — the log.
+5. **Record.** Append one progress entry naming the iteration, the technique, and what changed.
+6. **Decide.** Continue, escalate, stop, or ask. Say which and why in one line.
+
+Never run two techniques in one iteration "to save time". The whole value of the loop is that each step is judged before the next is chosen.
+
+---
+
+## Technique menu
+
+| The goal needs… | Run | Produces |
+|---|---|---|
+| Orientation in unfamiliar code | `/codebase-mapping` | `map.md` — tree, entry points, invocation edges, conventions |
+| Drift, contradictions, hardcoded values found | `/consistency-auditing` | ranked `audit.md`, every finding with `file:line` |
+| The approach stress-tested before it is locked | `/assumptions-challenging` | blind spots, advisory, read-only |
+| Verified facts before planning | `/tasks-researching` | `research-brief.md`, converged on ONE approach |
+| An outside pattern brought in | `/patterns-adapting` | `adaptation.md` |
+| Requirements made explicit | `/requirements-eliciting` | `spec.md` with testable acceptance criteria |
+| Architecture + tests designed | `/architecture-planning` | tech plan, tests, AC-to-test map |
+| A hard bug understood | `/bugs-diagnosing` → `@yaga` (user-authorised) | `hypothesis.md`, then `findings.md` |
+| Durable knowledge kept | `/knowledge-curating` | `wiki/` pages with citations |
+| An agent/skill prompt fixed | `/prompts-building` | a prompt validated by execution |
+| The agents themselves made better/cheaper | `@veles` | accepted mutations + `runs/ratchet.jsonl` |
+| Code written | `@cmok` → `@bagnik` → `@zlydni` | the change, gated and committed |
+| Docs written | `@mokash` | README / API docs / guides |
+
+---
+
+## Archetypes
+
+Recipes, not rails. Re-decide after every iteration.
+
+**"Improve this codebase."**
+`/codebase-mapping` → `/consistency-auditing` → pick the top finding → `/architecture-planning` → `@bagnik` → `@cmok` → `@bagnik` → `@zlydni` → next finding.
+Done when no finding above the severity named in `goal.md` remains.
+
+**"Find the architecture gaps."**
+`/codebase-mapping` → `/assumptions-challenging` against the map → `/tasks-researching` on the weakest seam → `/architecture-planning`. Stop at the plan; ask before building.
+
+**"Make the kit cheaper / the agents better."**
+`.tlk/autoresearch/tools/analyze-metrics.sh --report` first — it ranks every agent and skill by *measured* cost and names the one with composite headroom. Then `@veles` with a round budget against that target. This is the nightly mode below.
+
+**"Onboard me."**
+`/codebase-mapping` → `/knowledge-curating ingest` the map and the key docs → answer the user's questions from the wiki with citations.
+
+**"Chase this bug."**
+`/bugs-diagnosing` → **STOP, ask the user to authorise** → `@yaga` → `@cmok` → `@bagnik` → `@yaga` (strip) → `@bagnik` → `@zlydni`.
+
+**"Ship feature X."** — not this loop. Hand it to `.tlk/PIPELINE.md` at `/requirements-eliciting`.
+
+---
+
+## Stop conditions
+
+Stop and report when **any** holds:
+
+- The definition of done in `goal.md` is met.
+- The iteration budget is spent.
+- Two consecutive iterations produced no new artifact and no new finding.
+- The same finding has failed to be fixed twice — surface it to the user instead of a third attempt.
+- A worker returns `blocked` with a blocker the loop cannot own (credentials, a product decision, an external dependency).
+- The next step would write code, and the user has not authorised writes for this goal.
+
+On stop: one return entry, plus a `summary.md` in the goal folder — what changed, what is left, what to run next. Then end the `/loop` rather than scheduling another wake. Nothing else.
+
+---
+
+## Nightly mode
+
+The loop is safe to leave running; it is designed to leave a log behind rather than a surprise. Create the goal once (e.g. *ratchet the agents — one Veles round per wake*, `Budget: nightly`), then give `/loop` a fixed interval and no prompt:
+
+```
+/loop 8h
+```
+
+Each wake runs this file and resumes that open goal (see *Which goal*). A wake that finds several open goals and no one to ask works the one with `Budget: nightly`, or logs that it could not choose and stops.
+
+`/loop` is session-scoped: it fires only while the Claude Code session is open and idle, and a recurring loop expires after seven days. For a run that does not depend on an open session, use a Desktop scheduled task — it runs on this machine. A cloud routine works from a fresh clone and cannot see the git-ignored `.tlk/`, so it has no goals to resume.
+
+Rules for an unattended run:
+
+- **Read-only or self-improving techniques only** — mapping, auditing, research, `@veles`. Never `@cmok`, never `@zlydni`, never a commit.
+- **One round per wake.** Report and stop; do not chain.
+- **Log even when nothing happened.** "No round: three consecutive rejections yesterday" is a useful line.
+- Veles enforces its own invariants (`.tlk/autoresearch/program.md`) regardless of who woke it.
+
+A nightly maintenance wake worth scheduling, in order:
+
+```bash
+.tlk/autoresearch/tools/fetch-pricing.sh --check || .tlk/autoresearch/tools/fetch-pricing.sh
+.tlk/autoresearch/tools/analyze-metrics.sh --days 7 --report
+```
+
+Then hand `suggested_target` to `@veles` for one round. The price refresh is first because every cost number below it depends on the table being current — a ranking built on last quarter's prices sends Veles after the wrong prompt.
+
+---
+
+## Files
+
+| Path | What |
+|---|---|
+| `.tlk/goals/<date>-<slug>/goal.md` | The goal and its definition of done |
+| `.tlk/goals/<date>-<slug>/handoff-log.md` | Every iteration, in pipeline entry format |
+| `.tlk/goals/<date>-<slug>/summary.md` | Written once, on stop |
+| `.tlk/goals/<date>-<slug>/metrics.jsonl` | Measured tokens/cost per iteration (`record-metrics.sh`) |
+
+All of `.tlk/` is git-ignored by the kit's managed block — a goal loop commits nothing of its own.

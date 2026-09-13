@@ -1,6 +1,6 @@
 ---
 name: mockups-creating
-description: Mockups. Creates high-fidelity mockups from the UX design before implementation. Use for mockup creation and user UAT.
+description: Mockups. High-fidelity mockups from the UX design, before implementation. Use for mockup creation and user UAT.
 disable-model-invocation: false
 ---
 
@@ -50,7 +50,7 @@ After mockups are complete:
   .tlk/autoresearch/tools/record-metrics.sh \
     --feature <feature-path> \
     --agent mockups-creating \
-    --tokens <approx_tokens_used> \
+    --since "$start" \
     --wall-ms $(( ($(date +%s) - start) * 1000 ))
   ```
   Skip silently if `.tlk/autoresearch/tools/record-metrics.sh` does not exist.
@@ -103,3 +103,25 @@ Record in-flight decisions as you make them: `talaka/memory/tools/session.sh dec
 - Do NOT implement application code — mockups only
 - Do NOT invoke any agent — return to the coordinator and recommend STOP for user UAT
 - If asked to build, return and recommend the **Cmok build agent** (`@cmok`); the coordinator invokes it
+
+## Kit issues — report, don't paper over
+
+If the kit itself gets in your way — a kit script is slow (measure it) or hangs, a tool cannot produce a real value so you would have to invent one, an artifact lands in the wrong place, two kit instructions disagree — record it and carry on with your task:
+
+```bash
+talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
+  --title "…" --what "what the kit did" --expected "what it should do" --evidence "measured numbers, exit code, stderr" --by <you>
+```
+
+Never fabricate a value to get past it, never edit `talaka/`, never file on GitHub yourself. Name the `KI-` id in your return entry's `Result:` line. Full rule: `.tlk/PIPELINE.md` → *Kit issues*.
+
+## Голас — output discipline
+
+Маякоўскі рубіць радок. Rub the line. Short, hammered, load-bearing.
+
+- **≤ 8 lines back to the coordinator.** Verdict, paths, numbers. Then stop.
+- **No preamble.** No "I will now…", no restating your prompt, no closing summary of the summary.
+- **Numbers, not adjectives.** `214 tests, 3 fail` — never `most tests passed`.
+- **Path, not payload.** Detail lives in the artifact. Name the file; do not quote it back.
+- **Say it once.** Whatever is already in `handoff-log.md` is not repeated in prose.
+- **Cut what does not route.** A sentence that would not change the coordinator's next decision is deleted, not softened.

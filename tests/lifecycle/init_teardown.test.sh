@@ -6,14 +6,26 @@
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib.sh"
 
 # Build a project with the kit copied in; echo the project root.
-_make_project_with_kit() {
+_make_project_with_full_kit() {
   local proj; proj=$(make_tmp_project)
   install_kit_into "$proj"
   printf '%s' "$proj"
 }
 
+# Same, trimmed to the agent and skill the assertions name. A full install is
+# every agent and skill tree, and on Windows/git-bash each file costs several
+# process spawns — five full installs plus two teardowns ran past ten minutes.
+# Only the layout test needs the whole kit; the rest assert contracts that one
+# agent and one skill exercise just as well (same trim as merge_on_update).
+_make_project_with_kit() {
+  local proj; proj=$(_make_project_with_full_kit)
+  find "$proj/talaka/agents" -maxdepth 1 -name '*.md' ! -name 'cmok.md' -delete 2>/dev/null || true
+  find "$proj/talaka/skills" -mindepth 1 -maxdepth 1 -type d ! -name 'requirements-eliciting' -exec rm -rf {} + 2>/dev/null || true
+  printf '%s' "$proj"
+}
+
 test_init_creates_full_layout() {
-  local proj; proj=$(_make_project_with_kit)
+  local proj; proj=$(_make_project_with_full_kit)
   ( cd "$proj" && bash talaka/shared/lifecycle/tools/init.sh --non-interactive ) >/dev/null 2>&1 \
     || fail "init.sh exited non-zero"
 
@@ -21,6 +33,8 @@ test_init_creates_full_layout() {
   assert_file_exists "$proj/.tlk/PROJECT.md"
   assert_file_exists "$proj/.claude/agents/cmok.md"        "an agent was installed"
   assert_file_exists "$proj/.claude/skills/requirements-eliciting/SKILL.md" "a skill was installed"
+  assert_file_exists "$proj/.claude/loop.md"          "the goal-loop protocol was installed"
+  assert_file_absent "$proj/.claude/commands/goal.md" "no /goal command shadows Claude Code's built-in"
   assert_file_exists "$proj/.tlk/.talaka.files"        "manifest written"
 
   assert_file_contains "$proj/CLAUDE.md" "<!-- talaka:start -->"
@@ -28,6 +42,18 @@ test_init_creates_full_layout() {
   assert_file_contains "$proj/.gitignore" "# >>> talaka (managed) >>>"
   # Manifest records the installed agent so teardown can verify it later.
   assert_file_contains "$proj/.tlk/.talaka.files" ".claude/agents/cmok.md"
+
+  # Every shipped agent and skill lands, not just the two named above.
+  local f name
+  for f in "$KIT_ROOT"/agents/*.md; do
+    name=${f##*/}
+    assert_file_exists "$proj/.claude/agents/$name" "agent $name installed"
+  done
+  for f in "$KIT_ROOT"/skills/*/; do
+    name=${f%/}; name=${name##*/}
+    assert_file_exists "$proj/.claude/skills/$name/SKILL.md" "skill $name installed"
+    assert_file_contains "$proj/.tlk/.talaka.files" ".claude/skills/$name" "skill $name in manifest"
+  done
 }
 
 test_init_is_idempotent() {
@@ -67,7 +93,12 @@ test_teardown_reverses_install() {
   assert_file_not_contains "$proj/CLAUDE.md" "<!-- talaka:start -->" "block stripped from CLAUDE.md"
   assert_file_not_contains "$proj/.gitignore" "# >>> talaka (managed) >>>" "gitignore block stripped"
   assert_file_absent "$proj/.claude/agents/cmok.md" "installed agent removed (hash matched)"
+  assert_file_absent "$proj/.claude/loop.md"          "goal-loop protocol removed (hash matched)"
   assert_file_absent "$proj/.tlk/PIPELINE.md" "PIPELINE.md removed"
+  if command -v jq >/dev/null 2>&1 && [ -f "$proj/.claude/settings.json" ]; then
+    assert_eq "null" "$(jq -r '.outputStyle' "$proj/.claude/settings.json")" \
+      "the kit's outputStyle is removed too"
+  fi
   # PROJECT.md carries user config — kept without --full-clean.
   assert_file_exists "$proj/.tlk/PROJECT.md" "PROJECT.md preserved by default"
 }
@@ -80,6 +111,10 @@ test_teardown_preserves_locally_edited_agent() {
   ( cd "$proj" && bash talaka/shared/lifecycle/tools/teardown.sh --yes ) >/dev/null 2>&1
   assert_file_exists "$proj/.claude/agents/cmok.md" "locally edited agent is NOT deleted"
   assert_file_contains "$proj/.claude/agents/cmok.md" "my local tweak"
+  # Keeping one file must not end the teardown: later steps still run.
+  assert_file_absent "$proj/.claude/skills/requirements-eliciting/SKILL.md" "skills still removed after a kept agent"
+  assert_file_absent "$proj/.claude/loop.md" "goal loop still removed after a kept agent"
+  assert_file_not_contains "$proj/.gitignore" "# >>> talaka (managed) >>>" "gitignore block still stripped after a kept agent"
 }
 
 run_tests "$@"

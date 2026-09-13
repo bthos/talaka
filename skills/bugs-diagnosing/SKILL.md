@@ -1,6 +1,6 @@
 ---
 name: bugs-diagnosing
-description: Hypothesis design for hard bugs. Reads the bug + relevant code and produces a structured hypothesis.md with ranked hypotheses and an instrumentation plan. No code edits, no log server. Logs and returns to the coordinator, recommending @yaga for the execution loop.
+description: Hypothesis design for hard bugs. Reads the bug plus the code and writes hypothesis.md — ranked hypotheses and an instrumentation plan. No code edits, no log server. Recommends @yaga for the execution loop.
 disable-model-invocation: false
 ---
 
@@ -73,3 +73,25 @@ Pick the minimum number of probes that can discriminate between hypotheses. A pr
 ## Memory
 
 Read L4 first (`.tlk/MEMORY.md`). Drill into `memory/anti-patterns.md` if it exists — prior root-cause categories are gold for hypothesis ranking. Write nothing yourself; the agent form handles L2 writes when evidence is in.
+
+## Kit issues — report, don't paper over
+
+If the kit itself gets in your way — a kit script is slow (measure it) or hangs, a tool cannot produce a real value so you would have to invent one, an artifact lands in the wrong place, two kit instructions disagree — record it and carry on with your task:
+
+```bash
+talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
+  --title "…" --what "what the kit did" --expected "what it should do" --evidence "measured numbers, exit code, stderr" --by <you>
+```
+
+Never fabricate a value to get past it, never edit `talaka/`, never file on GitHub yourself. Name the `KI-` id in your return entry's `Result:` line. Full rule: `.tlk/PIPELINE.md` → *Kit issues*.
+
+## Голас — output discipline
+
+Маякоўскі рубіць радок. Rub the line. Short, hammered, load-bearing.
+
+- **≤ 8 lines back to the coordinator.** Verdict, paths, numbers. Then stop.
+- **No preamble.** No "I will now…", no restating your prompt, no closing summary of the summary.
+- **Numbers, not adjectives.** `214 tests, 3 fail` — never `most tests passed`.
+- **Path, not payload.** Detail lives in the artifact. Name the file; do not quote it back.
+- **Say it once.** Whatever is already in `handoff-log.md` is not repeated in prose.
+- **Cut what does not route.** A sentence that would not change the coordinator's next decision is deleted, not softened.

@@ -19,6 +19,24 @@ $cost = if ($null -ne $data.cost.total_cost_usd) { [double]$data.cost.total_cost
 $linesAdded = if ($null -ne $data.cost.total_lines_added) { [int]$data.cost.total_lines_added } else { 0 }
 $linesRemoved = if ($null -ne $data.cost.total_lines_removed) { [int]$data.cost.total_lines_removed } else { 0 }
 
+# Usage limits. Claude Code supplies these; -1 means "not present in the
+# payload" so a genuine 0% still renders.
+function Get-Pct($v) { if ($null -ne $v) { [math]::Floor([double]$v) } else { -1 } }
+$lim5h    = Get-Pct $data.rate_limits.five_hour.used_percentage
+$lim7d    = Get-Pct $data.rate_limits.seven_day.used_percentage
+$limSpend = Get-Pct $data.rate_limits.spend_limit.used_percentage
+$reset5h  = if ($null -ne $data.rate_limits.five_hour.resets_at) { [long]$data.rate_limits.five_hour.resets_at } else { 0 }
+$reset7d  = if ($null -ne $data.rate_limits.seven_day.resets_at) { [long]$data.rate_limits.seven_day.resets_at } else { 0 }
+
+function Format-Until([long]$at) {
+    if ($at -le 0) { return "" }
+    $delta = $at - [long][double]::Parse((Get-Date -UFormat %s))
+    if ($delta -le 0) { return "" }
+    if     ($delta -ge 86400) { return "$([math]::Floor($delta / 86400))d" }
+    elseif ($delta -ge 3600)  { return "$([math]::Floor($delta / 3600))h" }
+    else                      { return "$([math]::Floor($delta / 60))m" }
+}
+
 # --- Colors ---
 $e = [char]27
 $cyan    = "$e[36m"; $magenta = "$e[35m"; $green = "$e[32m"
@@ -108,12 +126,51 @@ $costFmt = '$' + $cost.ToString("F2")
 $linesFmt = "${green}+${linesAdded}${reset}/${red}-${linesRemoved}${reset}"
 
 $l1 += " ${dim}|${reset} ${bar} ${pct}% ${dim}|${reset} ${costFmt} ${dim}|${reset} ${linesFmt}"
+
+# Usage limits — the tightest window, so one segment answers "how close am I to
+# being cut off". Coloured by headroom, not by which window it came from.
+$limWorst = -1; $limLabel = ""; $limReset = ""
+if ($lim5h    -ge 0 -and $lim5h    -gt $limWorst) { $limWorst = $lim5h;    $limLabel = "5h";    $limReset = Format-Until $reset5h }
+if ($lim7d    -ge 0 -and $lim7d    -gt $limWorst) { $limWorst = $lim7d;    $limLabel = "7d";    $limReset = Format-Until $reset7d }
+if ($limSpend -ge 0 -and $limSpend -gt $limWorst) { $limWorst = $limSpend; $limLabel = "spend"; $limReset = "" }
+if ($limWorst -ge 0) {
+    if     ($limWorst -lt 50) { $limColor = $green }
+    elseif ($limWorst -lt 80) { $limColor = $yellow }
+    else                      { $limColor = $red }
+    $limSeg = "${limColor}${limLabel} ${limWorst}%${reset}"
+    if ($limReset) { $limSeg += "${dim}$([char]0x2192)${limReset}${reset}" }
+    $l1 += " ${dim}|${reset} ${limSeg}"
+}
+
 Write-Host $l1
 
 # === LINE 2: Conditional alerts ===
-if (-not (Test-Path $tlkDir)) { exit }
-
 $alerts = @()
+
+# --- Alert: usage limit running out ---
+# Before the .tlk check below: running out of quota matters whether or not this
+# project has the kit installed.
+foreach ($lim in @(@("5h", $lim5h, $reset5h), @("7d", $lim7d, $reset7d), @("spend", $limSpend, 0))) {
+    $lbl = $lim[0]; $p = [int]$lim[1]; $at = [long]$lim[2]
+    if ($p -lt 80) { continue }
+    $until = Format-Until $at
+    $msg = "$lbl limit $p%"
+    if ($until) { $msg += " (resets $until)" }
+    if ($p -ge 95) { $alerts += "${red}${msg}${reset}" } else { $alerts += "${yellow}${msg}${reset}" }
+}
+
+function Write-Alerts($alerts) {
+    if ($alerts.Count -eq 0) { return }
+    $line2 = ""
+    for ($i = 0; $i -lt $alerts.Count; $i++) {
+        if ($i -gt 0) { $line2 += " ${dim}|${reset} " }
+        $line2 += $alerts[$i]
+    }
+    Write-Host "${yellow}$([char]0x26A0)${reset} $line2"
+}
+
+# Everything below reads the kit's own state.
+if (-not (Test-Path $tlkDir)) { Write-Alerts $alerts; exit }
 
 # --- Alert: Memory stale (SESSION-STATE.md > 24h) ---
 $ssPath = Join-Path $tlkDir "SESSION-STATE.md"
@@ -192,7 +249,4 @@ if ($featCount -gt 1) {
 }
 
 # Output line 2 only if alerts exist
-if ($alerts.Count -gt 0) {
-    $line2 = "${yellow}`u{26A0}${reset} " + ($alerts -join " ${dim}|${reset} ")
-    Write-Host $line2
-}
+Write-Alerts $alerts

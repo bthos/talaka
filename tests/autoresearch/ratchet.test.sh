@@ -98,6 +98,21 @@ EOF
   assert_file_contains "$proj/.tlk/autoresearch/runs/rejected.jsonl" "invariant violation" "rejection logged"
 }
 
+test_aborts_when_the_judge_pipeline_is_broken() {
+  # A judge that cannot produce a verdict used to score every entry 0 for both
+  # variants, so the ratchet "decided" the round on noise (and, with equal
+  # composites, accepted the proposal). It must abort and revert instead.
+  local proj; proj=$(_setup_round 'bash -c "echo not authenticated >&2; exit 1"')
+  local out rc
+  out=$(_ratchet "$proj" 2>&1); rc=$?
+  assert_ne "0" "$rc" "broken judge is a non-zero exit"
+  assert_contains "$out" "judge pipeline is broken" "abort names the cause"
+  assert_not_contains "$out" "ACCEPT" "no accept decision on a broken judge"
+  assert_file_contains "$proj/.claude/agents/cmok.md" "AGENT BASELINE" "live file reverted to baseline"
+  assert_file_not_contains "$proj/.claude/agents/cmok.md" "AGENT PROPOSAL" "proposal not promoted"
+  assert_file_absent "$proj/.tlk/autoresearch/runs/ratchet.jsonl" "no decision logged"
+}
+
 test_requires_round_id_and_target() {
   local proj; proj=$(_setup_round "printf 1")
   ( cd "$proj" && bash talaka/autoresearch/tools/ratchet.sh --target .claude/agents/cmok.md >/dev/null 2>&1 ) \

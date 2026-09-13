@@ -172,6 +172,8 @@ register_actions() {
        "$KIT/shared/project/tools/feature-status.sh"
   add memory   2 daily "Search memory"                   "Top-k retrieval across all memory layers (L1..L4). Prompts for a query." \
        "::memory-prompt"
+  add issues   2 daily "Kit issues (field reports)"      "List problems agents hit in the kit itself ($ARTEFACTS_NAME/kit-issues.md). File one with: kit-issue.sh submit KI-nnn." \
+       "$KIT/shared/feedback/tools/kit-issue.sh::list::--all"
 
   # ---- maintenance ----
   add bump     2 maint "Bump version (patch)"            "Increment Z in X.Y.Z across every file listed under 'Version files:' in PROJECT.md." \
@@ -270,6 +272,8 @@ register_components() {
        "Eval-set + program.md + ratchet self-tuning (builds eval-set from archived features)."
   cadd memhook      "Memory Stop hook"     "$KIT/memory/tools/memory-hook.sh"         "$KIT/memory/tools/memory-hook.sh::--remove" \
        "Claude Code Stop hook: runs memory promote + rollover when a session/subagent ends."
+  cadd concise      "Concise output style" "$KIT/shared/lifecycle/tools/install-output-style.sh::--force" "$KIT/shared/lifecycle/tools/install-output-style.sh::--remove" \
+       "Sets outputStyle=Concise in .claude/settings.json — trims the coordinator's own narration."
 }
 
 # component_installed KEY → return 0 if the component is currently active.
@@ -279,6 +283,7 @@ component_installed() {
     statusline)   [ -f "$sf" ] && grep -q '"statusLine"' "$sf" 2>/dev/null ;;
     autoresearch) [ -f "$ARTEFACTS/autoresearch/program.md" ] ;;
     memhook)      [ -f "$sf" ] && grep -q 'memory/tools/tick.sh' "$sf" 2>/dev/null ;;
+    concise)      [ -f "$sf" ] && grep -q '"outputStyle"[[:space:]]*:[[:space:]]*"Concise"' "$sf" 2>/dev/null ;;
     *) return 1 ;;
   esac
 }

@@ -47,10 +47,10 @@ fi
 PY_HELPER="$(cd "$(dirname "$0")" && pwd)/search.py"
 if [ -f "$PY_HELPER" ] && command -v python3 &>/dev/null \
    && python3 -c "import sklearn" 2>/dev/null; then
-  exec python3 "$PY_HELPER" \
-    --query "$QUERY" --top-k "$TOP_K" \
-    ${LAYER:+--layer "$LAYER"} \
-    $($AS_JSON && echo --json)
+  py_args=(--query "$QUERY" --top-k "$TOP_K")
+  [ -n "$LAYER" ] && py_args+=(--layer "$LAYER")
+  $AS_JSON && py_args+=(--json)
+  exec python3 "$PY_HELPER" "${py_args[@]}"
 fi
 
 # ---------------------------------------------------------------------------

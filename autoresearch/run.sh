@@ -75,15 +75,22 @@ if $INIT; then
     echo "  Kept existing: $PROGRAM"
   fi
 
-  # Install record-metrics.sh template (same rule — never overwrite)
-  METRICS_SCRIPT="$TOOLS_DIR/record-metrics.sh"
-  if [ ! -f "$METRICS_SCRIPT" ]; then
-    cp "$TEMPLATES_DIR/tools/record-metrics.sh" "$METRICS_SCRIPT"
-    chmod +x "$METRICS_SCRIPT"
-    echo "  Installed: $METRICS_SCRIPT"
-  else
-    echo "  Kept existing: $METRICS_SCRIPT"
-  fi
+  # Install the metrics toolchain (same rule — never overwrite).
+  #   record-metrics.sh   writes a row per run
+  #   collect-usage.sh    measures that row's tokens from the session transcript
+  #   analyze-metrics.sh  reads the rows back so Veles can act on them
+  #   pricing.json        turns measured tokens into a measured cost
+  #   fetch-pricing.sh    refreshes pricing.json from the published price list
+  for _t in record-metrics.sh collect-usage.sh analyze-metrics.sh fetch-pricing.sh pricing.json; do
+    _dest="$TOOLS_DIR/$_t"
+    if [ ! -f "$_dest" ]; then
+      cp "$TEMPLATES_DIR/tools/$_t" "$_dest"
+      case "$_t" in *.sh) chmod +x "$_dest" ;; esac
+      echo "  Installed: $_dest"
+    else
+      echo "  Kept existing: $_dest"
+    fi
+  done
 
   ARTEFACTS_DIR="$ARTEFACTS" "$PKG_DIR/tools/build-eval-set.sh"
   echo "OK. Eval entries:"
@@ -105,14 +112,12 @@ candidates=()
 if [ -n "$TARGET" ]; then
   candidates=( "$TARGET" )
 else
-  for d in .claude/agents; do
-    [ -d "$d" ] || continue
-    while IFS= read -r f; do candidates+=( "$f" ); done < <(find "$d" -maxdepth 1 -name '*.md' 2>/dev/null)
-  done
-  for d in .claude/skills; do
-    [ -d "$d" ] || continue
-    while IFS= read -r f; do candidates+=( "$f" ); done < <(find "$d" -mindepth 2 -maxdepth 2 -name 'SKILL.md' 2>/dev/null)
-  done
+  if [ -d .claude/agents ]; then
+    while IFS= read -r f; do candidates+=( "$f" ); done < <(find .claude/agents -maxdepth 1 -name '*.md' 2>/dev/null)
+  fi
+  if [ -d .claude/skills ]; then
+    while IFS= read -r f; do candidates+=( "$f" ); done < <(find .claude/skills -mindepth 2 -maxdepth 2 -name 'SKILL.md' 2>/dev/null)
+  fi
 fi
 
 if [ ${#candidates[@]} -eq 0 ]; then

@@ -310,6 +310,27 @@ link_claude_skills() {
 }
 
 # ---------------------------------------------------------------------------
+# Goal loop (.claude/loop.md)
+#
+# The feature pipeline covers "build this thing". The goal loop covers
+# everything else the kit can do and rarely gets asked to — mapping, drift
+# audits, research, the Veles ratchet. The entry point is Claude Code's
+# bundled /loop: with no prompt it runs .claude/loop.md each iteration. The
+# kit ships the protocol only, never a /loop or /goal command that would shadow
+# the built-ins.
+# ---------------------------------------------------------------------------
+install_goal_loop() {
+  header "Goal loop (.claude/loop.md)"
+
+  local loop_src="$SCRIPT_DIR/templates/loop.md.template"
+  if [ -f "$loop_src" ]; then
+    install_kit_copy_file ".claude/loop.md" ".claude/loop.md" "$loop_src" || true
+  else
+    warn "templates/loop.md.template missing — skipping goal loop."
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # Main setup: agents + skills + entry-point files
 # ---------------------------------------------------------------------------
 setup_kit() {
@@ -324,6 +345,7 @@ setup_kit() {
   done
 
   link_claude_skills
+  install_goal_loop
 
   header "Entry-point files (managed include blocks)"
   install_pipeline_include "CLAUDE.md" "CLAUDE.md"
@@ -476,10 +498,19 @@ if [ "$FRESH_PROJECT_MD" = true ]; then
         read -r yn; yn="${yn:-Y}"
         [[ "$yn" =~ ^[Yy]$ ]] && run_fill=true
       elif { : >/dev/tty; } 2>/dev/null; then
+        # Bounded, and silence means NO here — unlike the TTY branch above, whose
+        # default is Y. Nobody is necessarily watching this terminal, and the
+        # "yes" path spawns a nested Claude process that edits PROJECT.md. An
+        # unanswered prompt must not start that on its own.
         printf '\n'
         printf "  Fill in ${BOLD}$PROJECT_REL${RESET} automatically using Claude? [${BOLD}Y${RESET}/n] " > /dev/tty
-        read -r yn < /dev/tty; yn="${yn:-Y}"
-        [[ "$yn" =~ ^[Yy]$ ]] && run_fill=true
+        if read -t "${TALAKA_PROMPT_TIMEOUT:-15}" -r yn < /dev/tty; then
+          yn="${yn:-Y}"
+          [[ "$yn" =~ ^[Yy]$ ]] && run_fill=true
+        else
+          printf '\n' > /dev/tty
+          info "No answer — leaving $PROJECT_REL placeholders for you to fill in."
+        fi
       fi
     fi
 
@@ -608,9 +639,19 @@ else
     read -r yn; yn="${yn:-N}"
     [[ "$yn" =~ ^[Yy]$ ]] && _do_hook=true
   elif { : >/dev/tty; } 2>/dev/null; then
+    # stdin is redirected but a controlling terminal exists — some IDE terminals
+    # look like this, and a human there can still answer. An agent session looks
+    # identical and never will, so the read is bounded: an unanswered prompt
+    # must not wedge the install. Without the timeout `init.sh </dev/null` hangs
+    # forever wherever /dev/tty opens but nobody is typing.
     printf "  Install a Claude Code Stop hook to auto-run memory promote + rollover? [y/N] " > /dev/tty
-    read -r yn < /dev/tty; yn="${yn:-N}"
-    [[ "$yn" =~ ^[Yy]$ ]] && _do_hook=true
+    if read -t "${TALAKA_PROMPT_TIMEOUT:-15}" -r yn < /dev/tty; then
+      yn="${yn:-N}"
+      [[ "$yn" =~ ^[Yy]$ ]] && _do_hook=true
+    else
+      printf '\n' > /dev/tty
+      info "No answer — skipping the memory hook (install later: $SUBMODULE_DIR/memory/tools/memory-hook.sh)"
+    fi
   fi
 fi
 
@@ -619,6 +660,17 @@ if $_do_hook && [ -x "$_hook_install" ]; then
   ( cd "$PROJECT_ROOT" && "$_hook_install" ) || warn "memory-hook.sh exited non-zero."
 elif $_do_hook && [ ! -x "$_hook_install" ]; then
   warn "memory-hook.sh not found at $_hook_install — skipping."
+fi
+
+# ---------------------------------------------------------------------------
+# Output style: the kit is chatty by construction (a coordinator plus six
+# agents and fourteen skills, all narrating). "Concise" is the harness-level
+# lever; the Голас block in every worker prompt is the prompt-level one.
+# Only ever set when unset — a style the user picked is kept.
+# ---------------------------------------------------------------------------
+_os_install="$SCRIPT_DIR/shared/lifecycle/tools/install-output-style.sh"
+if [ -x "$_os_install" ]; then
+  ( cd "$PROJECT_ROOT" && "$_os_install" ) || warn "install-output-style.sh exited non-zero."
 fi
 
 # ---------------------------------------------------------------------------
@@ -642,10 +694,13 @@ printf "  ${DIM}%-38s${RESET} %s\n" "Project config:"    "${CYAN}$PROJECT_REL${R
 printf "  ${DIM}%-38s${RESET} %s\n" "Entry points:"      "${CYAN}CLAUDE.md, AGENTS.md${RESET} (managed include blocks)"
 printf "  ${DIM}%-38s${RESET} %s\n" "Agents installed:"  "${CYAN}.claude/agents/${RESET}"
 printf "  ${DIM}%-38s${RESET} %s\n" "Skills installed:"  "${CYAN}.claude/skills/${RESET}"
+printf "  ${DIM}%-38s${RESET} %s\n" "Goal loop:"         "${CYAN}.claude/loop.md${RESET} (default prompt of a bare ${CYAN}/loop${RESET})"
 printf "  ${DIM}%-38s${RESET} %s\n" "Statusline:"        "${CYAN}.claude/settings.json (statusLine)${RESET}"
+printf "  ${DIM}%-38s${RESET} %s\n" "Output style:"      "${CYAN}.claude/settings.json (outputStyle: Concise)${RESET}"
 
 printf "\n  ${BOLD}Next steps${RESET}\n"
 printf "  ${DIM}%-38s${RESET} %s\n" "Start a feature:"       "${CYAN}/requirements-eliciting${RESET}"
+printf "  ${DIM}%-38s${RESET} %s\n" "Start a goal loop:"     "${CYAN}/loop${RESET} (no prompt — runs .claude/loop.md)"
 printf "  ${DIM}%-38s${RESET} %s\n" "Check feature status:"  "${CYAN}${SUBMODULE_DIR}/shared/project/tools/feature-status.sh${RESET}"
 printf "  ${DIM}%-38s${RESET} %s\n" "Validate config:"       "${CYAN}${SUBMODULE_DIR}/shared/project/tools/validate-config.sh${RESET}"
 printf "  ${DIM}%-38s${RESET} %s\n" "After submodule update:" "${CYAN}${SUBMODULE_DIR}/shared/lifecycle/tools/update.sh${RESET}"

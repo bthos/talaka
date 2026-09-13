@@ -60,20 +60,25 @@ for dir in "$ARCHIVE_DIR"/*/; do
   # Stops only at a top-level (##) heading, so ### sub-sections under ACs are included.
   criteria=$(awk '
     BEGIN{cap=0}
-    /^##\s+[Aa]cceptance/ {cap=1; next}
-    cap==1 && /^##\s/ {cap=0}
+    /^##[[:space:]]+[Aa]cceptance/ {cap=1; next}
+    cap==1 && /^##[[:space:]]/ {cap=0}
     cap==1 {print}
   ' "$spec")
 
-  # Strip leading/trailing blank lines
-  criteria=$(printf '%s\n' "$criteria" | sed '/./,$!d' | sed -e :a -e '/^\n*$/{$d;N;ba}')
+  # Strip leading/trailing blank lines. Leading: sed. Trailing: $(...) already
+  # drops trailing newlines, so only whitespace-only lines remain — trim those
+  # with parameter expansion (BSD sed rejects the usual `{$d;N;ba}` idiom).
+  criteria=$(printf '%s\n' "$criteria" | sed '/[^[:space:]]/,$!d')
+  while [[ "$criteria" =~ $'\n'[[:space:]]*$ ]]; do
+    criteria="${criteria%$'\n'*}"
+  done
 
   if [ -z "$criteria" ]; then
     # Fallback: any heading containing "Acceptance" at any level
     criteria=$(awk '
       BEGIN{cap=0}
-      /^#+\s*[Aa]cceptance/ {cap=1; next}
-      cap==1 && /^#\s/ {cap=0}
+      /^#+[[:space:]]*[Aa]cceptance/ {cap=1; next}
+      cap==1 && /^#[[:space:]]/ {cap=0}
       cap==1 {print}
     ' "$spec" | sed '/./,$!d')
   fi

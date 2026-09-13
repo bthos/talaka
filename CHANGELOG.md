@@ -10,6 +10,81 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Added — kit issues: agents report what the kit got wrong
+
+- **The problem.** Installed kits fail in ways only the running model sees: a per-write script that
+  takes 40 s on Git Bash, a metrics tool with nothing to measure so a number gets guessed, a row
+  written to a directory nothing reads. The model worked around these and moved on, so the same
+  defect shipped to every project and maintainers heard about it only by accident.
+- **`shared/feedback/tools/kit-issue.sh`.** `add` records a structured field report (kind, command,
+  observed vs expected, evidence, kit version, platform) in `.tlk/kit-issues.md`. A repeat title
+  bumps `Seen:` instead of duplicating. `slow`/`hang` require measured `--evidence`. Project-root
+  and `$HOME` paths are redacted, including `D:/…` and `D:\…` forms. `submit` previews the
+  issue body and searches for similar issues. `submit --confirm` runs `gh issue create` on
+  `bthos/talaka` (`TALAKA_ISSUES_REPO` overrides). `link` and `dismiss` close the loop.
+- **Prompts.** `PIPELINE.md` gains *Kit issues — report what the kit got wrong*: what counts, the
+  command, and the rules (never fabricate to get past it, never edit `talaka/`, never file without
+  the user). The coordinator offers pending entries to the user once per session at STOP/END.
+  Every agent and skill carries a short *Kit issues* block, guarded by
+  `tests/lint/structure.test.sh`.
+- **`kit.sh`** lists them under *Kit issues (field reports)*.
+
+### Fixed — `promote.sh` no longer spawns a subprocess per file and per entry
+
+- **The Stop hook stalled for minutes on Windows/Git-Bash.** `promote.sh` runs after every memory
+  write (`log.sh`) and on session exit (`tick.sh`), and its cost was dominated by process count, not
+  data. A tree with 44 daily L2 files (~860 lines) cost 150–250 spawns per run; an MSYS fork costs
+  ~1 s there (fork emulation plus per-exec antivirus scanning) with only ~12 % of that being real
+  work, so runs took 2–5 minutes and grew linearly with the number of daily files. Downstream:
+  `log.sh` appeared to hang, agents skipped memory logging, session exit stalled.
+- **What changed.** `list_entries` now takes many files and walks them in **one** `awk` process,
+  and steps 2a (single-shot high-confidence) and 2b (2-strike) share that one buffer instead of
+  re-walking the tree once each. Step 1 batches its probe into a single `grep -l` and rewrites every
+  pending id in a single `python3` process. Step 3 resolves `supersedes:` with one `awk` per L3 file
+  instead of a `grep`/`sed`/`grep`/`grep`/`awk` chain per link. The per-entry helpers `norm_key`
+  (was `normalise_key`) and `l3_target_for_type` return through a global rather than `$(...)`, which
+  forked a subshell on every single L2 entry.
+- **Result.** Output is byte-identical — same promotions, same ids, same `source:` spans, same L4
+  index. Measured on the reporter's class of machine: a 15-file tree went 84 s → 11 s, and a
+  no-op steady-state run over 28 daily files went 103 s → 9 s. Cost is now flat in the number of
+  daily files; per-promotion spawns are paid only when something is actually promoted.
+- **A performance contract now heads the file** so the next edit does not quietly reintroduce a
+  per-file walk, and `tests/memory/promote.test.sh` gains guards for the single-pass parse
+  (file-boundary flush, end-of-input flush, per-file line numbers, headerless daily files).
+
+### Fixed — `judge.sh` distinguishes a broken judge from a failing score
+
+- **Every failure mode collapsed into a clean-looking `0`, exit `0`.** Missing auth, a timeout, an
+  error page, or any output that was not a bare digit fell through to `*) echo "0"` — so a broken
+  environment produced plausible metrics instead of noise. Recorded `accuracy` was `0` across the
+  board and agents stopped trusting the number.
+- **Exit `3` now means "the judge did not judge."** It is reported with the tail of the judge's
+  stdout and stderr, and callers are told not to record it as accuracy 0. Exit `0` still means a
+  real verdict on stdout; `2` stays usage error. `program.md` rule 5 (uncertainty = failure) is
+  unchanged — it governs the *model's* answer, and was never a licence to launder tool failures.
+- **Parsing survives prose wrappers.** `head -c 1` turned `**0** — the output …`, `Verdict: 1`, and
+  a digit on its own line after a preamble into `0` regardless of what the judge decided. Extraction
+  now tries, in order: a bare digit, a standalone digit line (markdown decoration allowed), a
+  labelled verdict, then a leading digit followed by punctuation. A digit buried in prose
+  (`1 error occurred: …`) is deliberately **not** accepted — that is reported as broken.
+- **`judge.sh --self-test`** scores one trivially-satisfiable pair and fails loudly if the pipeline
+  cannot produce `1`, turning silent rot into an immediate setup error.
+- **`ratchet.sh` aborts the round** when the judge fails instead of scoring every eval entry 0 for
+  both variants and "deciding" on noise; the live file is reverted to baseline and nothing is
+  logged. Bagnik and Veles are instructed not to record accuracy on a non-zero judge exit.
+
+### Fixed — `record-metrics.sh` no longer creates the directory it was pointed at
+
+- **`mkdir -p "$feature"` trusted the caller completely,** so an unprefixed slug
+  (`--feature 2026-08-10-club-invite-link`) created `./<slug>/metrics.jsonl` at the current working
+  directory. The row was silently missing from the live feature's `metrics.jsonl` and Veles' fleet
+  view undercounted the run; it was found only because a commit agent noticed untracked files.
+- **`--feature` is now resolved against something that exists** — the path as given, its `/archive/`
+  counterpart (the archive race), or a bare slug looked up under `.tlk/{features,archive,audits}`.
+  Unresolvable input exits 2 and writes nothing, neither the per-feature row nor the fleet-wide cost
+  row. The confirmation line names the resolved path, and the recorded `"feature"` field carries it
+  too, so an auto-prefixed slug aggregates with the paths agents pass.
+
 ### Added — progress entries in `handoff-log.md` (partial results survive the run)
 
 - **Every worker now logs mid-run, not only on the way out.** The handoff log takes two kinds of

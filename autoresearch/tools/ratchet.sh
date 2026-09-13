@@ -74,12 +74,15 @@ program_pre=$(kit_sha256_file "$PROGRAM")
 
 # ---------------------------------------------------------------------------
 # Score one variant by running the judge over every eval-set entry.
-# Echoes the accuracy fraction (0..1).
+# Echoes the accuracy fraction (0..1), or the literal JUDGE_BROKEN if the judge
+# pipeline failed — the caller must abort rather than treat that as a score.
+# (score_variant runs inside a command substitution, so it cannot exit the
+# script itself.)
 # ---------------------------------------------------------------------------
 score_variant() {
   local variant_label="$1"  # baseline | proposal
   echo "  scoring $variant_label:" >&2
-  local count=0 hits=0
+  local count=0 hits=0 broken=false
 
   shopt -s nullglob
   for entry in "$EVAL_DIR"/*.md; do
@@ -89,10 +92,19 @@ score_variant() {
           | sed '/^## Requirements/d;/^## Reference output/d')
     out=$(awk '/^## Reference output/,0' "$entry" | sed '/^## Reference output/d')
     [ -z "$req$out" ] && continue
-    local v
-    v=$("$PKG_DIR/tools/judge.sh" --requirement "$req" --output "$out" 2>/dev/null || echo 0)
+    local v rc=0
+    # judge.sh exits 3 when its pipeline is broken (bad auth, unparseable
+    # output). That is not a score of 0 — swallowing it would hand the ratchet
+    # an all-zeros accuracy for both variants and let it "decide" on noise.
+    # Let its diagnostic through and abort the round instead.
+    v=$("$PKG_DIR/tools/judge.sh" --requirement "$req" --output "$out") || rc=$?
     local entry_name
     entry_name=$(basename "$entry" .md)
+    if [ "$rc" -ne 0 ]; then
+      echo "    [!] $entry_name — judge exited $rc" >&2
+      broken=true
+      break
+    fi
     if [ "$v" = "1" ]; then
       hits=$((hits+1))
       echo "    [1] $entry_name" >&2
@@ -102,7 +114,9 @@ score_variant() {
   done
   shopt -u nullglob
 
-  if [ "$count" -eq 0 ]; then
+  if $broken; then
+    echo "JUDGE_BROKEN"
+  elif [ "$count" -eq 0 ]; then
     echo "0"
   else
     awk -v h="$hits" -v c="$count" 'BEGIN{ printf "%.4f", h/c }'
@@ -113,14 +127,26 @@ score_variant() {
 LAMBDA=$(grep -E '^λ\s*=\s*' "$PROGRAM" | head -n1 | sed -E 's/.*=\s*//' || true)
 LAMBDA="${LAMBDA:-0.3}"
 
+# A broken judge makes every score meaningless, so restore the baseline and bail
+# out instead of "deciding" a round on zeros. See judge.sh exit code 3.
+abort_if_judge_broken() {
+  [ "$1" = "JUDGE_BROKEN" ] || return 0
+  cp "$base_file" "$target"
+  echo "ABORT: the judge pipeline is broken — no mutation decided, $target reverted to baseline." >&2
+  echo "       Diagnose with: $PKG_DIR/tools/judge.sh --self-test" >&2
+  exit 3
+}
+
 # Baseline: live file currently at $target should equal baseline content (we just snapshot it).
 cp "$base_file" "$target"
 acc_base=$(score_variant baseline)
+abort_if_judge_broken "$acc_base"
 cost_base="0"
 
 # Proposal:
 cp "$prop_file" "$target"
 acc_prop=$(score_variant proposal)
+abort_if_judge_broken "$acc_prop"
 cost_prop="0"
 
 # Composite (cost normalised to 0..1; for the first runs both are 0)
