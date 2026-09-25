@@ -55,6 +55,14 @@ tags yet — entries are dated and grouped by submodule HEAD).
   window refills. Badge names match the coordinator modes (`push`→`speed-up`, `steady`→`normal`,
   `slow`→`slow-down`, `wait`→`stop`).
 
+### Removed — the legacy Cursor / Copilot sweep
+
+- `update.sh` and `teardown.sh` no longer scan for or delete `.cursor/{agents,skills,rules}/`,
+  `.github/{agents,instructions}/` or the managed block in `.github/copilot-instructions.md` left by
+  pre-Claude-only installs. All installs are expected to be on the Claude-only layout (#16).
+- `update.sh` prints one warning when such a directory is still present, pointing at
+  README → *Leftovers from old installs*, which gives the manual cleanup steps.
+
 ### Added — kit settings live in settings.json "env", under a TALAKA_ prefix
 
 - **The problem.** Kit settings were bare environment variables (`MEMORY_PROMOTE_INTERVAL`,

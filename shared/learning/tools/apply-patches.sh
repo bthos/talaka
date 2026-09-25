@@ -47,8 +47,7 @@ if [ ${#patch_files[@]} -eq 0 ]; then
   exit 0
 fi
 
-# Installed agent path. The kit installs only `.claude/agents/<name>.md` now;
-# legacy `.cursor/` and `.github/` paths are swept by update.sh.
+# Installed agent path. The kit installs only `.claude/agents/<name>.md`.
 agent_install_paths() {
   local name="$1"
   local p=".claude/agents/${name}.md"
