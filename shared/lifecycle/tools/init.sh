@@ -250,13 +250,40 @@ should_overwrite() {
 
 # install_kit_copy_file and install_kit_copy_tree live in install-helpers.sh.
 
+# refresh_managed_block LABEL FILE EXTRACT_FN REPLACE_FN RENDER_FN [RENDER_ARGS…]
+# Everything between a managed block's markers belongs to the kit, so it is
+# never asked about (whatever --skip / --force say): an identical block is left
+# alone, a different one is replaced where it stands. Line endings are ignored
+# in the comparison so a CRLF checkout is not rewritten on every run.
+refresh_managed_block() {
+  local label="$1" file="$2" extract_fn="$3" replace_fn="$4"; shift 4
+  local want have tmp rc=0
+  want=$("$@")
+  have=$("$extract_fn" "$file")
+  if [ "${have//$'\r'/}" = "$want" ]; then
+    info "$label (managed block up to date)"
+    return 0
+  fi
+  tmp=$(kit_mktemp "tlk-block") || return 1
+  printf '%s\n' "$want" > "$tmp"
+  "$replace_fn" "$file" "$tmp" || rc=$?
+  rm -f "$tmp"
+  if [ "$rc" -eq 0 ]; then
+    success "$label (managed block refreshed)"
+  else
+    warn "$label: managed block has a start marker but no end marker — left as is."
+    info "Fix the markers by hand, or remove the block with teardown.sh and re-run init."
+  fi
+}
+
 # ---------------------------------------------------------------------------
 # Managed include block — entry-point files (CLAUDE.md and AGENTS.md)
 #
 # Behaviour matrix:
 #   file missing                → write a small stub with the include block
 #   file present, block missing → append the block (existing content kept)
-#   file present, block present → leave as-is unless --force, then refresh block
+#   file present, block present → refresh the block in place when it differs
+#                                 (no prompt — the block is kit-owned)
 # ---------------------------------------------------------------------------
 install_pipeline_include() {
   local label="$1" dest_rel="$2"
@@ -265,17 +292,10 @@ install_pipeline_include() {
 
   if [ -f "$dest" ]; then
     if talaka_block_present "$dest"; then
-      if should_overwrite "$label"; then
-        talaka_block_strip "$dest" >/dev/null 2>&1 || true
-        talaka_block_append "$dest" "$PIPELINE_REL"
-        block_sha=$(kit_sha256_string "$(talaka_block_render "$PIPELINE_REL")")
-        manifest_set_hash "$dest_rel" "block:$block_sha"
-        success "$label (block refreshed)"
-      else
-        block_sha=$(kit_sha256_string "$(talaka_block_render "$PIPELINE_REL")")
-        manifest_set_hash "$dest_rel" "block:$block_sha"
-        info "$label (block already present — manifest synced)"
-      fi
+      refresh_managed_block "$label" "$dest" talaka_block_extract talaka_block_replace \
+        talaka_block_render "$PIPELINE_REL"
+      block_sha=$(kit_sha256_string "$(talaka_block_render "$PIPELINE_REL")")
+      manifest_set_hash "$dest_rel" "block:$block_sha"
     else
       talaka_block_append "$dest" "$PIPELINE_REL"
       block_sha=$(kit_sha256_string "$(talaka_block_render "$PIPELINE_REL")")
@@ -403,14 +423,10 @@ setup_gitignore() {
   local action="appended"
 
   if [ -f "$file" ] && talaka_gitignore_present "$file"; then
-    if should_overwrite ".gitignore (managed block)"; then
-      talaka_gitignore_strip "$file" >/dev/null 2>&1 || true
-      action="refreshed"
-    else
-      info ".gitignore (managed block already present)"
-      manifest_set_hash ".gitignore" "block:$(kit_sha256_string "$(talaka_gitignore_render)")"
-      return 0
-    fi
+    refresh_managed_block ".gitignore" "$file" talaka_gitignore_extract talaka_gitignore_replace \
+      talaka_gitignore_render
+    manifest_set_hash ".gitignore" "block:$(kit_sha256_string "$(talaka_gitignore_render)")"
+    return 0
   elif [ ! -f "$file" ]; then
     action="created"
   fi
@@ -424,7 +440,6 @@ setup_gitignore() {
   talaka_gitignore_render >> "$file"
   manifest_set_hash ".gitignore" "block:$(kit_sha256_string "$(talaka_gitignore_render)")"
   case "$action" in
-    refreshed) success ".gitignore (managed block refreshed)" ;;
     created)   success ".gitignore (created with managed block)" ;;
     *)         success ".gitignore (managed block appended)" ;;
   esac

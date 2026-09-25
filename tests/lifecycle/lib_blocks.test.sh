@@ -91,6 +91,36 @@ test_gitignore_render_strip_roundtrip() {
   assert_file_contains "$gi" "node_modules/"   "user ignore lines preserved"
 }
 
+test_extract_returns_the_block_with_markers() {
+  local proj; proj=$(make_tmp_project)
+  local f="$proj/CLAUDE.md"
+  printf 'top\n' > "$f"
+  talaka_block_append "$f" ".tlk/PIPELINE.md"
+  printf '\nbottom\n' >> "$f"
+  assert_eq "$(talaka_block_render .tlk/PIPELINE.md)" "$(talaka_block_extract "$f")" "extract == render"
+}
+
+test_replace_keeps_block_position_and_drops_duplicates() {
+  local proj; proj=$(make_tmp_project)
+  local f="$proj/CLAUDE.md" new="$proj/new.txt"
+  printf 'above\n%s\nold\n%s\nmiddle\n%s\ndup\n%s\nbelow\n' \
+    "$TALAKA_BLOCK_BEGIN" "$TALAKA_BLOCK_END" "$TALAKA_BLOCK_BEGIN" "$TALAKA_BLOCK_END" > "$f"
+  printf '%s\nnew\n%s\n' "$TALAKA_BLOCK_BEGIN" "$TALAKA_BLOCK_END" > "$new"
+  talaka_block_replace "$f" "$new"
+  assert_eq "$(printf 'above\n%s\nnew\n%s\nmiddle\nbelow' "$TALAKA_BLOCK_BEGIN" "$TALAKA_BLOCK_END")" \
+    "$(cat "$f")" "first block replaced in place, duplicate dropped"
+}
+
+test_replace_leaves_unterminated_block_alone() {
+  local proj; proj=$(make_tmp_project)
+  local f="$proj/CLAUDE.md" new="$proj/new.txt" before
+  printf 'above\n%s\nno end marker\nbelow\n' "$TALAKA_BLOCK_BEGIN" > "$f"
+  printf '%s\nnew\n%s\n' "$TALAKA_BLOCK_BEGIN" "$TALAKA_BLOCK_END" > "$new"
+  before=$(cat "$f")
+  assert_fail talaka_block_replace "$f" "$new"
+  assert_eq "$before" "$(cat "$f")" "file untouched when markers are unbalanced"
+}
+
 test_gitignore_honours_artefacts_dir_override() {
   # ARTEFACTS_NAME is captured at source time from ARTEFACTS_DIR; render reads
   # the live ARTEFACTS_NAME global, so overriding it changes the output.

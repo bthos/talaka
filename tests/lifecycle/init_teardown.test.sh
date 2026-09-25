@@ -66,6 +66,37 @@ test_init_is_idempotent() {
   assert_eq "1" "$n" "managed block not duplicated on re-init"
 }
 
+test_reinit_reports_unchanged_blocks_as_up_to_date() {
+  # A kit-owned block never reaches the overwrite prompt (which, without a TTY,
+  # would silently answer "skip"): an unchanged one is reported up to date.
+  local proj out; proj=$(_make_project_with_kit)
+  ( cd "$proj" && bash talaka/shared/lifecycle/tools/init.sh --non-interactive ) >/dev/null 2>&1
+  out=$( cd "$proj" && bash talaka/shared/lifecycle/tools/init.sh --no-tune </dev/null 2>&1 )
+  assert_contains "$out" "CLAUDE.md (managed block up to date)" "CLAUDE.md block not prompted"
+  assert_contains "$out" "AGENTS.md (managed block up to date)" "AGENTS.md block not prompted"
+  assert_contains "$out" ".gitignore (managed block up to date)" ".gitignore block not prompted"
+}
+
+test_reinit_refreshes_stale_block_in_place() {
+  # Even under --skip: the block is the kit's. User content on both sides stays put.
+  local proj; proj=$(_make_project_with_kit)
+  printf '# Mine\n\nAbove.\n\n<!-- talaka:start -->\nold kit text\n<!-- talaka:end -->\n\nBelow.\n' > "$proj/CLAUDE.md"
+  printf '/node_modules\n\n# >>> talaka (managed) >>>\n.old\n# <<< talaka (managed) <<<\n\n/dist\n' > "$proj/.gitignore"
+  ( cd "$proj" && bash talaka/shared/lifecycle/tools/init.sh --skip --no-tune </dev/null ) >/dev/null 2>&1 \
+    || fail "init.sh --skip failed"
+  assert_file_not_contains "$proj/CLAUDE.md" "old kit text" "stale block replaced"
+  assert_file_contains "$proj/CLAUDE.md" "@.tlk/PIPELINE.md" "current block written"
+  local above block below
+  above=$(grep -n "^Above.$" "$proj/CLAUDE.md" | cut -d: -f1)
+  block=$(grep -nF "<!-- talaka:start -->" "$proj/CLAUDE.md" | cut -d: -f1)
+  below=$(grep -n "^Below.$" "$proj/CLAUDE.md" | cut -d: -f1)
+  [ -n "$above" ] && [ -n "$below" ] && [ "$above" -lt "$block" ] && [ "$block" -lt "$below" ] \
+    || fail "block refreshed where it stood (above=$above block=$block below=$below)"
+  assert_file_not_contains "$proj/.gitignore" ".old" "stale .gitignore block replaced"
+  assert_file_contains "$proj/.gitignore" "/dist" "user .gitignore entries kept"
+  [ "$(tail -n1 "$proj/.gitignore")" = "/dist" ] || fail ".gitignore block refreshed in place, not moved to the end"
+}
+
 test_project_md_kept_on_reinit_without_force() {
   # PROJECT.md is user config — it must be kept (never prompted, never clobbered)
   # on a normal re-init/update, and only reset by --force. Regression for the

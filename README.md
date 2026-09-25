@@ -170,7 +170,7 @@ The one deliberate exception is **knowledge-curating's `wiki/`**, which lives at
 
 Shared scripts live under **`talaka/shared/<category>/tools/`** (lifecycle, project, learning, debug, deferred, audit), and component scripts under their component (e.g. `talaka/memory/tools/`, `talaka/statusline/tools/`) — run them from the **project root**, for example `talaka/shared/project/tools/validate-config.sh`.
 
-The script is **idempotent** — existing kit-managed files prompt for overwrite (or **s** / **o** / **a** / **r** as above). For CI or scripts, use **`--force`** / **`--overwrite-all`** or **`--skip`** / **`--skip-all`** so nothing blocks on prompts. Each installed path's content hash is tracked in **`.tlk/.talaka.files`** for **`teardown.sh`** (remove only if unchanged). Managed include blocks are tracked with `block:<sha>` (block-only entries) or `stub:<sha>` (whole-file stubs we created from scratch).
+The script is **idempotent** — existing kit-managed files prompt for overwrite (or **s** / **o** / **a** / **r** as above). The managed blocks in `CLAUDE.md`, `AGENTS.md` and `.gitignore` never prompt: what sits between their markers is the kit's, so an identical block is left alone and a changed one is replaced in place, with the content around it untouched. For CI or scripts, use **`--force`** / **`--overwrite-all`** or **`--skip`** / **`--skip-all`** so nothing blocks on prompts. Each installed path's content hash is tracked in **`.tlk/.talaka.files`** for **`teardown.sh`** (remove only if unchanged). Managed include blocks are tracked with `block:<sha>` (block-only entries) or `stub:<sha>` (whole-file stubs we created from scratch).
 
 ## Environment variables
 

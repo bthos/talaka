@@ -579,6 +579,38 @@ _kit_strip_block() {
   return 0
 }
 
+# Print the first managed block bounded by begin/end markers, markers included.
+# Returns 1 if the file has no block.
+_kit_block_extract() {
+  local file="$1" begin="$2" end="$3"
+  _kit_block_present "$file" "$begin" || return 1
+  awk -v b="$begin" -v e="$end" '
+    !inb && !done && index($0, b) > 0 { inb=1 }
+    inb { print; if (index($0, e) > 0) { inb=0; done=1 } }
+  ' "$file"
+}
+
+# Replace the managed block with the contents of new_file where it stands, so
+# user content above and below keeps its place; later duplicate blocks are
+# dropped. Returns 1 if no block is present, 2 if the markers are unbalanced
+# (file left untouched).
+_kit_block_replace() {
+  local file="$1" begin="$2" end="$3" new="$4" tmp
+  _kit_block_present "$file" "$begin" || return 1
+  tmp=$(kit_mktemp "tlk-replace") || return 2
+  # The new-block path goes through ENVIRON: awk -v would eat backslashes.
+  TLK_NEW_BLOCK="$new" awk -v b="$begin" -v e="$end" '
+    !skip && index($0, b) > 0 {
+      if (!done) { nf = ENVIRON["TLK_NEW_BLOCK"]; while ((getline l < nf) > 0) print l; close(nf); done=1 }
+      skip=1
+    }
+    skip { if (index($0, e) > 0) skip=0; next }
+    { print }
+    END { if (skip) exit 2 }
+  ' "$file" > "$tmp" || { rm -f "$tmp"; return 2; }
+  mv "$tmp" "$file"
+}
+
 # Render the include block. Arg: pipeline_rel (relative path).
 talaka_block_render() {
   local pipeline_rel="$1"
@@ -604,6 +636,8 @@ EOF
 
 talaka_block_present() { _kit_block_present "$1" "$TALAKA_BLOCK_BEGIN"; }
 talaka_block_strip()   { _kit_strip_block  "$1" "$TALAKA_BLOCK_BEGIN" "$TALAKA_BLOCK_END"; }
+talaka_block_extract() { _kit_block_extract "$1" "$TALAKA_BLOCK_BEGIN" "$TALAKA_BLOCK_END"; }
+talaka_block_replace() { _kit_block_replace "$1" "$TALAKA_BLOCK_BEGIN" "$TALAKA_BLOCK_END" "$2"; }
 
 talaka_block_write_stub() {
   local file="$1" pipeline_rel="$2"
@@ -671,6 +705,8 @@ EOF
 
 talaka_gitignore_present() { _kit_block_present "$1" "$TALAKA_GITIGNORE_BEGIN"; }
 talaka_gitignore_strip()   { _kit_strip_block  "$1" "$TALAKA_GITIGNORE_BEGIN" "$TALAKA_GITIGNORE_END"; }
+talaka_gitignore_extract() { _kit_block_extract "$1" "$TALAKA_GITIGNORE_BEGIN" "$TALAKA_GITIGNORE_END"; }
+talaka_gitignore_replace() { _kit_block_replace "$1" "$TALAKA_GITIGNORE_BEGIN" "$TALAKA_GITIGNORE_END" "$2"; }
 
 # ---------------------------------------------------------------------------
 # Project-patch blocks (user-owned sections appended by apply-patches.sh).

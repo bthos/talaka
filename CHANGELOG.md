@@ -10,6 +10,19 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Fixed — init no longer asks before refreshing its own managed blocks
+
+- **The problem.** Every re-run of `init.sh` / `update.sh` asked
+  `exists CLAUDE.md — [s]kip [o]verwrite …` for the managed blocks in `CLAUDE.md`, `AGENTS.md` and
+  `.gitignore`. The text between the markers is the kit's, so there was nothing for the user to
+  decide. Under `--skip` / `--non-interactive` the answer was always "skip", so the blocks went
+  stale even though `update.sh` promises to refresh them in place.
+- **Now** an identical block is reported `managed block up to date`, and a changed one is replaced
+  **where it stands**. It is no longer stripped and re-appended at the end of the file, so the
+  content above and below it keeps its place. Line endings are ignored in the comparison, so a
+  CRLF checkout is not rewritten on every run. A start marker with no end marker leaves the file
+  untouched and prints a warning.
+
 ### Fixed — the pace marker replaces a bar cell instead of adding one
 
 - The elapsed-time marker was inserted between cells, so a limit bar grew to 9 columns. It now
