@@ -507,7 +507,7 @@ Each skill bundles its own script. Shared scripts live under `talaka/shared/<cat
 | Script | Invoked by | What it does |
 |--------|-----------|--------------|
 | `.claude/skills/requirements-eliciting/new-feature.sh <slug>` | requirements-eliciting | Creates `.tlk/features/YYYY-MM-DD-<slug>/` with `spec.md` skeleton and `handoff-log.md` |
-| `.claude/skills/architecture-planning/check-coverage.sh [feature-path]` | architecture-planning | Runs test command, prints results, appends coverage entry to `handoff-log.md` |
+| `.claude/skills/architecture-planning/check-coverage.sh [feature-path]` | architecture-planning | Runs test command, prints results, appends a progress entry (exit code + summary) to `handoff-log.md` |
 | `.claude/skills/bugs-diagnosing/new-investigation.sh <slug>` | bugs-diagnosing | Creates `.tlk/debug/YYYY-MM-DD-<slug>/` with `hypothesis.md`, `instrumentation-log.md`, `findings.md`, `handoff-log.md` skeletons. Probe snippets live under `.claude/skills/bugs-diagnosing/templates/probes/`. |
 | `.claude/skills/knowledge-curating/new-wiki.sh` | knowledge-curating | Bootstraps `wiki/` at the project root (`SCHEMA.md`, `index.md`, `log.md`, `pages/`, `sources/`). The wiki is committed knowledge — it lives outside the git-ignored `.tlk/` tree on purpose (override with `BELUN_WIKI_DIR`). |
 | `.claude/skills/cli-designing/new-cli.sh <api-slug>` | cli-designing | Creates `.tlk/features/YYYY-MM-DD-cli-<slug>/` with `research-brief.md`, `design.md`, `scorecard.md` (the ≥85/100 QA contract Bagnik gates on), and `handoff-log.md` |

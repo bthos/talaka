@@ -79,9 +79,9 @@ Before returning, run:
 /skills/architecture-planning/check-coverage.sh <feature-path>
 ```
 
-This runs the test command from `.tlk/PROJECT.md`, prints results, and appends a coverage entry to `handoff-log.md`. Use its output in your return.
+This runs the test command from `.tlk/PROJECT.md`, prints results, and appends a **progress** entry (`## HH:MM architecture-planning [arch + tests] progress`) with the exit code and the runner's summary lines to `handoff-log.md`. Use its output in your return.
 
-**Log entry:** The `check-coverage.sh` script appends automatically. If run manually, append to `handoff-log.md`:
+**Return entry — always yours.** The script never returns on your behalf. After it passes, append your return entry to `handoff-log.md`:
 ```
 ## HH:MM architecture-planning → Coordinator [arch + tests] done
 Result: architecture and tests written. Coverage: [summary]. Gaps: [list].
