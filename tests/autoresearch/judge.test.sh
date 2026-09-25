@@ -168,4 +168,18 @@ test_file_inputs_supported() {
   assert_eq "1" "$v" "--requirement-file / --output-file accepted"
 }
 
+test_judge_that_ignores_stdin_still_gives_a_verdict() {
+  # A judge may answer without reading the whole prompt. Fed through a pipe
+  # under pipefail, the writer died of SIGPIPE, the run exited 141 and the real
+  # verdict was discarded as a broken judge — always on a prompt larger than
+  # the pipe buffer, intermittently on small ones.
+  local art; art=$(_art_with_judge "printf 0")
+  local proj; proj=$(make_tmp_project)
+  head -c 300000 /dev/zero | tr '\0' x > "$proj/big.txt"
+  local v rc=0
+  v=$(ARTEFACTS_DIR="$art" bash "$JUDGE" --requirement "r" --output-file "$proj/big.txt" 2>/dev/null) || rc=$?
+  assert_eq "0" "$rc" "exit 0: the judge did produce a verdict"
+  assert_eq "0" "$v"  "its verdict is passed through"
+}
+
 run_tests "$@"

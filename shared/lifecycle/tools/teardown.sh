@@ -9,13 +9,11 @@
 #   2. Remove kit-installed agent / skill copies under .claude/ — but only
 #      when their SHA-256 still matches the value recorded in
 #      .tlk/.talaka.files. Files you edited locally are kept.
-#   3. Sweep legacy .cursor/ and .github/ artefacts left behind by older kit
-#      versions, using the same manifest-safety predicate.
-#   4. Remove the canonical pipeline copy at .tlk/PIPELINE.md when its hash
+#   3. Remove the canonical pipeline copy at .tlk/PIPELINE.md when its hash
 #      still matches; PROJECT.md is kept unless --full-clean.
-#   5. Strip the managed block from .gitignore.
-#   6. (--remove-submodule) Deinit the talaka submodule.
-#   7. (--full-clean) Sweep .tlk/scratch/ (ephemeral runtime files),
+#   4. Strip the managed block from .gitignore.
+#   5. (--remove-submodule) Deinit the talaka submodule.
+#   6. (--full-clean) Sweep .tlk/scratch/ (ephemeral runtime files),
 #      offer to remove .tlk/PROJECT.md, and try to remove the .tlk/
 #      folder itself if nothing user-owned remains.
 #
@@ -163,96 +161,19 @@ if ! $DRY_RUN && [ -d "$PROJECT_ROOT/.claude" ] && [ -z "$(ls -A "$PROJECT_ROOT/
 fi
 
 # ---------------------------------------------------------------------------
-# 3. Sweep legacy Cursor / Copilot artefacts (pre-vX.Y installs).
-#    Manifest-safe: only files whose SHA-256 still matches the manifest are
-#    removed. Locally-edited files are preserved with a "modified" warning.
-#    All guards (`[ -d ... ]`) no-op on fresh installs.
-# ---------------------------------------------------------------------------
-header "Legacy IDE artefacts (Cursor / Copilot)"
-
-# Cursor subagents
-if [ -d "$PROJECT_ROOT/.cursor/agents" ]; then
-  for f in "$PROJECT_ROOT/.cursor/agents/"*.md; do
-    [ -e "$f" ] || continue
-    kit_managed_file_remove ".cursor/agents/$(basename "$f")" || true
-  done
-  if ! $DRY_RUN; then
-    rmdir "$PROJECT_ROOT/.cursor/agents" 2>/dev/null && removed ".cursor/agents/ (empty dir)" || true
-  fi
-fi
-
-# Cursor skill copies
-if [ -d "$PROJECT_ROOT/.cursor/skills" ]; then
-  for skill_dir in "$PROJECT_ROOT/.cursor/skills/"*/; do
-    [ -d "$skill_dir" ] || continue
-    name=$(basename "$skill_dir")
-    kit_managed_tree_remove ".cursor/skills/$name" "$SCRIPT_DIR/skills/$name" || true
-  done
-  if ! $DRY_RUN; then
-    rmdir "$PROJECT_ROOT/.cursor/skills" 2>/dev/null && removed ".cursor/skills/ (empty dir)" || true
-  fi
-fi
-
-# Cursor legacy rules (pre-skills era)
-if [ -d "$PROJECT_ROOT/.cursor/rules" ]; then
-  for mdc in "$PROJECT_ROOT/.cursor/rules/"*.mdc; do
-    [ -e "$mdc" ] || continue
-    kit_managed_file_remove ".cursor/rules/$(basename "$mdc")" || true
-  done
-  if ! $DRY_RUN; then
-    rmdir "$PROJECT_ROOT/.cursor/rules" 2>/dev/null && removed ".cursor/rules/ (empty dir)" || true
-  fi
-fi
-
-if ! $DRY_RUN && [ -d "$PROJECT_ROOT/.cursor" ] && [ -z "$(ls -A "$PROJECT_ROOT/.cursor" 2>/dev/null)" ]; then
-  rmdir "$PROJECT_ROOT/.cursor" 2>/dev/null && removed ".cursor/ (empty dir)" || true
-fi
-
-# GitHub Copilot agents
-if [ -d "$PROJECT_ROOT/.github/agents" ]; then
-  for f in "$PROJECT_ROOT/.github/agents/"*.agent.md; do
-    [ -e "$f" ] || continue
-    kit_managed_file_remove ".github/agents/$(basename "$f")" || true
-  done
-  if ! $DRY_RUN; then
-    rmdir "$PROJECT_ROOT/.github/agents" 2>/dev/null && removed ".github/agents/ (empty dir)" || true
-  fi
-fi
-
-# GitHub Copilot instructions
-if [ -d "$PROJECT_ROOT/.github/instructions" ]; then
-  for f in "$PROJECT_ROOT/.github/instructions/"*.instructions.md; do
-    [ -e "$f" ] || continue
-    kit_managed_file_remove ".github/instructions/$(basename "$f")" || true
-  done
-  if ! $DRY_RUN; then
-    rmdir "$PROJECT_ROOT/.github/instructions" 2>/dev/null && removed ".github/instructions/ (empty dir)" || true
-  fi
-fi
-
-# .github/copilot-instructions.md managed block
-if [ -f "$PROJECT_ROOT/.github/copilot-instructions.md" ]; then
-  kit_include_block_remove ".github/copilot-instructions.md" || true
-fi
-
-if ! $DRY_RUN && [ -d "$PROJECT_ROOT/.github" ] && [ -z "$(ls -A "$PROJECT_ROOT/.github" 2>/dev/null)" ]; then
-  rmdir "$PROJECT_ROOT/.github" 2>/dev/null && removed ".github/ (empty dir)" || true
-fi
-
-# ---------------------------------------------------------------------------
-# 4. Remove .tlk/PIPELINE.md (kit-managed copy)
+# 3. Remove .tlk/PIPELINE.md (kit-managed copy)
 # ---------------------------------------------------------------------------
 header "$ARTEFACTS_NAME/ (canonical pipeline copy)"
 kit_managed_file_remove "$ARTEFACTS_NAME/PIPELINE.md" || true
 
 # ---------------------------------------------------------------------------
-# 5. Strip managed .gitignore block
+# 4. Strip managed .gitignore block
 # ---------------------------------------------------------------------------
 header ".gitignore (managed block)"
 teardown_gitignore_block || true
 
 # ---------------------------------------------------------------------------
-# 5b. Remove kit-added entries from .claude/settings.json — the opt-in memory
+# 4b. Remove kit-added entries from .claude/settings.json — the opt-in memory
 #     Stop hook, the kit statusLine, outputStyle and the TALAKA_* env keys. All are no-ops if never
 #     installed, and each preserves everything else (user hooks, a custom
 #     statusLine, an outputStyle the user chose themselves).
@@ -270,7 +191,7 @@ if [ -x "$_hook_remove" ] || [ -x "$_sl_remove" ] || [ -x "$_os_remove" ] || [ -
 fi
 
 # ---------------------------------------------------------------------------
-# 6. Optionally remove the submodule
+# 5. Optionally remove the submodule
 # ---------------------------------------------------------------------------
 if $REMOVE_SUBMODULE && ! $DRY_RUN; then
   header "Submodule"
@@ -285,7 +206,7 @@ elif $REMOVE_SUBMODULE && $DRY_RUN; then
 fi
 
 # ---------------------------------------------------------------------------
-# 7. Optionally remove PROJECT.md and the artefacts dir (--full-clean)
+# 6. Optionally remove PROJECT.md and the artefacts dir (--full-clean)
 # ---------------------------------------------------------------------------
 if $FULL_CLEAN; then
   header "Full clean — $ARTEFACTS_NAME/PROJECT.md and friends"

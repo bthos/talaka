@@ -232,7 +232,6 @@ git commit -m "chore: update talaka"
 - Scripts under `talaka/shared/` and the component `tools/` dirs — they ship with the submodule; `git submodule update` brings new versions
 - `.tlk/PIPELINE.md` — refreshed in place when you pass `--force` (or answer **o**); `update.sh` warns you if `talaka/templates/PIPELINE.md.template` has changed since last init so you know when a refresh is worth running
 - The managed blocks in `CLAUDE.md` and `AGENTS.md` — refreshed in place; everything outside the markers is preserved
-- **Legacy IDE sweep** — `update.sh` automatically removes obsolete `.cursor/agents/`, `.cursor/skills/`, `.github/agents/`, `.github/instructions/`, and the managed block in `.github/copilot-instructions.md` left behind by prior kit versions. Only files whose SHA-256 still matches the kit manifest are removed; locally-edited files are skipped with a warning.
 
 **What does NOT update automatically:**
 - `.tlk/PROJECT.md` — project-specific config, never touched (use `--force` to reset from the template)
@@ -240,6 +239,19 @@ git commit -m "chore: update talaka"
 - Paths you keep via **`--skip`** / **`--skip-all`** during updates — unchanged until you overwrite
 
 **Team members:** after pulling, run `git submodule update --init` to sync the submodule to the committed version (no `--remote` needed — that's only for the person pulling the new release).
+
+### Leftovers from old installs
+
+Kit versions before the Claude-only layout also generated Cursor and GitHub Copilot copies. The kit no longer scans for or deletes them; `update.sh` only warns once if one of these directories is still there. If you never edited them, remove them by hand:
+
+```bash
+rm -rf .cursor/agents .cursor/skills .cursor/rules .github/agents .github/instructions
+# .github/copilot-instructions.md: delete the block between the talaka markers
+#   (<!-- talaka:start --> … <!-- talaka:end -->), or the whole file if the kit created it.
+rmdir .cursor .github 2>/dev/null || true   # only if now empty
+```
+
+Check `git status` first: anything under those paths that you or your team wrote yourselves is yours to keep.
 
 ## Overriding an agent or skill
 
@@ -280,7 +292,6 @@ talaka/shared/lifecycle/tools/teardown.sh --dry-run
 - **`.tlk/PROJECT.md`** — kept by default (it has your project config); removed only with `--full-clean` (and only after a y/N prompt unless `--yes` is passed).
 - **`.tlk/{memory,features,archive,proposed-patches}/`** — never touched by teardown. They are your project's runtime state.
 - **`.tlk/scratch/`** — swept by `--full-clean`. Pure ephemera (commit messages, PR bodies, large request payloads) with no user state.
-- **Legacy artefacts** — old `.cursor/agents/`, `.cursor/skills/`, `.github/agents/`, `.github/instructions/`, the managed block in `.github/copilot-instructions.md`, and any relative symlinks pointing into the kit are also cleaned up if their hashes match.
 
 ## Self-improving agents
 
@@ -569,8 +580,8 @@ Each skill bundles its own script. Shared scripts live under `talaka/shared/<cat
 |--------|-------------|
 | `kit.sh` | **Recommended human entry point.** Stage-aware interactive launcher. Detects install state (not installed / needs config / ready) and surfaces only actions that make sense at the current stage: `init`, `probe`, edit + `validate` `PROJECT.md`, `update`, `teardown`, feature `status`, memory `search`, version `bump`, memory `rollover` / `promote`, `distill` lessons, apply `patches`. Press `h` inside the menu for one-line descriptions. |
 | `shared/lifecycle/tools/init.sh` | Sets up `.tlk/`; copies agents to `.claude/agents/` and skills to `.claude/skills/`; manages include blocks in `CLAUDE.md` and `AGENTS.md`; manages the `.gitignore` block; maintains **`.tlk/.talaka.files`**. |
-| `shared/lifecycle/tools/update.sh` | `git submodule update --remote` for the kit, then re-runs `shared/lifecycle/tools/init.sh` with the same arguments you pass (optional `--no-pull` to skip the fetch). After the refresh, sweeps obsolete Cursor/Copilot artefacts from prior kit versions (manifest-safety preserved). Warns if `templates/PIPELINE.md.template` drifted since last init. |
-| `shared/lifecycle/tools/teardown.sh` | Strips managed include blocks from `CLAUDE.md` and `AGENTS.md`; strips the managed `.gitignore` block; removes kit-installed copies when SHA-256 matches **`.tlk/.talaka.files`**; sweeps any legacy `.cursor/` and `.github/` artefacts. `--full-clean` also removes `.tlk/PROJECT.md`, `.tlk/.talaka.cfg`, and `.tlk/scratch/`; `--remove-submodule` deinits git. |
+| `shared/lifecycle/tools/update.sh` | `git submodule update --remote` for the kit, then re-runs `shared/lifecycle/tools/init.sh` with the same arguments you pass (optional `--no-pull` to skip the fetch). Warns once if `.cursor/` or `.github/` copies from a pre-Claude-only install are still present (it does not remove them — see [Leftovers from old installs](#leftovers-from-old-installs)). Warns if `templates/PIPELINE.md.template` drifted since last init. |
+| `shared/lifecycle/tools/teardown.sh` | Strips managed include blocks from `CLAUDE.md` and `AGENTS.md`; strips the managed `.gitignore` block; removes kit-installed copies when SHA-256 matches **`.tlk/.talaka.files`**. `--full-clean` also removes `.tlk/PROJECT.md`, `.tlk/.talaka.cfg`, and `.tlk/scratch/`; `--remove-submodule` deinits git. |
 | `talaka/shared/lifecycle/tools/lib.sh` | Shared helpers (colors, paths, managed blocks, `.gitignore` renderer) — sourced by `shared/lifecycle/tools/init.sh`, `shared/lifecycle/tools/update.sh`, `shared/lifecycle/tools/teardown.sh`, and some tools; not run directly. |
 
 ## Coordinator protocol

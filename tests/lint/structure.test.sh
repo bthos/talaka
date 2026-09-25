@@ -176,6 +176,15 @@ test_yaga_has_an_offline_capture_mode() {
     || fail "instrumentation-log.md template: no Mode line"
 }
 
+test_no_legacy_ide_sweep() {
+  # Issue #16: the Cursor/Copilot sweep was removed; update.sh may only warn.
+  local f hits
+  for f in "$KIT_ROOT"/shared/lifecycle/tools/update.sh "$KIT_ROOT"/shared/lifecycle/tools/teardown.sh; do
+    hits=$(grep -nE '(remove|rm|rmdir)[^#]*\.(cursor|github)/' "$f" | grep -v '^[0-9]*:[[:space:]]*#' || true)
+    [ -z "$hits" ] || fail "${f#"$KIT_ROOT"/}: deletes .cursor/ or .github/ paths again: $hits"
+  done
+}
+
 test_every_worker_carries_the_output_discipline_block() {
   # The kit runs a coordinator plus six agents and fourteen skills, all of them
   # narrating. Concise output is a shipped rule, not a preference: a worker that

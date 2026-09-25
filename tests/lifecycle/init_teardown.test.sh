@@ -117,4 +117,17 @@ test_teardown_preserves_locally_edited_agent() {
   assert_file_not_contains "$proj/.gitignore" "# >>> talaka (managed) >>>" "gitignore block still stripped after a kept agent"
 }
 
+test_teardown_leaves_cursor_and_copilot_dirs_alone() {
+  # Issue #16: the legacy Cursor/Copilot sweep is gone. Whatever sits under
+  # .cursor/ or .github/ is not the kit's to delete any more.
+  local proj; proj=$(_make_project_with_kit)
+  ( cd "$proj" && bash talaka/shared/lifecycle/tools/init.sh --non-interactive ) >/dev/null 2>&1
+  mkdir -p "$proj/.cursor/agents" "$proj/.github/agents"
+  echo "x" > "$proj/.cursor/agents/cmok.md"
+  echo "x" > "$proj/.github/agents/cmok.agent.md"
+  ( cd "$proj" && bash talaka/shared/lifecycle/tools/teardown.sh --yes ) >/dev/null 2>&1
+  assert_file_exists "$proj/.cursor/agents/cmok.md"       ".cursor/ untouched by teardown"
+  assert_file_exists "$proj/.github/agents/cmok.agent.md" ".github/ untouched by teardown"
+}
+
 run_tests "$@"
