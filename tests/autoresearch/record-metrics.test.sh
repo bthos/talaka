@@ -123,4 +123,97 @@ test_unnormalised_artefacts_dir_still_records_a_relative_path() {
     "a doubled or trailing slash does not turn the row's path absolute"
 }
 
+# --- start time and wall-clock (issues #9, #10) ---------------------------
+# Harnesses reset shell state between tool calls, so `start` captured in one
+# call is empty in the next and `$(( ($(date +%s) - start) * 1000 ))` becomes
+# "now in epoch ms". The start now lives in a file; explicit values are checked.
+
+_row() { tail -n1 "$1/.tlk/features/2026-08-10-club-invite-link/metrics.jsonl"; }
+
+test_mark_start_writes_a_file_and_no_row() {
+  local proj; proj=$(_proj_with_feature)
+  local out; out=$(_run "$proj" --mark-start --agent cmok 2>/dev/null)
+  assert_file_exists "$proj/.tlk/autoresearch/runs/.start-cmok" "mark written to a file"
+  assert_eq "$(tr -d '[:space:]' < "$proj/.tlk/autoresearch/runs/.start-cmok")" "$out" \
+    "mark holds the epoch it printed"
+  assert_file_absent "$proj/.tlk/features/2026-08-10-club-invite-link/metrics.jsonl" \
+    "--mark-start records no row"
+}
+
+test_record_reads_the_mark_and_derives_wall_ms() {
+  local proj; proj=$(_proj_with_feature)
+  mkdir -p "$proj/.tlk/autoresearch/runs"
+  echo $(( $(date +%s) - 90 )) > "$proj/.tlk/autoresearch/runs/.start-cmok"
+  _run "$proj" --feature 2026-08-10-club-invite-link --agent cmok >/dev/null 2>&1
+  local row wall; row=$(_row "$proj")
+  wall=${row#*\"wall_ms\":}; wall=${wall%%,*}
+  if [ "$wall" -lt 89000 ] || [ "$wall" -gt 95000 ]; then
+    fail "wall_ms derived from the mark should be ~90000, got $wall"
+  fi
+  assert_file_absent "$proj/.tlk/autoresearch/runs/.start-cmok" "mark consumed once the row is written"
+}
+
+test_mark_is_per_agent() {
+  local proj; proj=$(_proj_with_feature)
+  mkdir -p "$proj/.tlk/autoresearch/runs"
+  echo $(( $(date +%s) - 10 )) > "$proj/.tlk/autoresearch/runs/.start-bagnik"
+  _run "$proj" --feature 2026-08-10-club-invite-link --agent cmok >/dev/null 2>&1
+  assert_contains "$(_row "$proj")" '"wall_ms":null' "cmok does not take bagnik's mark"
+  assert_file_exists "$proj/.tlk/autoresearch/runs/.start-bagnik" "another agent's mark is left alone"
+}
+
+test_empty_since_from_a_lost_shell_variable_is_null() {
+  # The exact field-report shape: start was empty, so wall-ms is now*1000.
+  local proj; proj=$(_proj_with_feature)
+  local start=""
+  local err; err=$(_run "$proj" --feature 2026-08-10-club-invite-link --agent architecture-planning \
+       --since "$start" --wall-ms $(( ($(date +%s) - start) * 1000 )) 2>&1 >/dev/null)
+  assert_contains "$(_row "$proj")" '"wall_ms":null' "bogus wall_ms recorded as null, not as a number"
+  assert_contains "$err" "not an epoch second" "empty --since is reported"
+}
+
+test_wall_ms_over_the_cap_is_null() {
+  local proj; proj=$(_proj_with_feature)
+  local err; err=$(_run "$proj" --feature 2026-08-10-club-invite-link --agent cmok \
+       --wall-ms 1790005101000 2>&1 >/dev/null)
+  assert_contains "$(_row "$proj")" '"wall_ms":null' "wall_ms > 24h recorded as null"
+  assert_contains "$err" "exceeds" "the cap is named in the warning"
+}
+
+test_wall_ms_longer_than_since_is_null() {
+  local proj; proj=$(_proj_with_feature)
+  _run "$proj" --feature 2026-08-10-club-invite-link --agent cmok \
+       --since $(( $(date +%s) - 60 )) --wall-ms 3600000 >/dev/null 2>&1
+  assert_contains "$(_row "$proj")" '"wall_ms":null' "wall_ms beyond the elapsed time is null"
+}
+
+test_stale_or_future_since_is_ignored() {
+  local proj; proj=$(_proj_with_feature)
+  _run "$proj" --feature 2026-08-10-club-invite-link --agent cmok --since 0 >/dev/null 2>&1
+  assert_contains "$(_row "$proj")" '"wall_ms":null' "--since 0 gives no wall_ms"
+  _run "$proj" --feature 2026-08-10-club-invite-link --agent cmok \
+       --since $(( $(date +%s) + 3600 )) >/dev/null 2>&1
+  assert_contains "$(_row "$proj")" '"wall_ms":null' "future --since gives no wall_ms"
+}
+
+test_plausible_wall_ms_is_kept() {
+  local proj; proj=$(_proj_with_feature)
+  _run "$proj" --feature 2026-08-10-club-invite-link --agent cmok --wall-ms 91500 >/dev/null 2>&1
+  assert_contains "$(_row "$proj")" '"wall_ms":91500' "a real wall_ms is recorded as given"
+}
+
+test_non_numeric_wall_ms_is_null() {
+  local proj; proj=$(_proj_with_feature)
+  _run "$proj" --feature 2026-08-10-club-invite-link --agent cmok --wall-ms 1.5e3 >/dev/null 2>&1
+  assert_contains "$(_row "$proj")" '"wall_ms":null' "non-integer wall_ms never reaches the JSON raw"
+}
+
+test_agent_name_cannot_escape_the_runs_dir() {
+  local proj; proj=$(_proj_with_feature)
+  local rc=0
+  _run "$proj" --mark-start --agent "../../x" >/dev/null 2>&1 || rc=$?
+  assert_ne "0" "$rc" "path-like --agent rejected"
+  assert_file_absent "$proj/.tlk/x" "nothing written outside runs/"
+}
+
 run_tests "$@"

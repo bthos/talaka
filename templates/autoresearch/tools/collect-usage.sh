@@ -15,8 +15,8 @@
 #                    [--pricing <file>] [--sidechain-only] [--json|--tokens|--cost]
 #
 #   --since            Only count messages at or after this epoch second.
-#                      Agents already capture `start=$(date +%s)` on entry —
-#                      pass that. Default: the whole transcript.
+#                      record-metrics.sh passes the start mark agents write
+#                      with --mark-start. Default: the whole transcript.
 #   --session          Session id (transcript basename). Default: newest
 #                      transcript for --cwd.
 #   --cwd              Project root the session ran in. Default: $PWD.

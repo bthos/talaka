@@ -18,7 +18,7 @@ The coordinator launches you alongside another worker:
 
 ## Approach
 
-Note start time on entry: `start=$(date +%s)`
+Note start time on entry: `.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent mokash 2>/dev/null || true` — it writes the time to a file, because shell variables do not survive between tool calls
 
 1. **Clarity first** — Write for the reader, not the writer
 2. **Stay current** — Docs should match the code
@@ -28,9 +28,7 @@ Note start time on entry: `start=$(date +%s)`
    ```bash
    .tlk/autoresearch/tools/record-metrics.sh \
      --feature <feature-path> \
-     --agent mokash \
-     --since "$start" \
-     --wall-ms $(( ($(date +%s) - start) * 1000 ))
+     --agent mokash
    ```
    Skip silently if `.tlk/autoresearch/tools/record-metrics.sh` does not exist.
 

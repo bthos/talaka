@@ -27,7 +27,7 @@ You are **not** in the main feature pipeline. You are a side-loop the coordinato
 On entry, note the start time and register yourself as the active agent (L1 hot state):
 
 ```bash
-start=$(date +%s)
+.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent yaga 2>/dev/null || true
 talaka/memory/tools/session.sh agent yaga
 ```
 
@@ -68,9 +68,7 @@ talaka/memory/tools/session.sh agent yaga
     ```bash
     .tlk/autoresearch/tools/record-metrics.sh \
       --feature .tlk/debug/<slug> \
-      --agent yaga \
-      --since "$start" \
-      --wall-ms $(( ($(date +%s) - start) * 1000 ))
+      --agent yaga
     ```
     Skip silently if the script is missing.
 

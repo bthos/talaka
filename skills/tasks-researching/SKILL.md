@@ -67,10 +67,10 @@ Recommend: /architecture-planning (arch + tests)
 Why: the approach is settled; planning can start from a verified brief.
 ```
 
-Note the start time on entry, before you read anything — `--since` needs it to measure what this run actually spent:
+Note the start time on entry, before you read anything — the recording call measures what this run actually spent from it. It is written to a file, because shell variables do not survive between tool calls:
 
 ```bash
-start=$(date +%s)
+.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent tasks-researching 2>/dev/null || true
 ```
 
 Record metrics before returning (skip silently if the script is absent):
@@ -78,9 +78,7 @@ Record metrics before returning (skip silently if the script is absent):
 ```bash
 .tlk/autoresearch/tools/record-metrics.sh \
   --feature <feature-path> \
-  --agent tasks-researching \
-  --since "$start" \
-  --wall-ms <elapsed_ms>
+  --agent tasks-researching
 ```
 
 ## Guardrails

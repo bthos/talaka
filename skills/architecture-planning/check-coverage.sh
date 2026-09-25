@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
-# Runs the project test command and extracts a coverage summary for the handoff to Bagnik.
+# Runs the project test command and extracts a coverage summary.
 # Usage: /skills/architecture-planning/check-coverage.sh [feature-path]
 # Run from project root.
+#
+# With a feature path it appends a *progress* entry to handoff-log.md — the
+# PIPELINE.md format for "a verification produced results" (issue #12). It never
+# writes the return entry: that is architecture-planning's own, written once,
+# addressed to the Coordinator, with Recommend/Why/Blockers. A script that
+# returned on the worker's behalf would log a second return for one run, and a
+# header addressed to Bagnik would be a worker-to-worker handoff the pipeline's
+# routing rule forbids.
 
 set -euo pipefail
 
@@ -34,26 +42,34 @@ echo "---"
 if [ -n "$FEATURE_PATH" ] && [ -d "$FEATURE_PATH" ]; then
   TIMESTAMP=$(date +%H:%M)
   LOG="$FEATURE_PATH/handoff-log.md"
+  # Last few lines that look like a runner summary (Jest, pytest, vitest, go test)
+  SUMMARY=$(echo "$OUTPUT" | grep -Ei '(tests?|specs?|pass|fail|error|ok)[^$]*$' | tail -3 || true)
   {
     echo ""
-    echo "## $TIMESTAMP architecture-planning → Bagnik [test gate]"
-    echo "Exit code: $EXIT_CODE"
-    # Try to extract a summary line (works for Jest, pytest, vitest, go test)
-    SUMMARY=$(echo "$OUTPUT" | grep -Ei '(tests?|specs?|pass|fail|error|ok)[^$]*$' | tail -3 || true)
+    echo "## $TIMESTAMP architecture-planning [arch + tests] progress"
+    if [ "$EXIT_CODE" -eq 0 ]; then
+      echo "Result: test command ran, exit 0 — suite green."
+    else
+      echo "Result: test command ran, exit $EXIT_CODE — suite red."
+    fi
     if [ -n "$SUMMARY" ]; then
-      echo "Coverage summary:"
       echo "$SUMMARY" | sed 's/^/  /'
     fi
     echo "Artifacts: $FEATURE_PATH/tech-plan.md"
+    if [ "$EXIT_CODE" -eq 0 ]; then
+      echo "Next: write the return entry to the Coordinator (arch + tests, done)."
+    else
+      echo "Next: fix the failures and re-run check-coverage.sh before returning."
+    fi
   } >> "$LOG"
-  echo "Appended coverage summary to $LOG"
+  echo "Appended a progress entry to $LOG — the return entry is still yours to write."
 fi
 
 if [ $EXIT_CODE -ne 0 ]; then
   echo ""
-  echo "Tests FAILED (exit $EXIT_CODE). Do not hand off to Bagnik yet — fix failures first."
+  echo "Tests failed (exit $EXIT_CODE). Fix them before returning — do not recommend the test gate on a red suite."
   exit $EXIT_CODE
 else
   echo ""
-  echo "Tests PASSED. Safe to hand off to Bagnik."
+  echo "Tests passed. Write your return entry to the Coordinator (Recommend: @bagnik, test gate)."
 fi

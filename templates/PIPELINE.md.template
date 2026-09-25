@@ -361,11 +361,18 @@ When autoresearch is initialised, every worker records a row before returning:
 
 ```bash
 .tlk/autoresearch/tools/record-metrics.sh \
-  --feature <feature-path> --agent <name> \
-  --since "$start" --wall-ms $(( ($(date +%s) - start) * 1000 ))
+  --feature <feature-path> --agent <name>
 ```
 
-`--since "$start"` is what makes the row real: `collect-usage.sh` reads the actual per-message token counts out of the Claude Code session transcript and prices them per model and per token kind from `pricing.json`. The row is tagged `"source":"measured"`.
+having marked the start on entry, before anything else:
+
+```bash
+.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent <name> 2>/dev/null || true
+```
+
+The mark is a file (`.tlk/autoresearch/runs/.start-<name>`), not a shell variable: shell state does not survive between tool calls, so a start time captured into a variable in one call is empty in the next. The recording call reads the mark as `--since` and derives `--wall-ms` from it; an implausible `--since` or `--wall-ms` is recorded as null with a warning, never as a number.
+
+The start mark is what makes the row real: `collect-usage.sh` reads the actual per-message token counts out of the Claude Code session transcript and prices them per model and per token kind from `pricing.json`. The row is tagged `"source":"measured"`.
 
 **Never pass `--tokens` with a number you estimated about yourself.** Veles ratchets on `accuracy − λ·cost`; a guessed cost term makes the ratchet optimise for whichever worker guessed highest. When nothing can be measured, the row records `null` and says so — which is useful, where a fabricated number is not.
 

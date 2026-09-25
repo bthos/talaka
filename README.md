@@ -266,12 +266,12 @@ The composite metric Veles ratchets on is `accuracy − λ·cost`. That only mea
 | `collect-usage.sh` | Reads the per-message `usage` blocks out of the Claude Code session transcript — input, output, 5-minute cache writes, 1-hour cache writes and cache reads, per model. Exits 3 rather than return a number it could not measure. |
 | `pricing.json` | Prices per model **and per token kind**. The two cache-write TTLs are priced differently (1.25× and 2× input), so folding them together understates a Claude Code session badly. Carries `_source_url`, `_fetched` and `_verified`. |
 | `fetch-pricing.sh` | Rewrites `pricing.json` from Anthropic's published price list. Run it before trusting a dollar figure; `--check` exits 4 when the table is stale. |
-| `record-metrics.sh --since "$start"` | Writes the row and tags it `"source":"measured"`. Without `--since` the row is `"estimated"` (a caller's assertion) or `"none"` — and only `measured` rows feed the composite. |
+| `record-metrics.sh --mark-start` → `record-metrics.sh` | The first call, on entry, writes the start time to `.tlk/autoresearch/runs/.start-<agent>`; the second reads it as `--since`, derives `--wall-ms`, writes the row and tags it `"source":"measured"`. Without a start the row is `"estimated"` (a caller's assertion) or `"none"` — and only `measured` rows feed the composite. |
 | `analyze-metrics.sh` | Reads the rows back. Ranks agents and skills by measured cost against the accuracy it bought, names the one with composite headroom, and prints how old the price table is. Veles runs this before picking a target. |
 
-Every agent and skill prompt passes `--since "$start"`; none of them estimates its own token use. An agent's guess about itself is not evidence, and a ratchet fed guesses optimises for whichever worker guessed highest.
+Every agent and skill prompt marks its start this way — never with a `start=$(date +%s)` shell variable, which does not survive between tool calls — and none of them estimates its own token use. An agent's guess about itself is not evidence, and a ratchet fed guesses optimises for whichever worker guessed highest.
 
-The statusline is on the same footing: session cost, context percentage, and the 5-hour / 7-day / spend limits all come from the JSON Claude Code hands the status line on stdin. The kit renders them; it does not compute them.
+The statusline is on the same footing: session cost, context percentage, and the 5-hour / 7-day / spend limits all come from the JSON Claude Code hands the status line on stdin. The kit renders them; it does not compute them. Reading that JSON takes **`jq`, a hard dependency of the statusline** (unlike the test suite, where it is optional): `install-statusline.sh` refuses to install without it, and if jq later goes missing the bar shows a one-line install hint instead of the status.
 
 ### Memory layers
 
@@ -507,7 +507,7 @@ Each skill bundles its own script. Shared scripts live under `talaka/shared/<cat
 | Script | Invoked by | What it does |
 |--------|-----------|--------------|
 | `.claude/skills/requirements-eliciting/new-feature.sh <slug>` | requirements-eliciting | Creates `.tlk/features/YYYY-MM-DD-<slug>/` with `spec.md` skeleton and `handoff-log.md` |
-| `.claude/skills/architecture-planning/check-coverage.sh [feature-path]` | architecture-planning | Runs test command, prints results, appends coverage entry to `handoff-log.md` |
+| `.claude/skills/architecture-planning/check-coverage.sh [feature-path]` | architecture-planning | Runs test command, prints results, appends a progress entry (exit code + summary) to `handoff-log.md` |
 | `.claude/skills/bugs-diagnosing/new-investigation.sh <slug>` | bugs-diagnosing | Creates `.tlk/debug/YYYY-MM-DD-<slug>/` with `hypothesis.md`, `instrumentation-log.md`, `findings.md`, `handoff-log.md` skeletons. Probe snippets live under `.claude/skills/bugs-diagnosing/templates/probes/`. |
 | `.claude/skills/knowledge-curating/new-wiki.sh` | knowledge-curating | Bootstraps `wiki/` at the project root (`SCHEMA.md`, `index.md`, `log.md`, `pages/`, `sources/`). The wiki is committed knowledge — it lives outside the git-ignored `.tlk/` tree on purpose (override with `BELUN_WIKI_DIR`). |
 | `.claude/skills/cli-designing/new-cli.sh <api-slug>` | cli-designing | Creates `.tlk/features/YYYY-MM-DD-cli-<slug>/` with `research-brief.md`, `design.md`, `scorecard.md` (the ≥85/100 QA contract Bagnik gates on), and `handoff-log.md` |

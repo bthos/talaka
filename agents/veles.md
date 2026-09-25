@@ -39,7 +39,7 @@ composite = accuracy_score − λ · cost_normalized
 
 ## The loop
 
-Note start time on entry: `start=$(date +%s)`
+Note start time on entry: `.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent veles 2>/dev/null || true` — it writes the time to a file, because shell variables do not survive between tool calls
 
 0. **Read the evidence.** The kit has been recording every run; this is where you read it back.
 
@@ -108,11 +108,9 @@ Also write one when the round aborts (judge hash mismatch, missing `program.md`)
   ```bash
   .tlk/autoresearch/tools/record-metrics.sh \
     --feature <feature-path> \
-    --agent veles \
-    --since "$start" \
-    --wall-ms $(( ($(date +%s) - start) * 1000 ))
+    --agent veles
   ```
-  `--since "$start"` makes the row measured — tokens and cost come from the session transcript, not from your own estimate. Never pass `--tokens` with a number you inferred: you are the agent that later ratchets on this row. Skip silently if `.tlk/autoresearch/tools/record-metrics.sh` does not exist.
+  The start mark from `--mark-start` makes the row measured — tokens and cost come from the session transcript, not from your own estimate. Never pass `--tokens` with a number you inferred: you are the agent that later ratchets on this row. Skip silently if `.tlk/autoresearch/tools/record-metrics.sh` does not exist.
 
 ## Kit issues — report, don't paper over
 

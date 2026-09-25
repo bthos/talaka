@@ -27,7 +27,7 @@ The prompts you touch are the kit's **L0 enforcement layer** — `.claude/agents
 On entry, if you are working inside a feature, note the start time and register as active agent (L1 hot state):
 
 ```bash
-start=$(date +%s)
+.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent prompts-building 2>/dev/null || true
 talaka/memory/tools/session.sh agent prompts-building
 ```
 
@@ -65,8 +65,7 @@ Invoked ad hoc, not as a fixed pipeline stage. When you improve a prompt inside 
 
 ```bash
 .tlk/autoresearch/tools/record-metrics.sh \
-  --feature <feature-path> --agent prompts-building \
-  --since "$start" --wall-ms $(( ($(date +%s) - start) * 1000 ))
+  --feature <feature-path> --agent prompts-building
 ```
 
 If the improved prompt is a proposed hardening of a shipped agent, write it to `.tlk/proposed-patches/<agent>.md` and let `shared/learning/tools/apply-patches.sh` land it (manifest hash refresh) rather than overwriting the installed copy directly.

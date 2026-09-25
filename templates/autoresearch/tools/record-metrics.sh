@@ -6,17 +6,36 @@
 # Edit this copy freely — the kit template is never overwritten after first install.
 #
 # Usage:
+#   # on entry — persists the start time to a file, so it survives the shell
+#   # being reset between tool calls:
+#   .tlk/autoresearch/tools/record-metrics.sh --mark-start --agent cmok
+#
+#   # before returning — --since and --wall-ms default to that mark:
 #   .tlk/autoresearch/tools/record-metrics.sh \
 #     --feature .tlk/features/2026-04-30-foo \
 #     --agent cmok \
-#     --since "$start" \
-#     --wall-ms 91500 \
+#     [--since <epoch>] [--wall-ms 91500] \
 #     [--accuracy 0.83] \
 #     [--variant baseline]
 #
+# START TIME LIVES IN A FILE, NOT A SHELL VARIABLE.
+#
+# Coding-agent harnesses reset shell state between tool calls: a `start=$(date
+# +%s)` captured in one call is empty in the next, and `$(( ($(date +%s) -
+# start) * 1000 ))` then silently becomes "now in epoch ms" (issues #9, #10).
+# --mark-start writes the epoch to .tlk/autoresearch/runs/.start-<agent>; the
+# recording call reads it back when --since is absent, derives --wall-ms from it
+# when --wall-ms is absent, and removes it once the row is written.
+#
+# An explicit --since or --wall-ms is still accepted, but checked: a --since that
+# is empty, not an epoch, in the future or older than MAX_RUN_SECONDS (default
+# 86400), and a --wall-ms that is not a whole number, exceeds MAX_RUN_SECONDS, or
+# exceeds the time elapsed since --since, is dropped with a warning and recorded
+# as null — never written as if it were measured.
+#
 # TOKENS AND COST ARE MEASURED, NOT GUESSED.
 #
-# Pass --since "$start" (the epoch second the worker captured on entry) and this
+# With a start mark (or an explicit --since <epoch>) this
 # script calls collect-usage.sh, which reads the real per-message `usage` blocks
 # out of the Claude Code session transcript and prices them from pricing.json.
 # The row is then tagged "source":"measured".
@@ -77,7 +96,10 @@ cost_per_min="${COST_PER_MIN:-0}"
 # per model and per token kind from pricing.json.
 cost_per_tok="${COST_PER_TOKEN:-}"
 since=""
+since_given=false
+mark_start=false
 usage_json=""
+max_run_s="${MAX_RUN_SECONDS:-86400}"
 source_kind="none"
 
 while [ $# -gt 0 ]; do
@@ -88,18 +110,68 @@ while [ $# -gt 0 ]; do
     --wall-ms)        wall_ms="$2"; shift 2 ;;
     --accuracy)       accuracy="$2"; shift 2 ;;
     --variant)        variant="$2"; shift 2 ;;
-    --since)          since="$2"; shift 2 ;;
+    --since)          since="$2"; since_given=true; shift 2 ;;
+    --mark-start)     mark_start=true; shift ;;
     --cost-per-min)   cost_per_min="$2"; shift 2 ;;
     --cost-per-token) cost_per_tok="$2"; shift 2 ;;
     --log-file=*) LOG_FILE="${1#--log-file=}"; shift ;;
     --log-file) LOG_FILE="${2:-}"; shift 2 ;;
-    -h|--help)        sed -n '2,34p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help)        sed -n '2,55p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "Unknown arg: $1" >&2; exit 2 ;;
   esac
 done
 
-[ -n "$feature" ] || { echo "--feature required" >&2; exit 2; }
 [ -n "$agent" ]   || { echo "--agent required"   >&2; exit 2; }
+case "$agent" in
+  *[!A-Za-z0-9_.-]*|.*) echo "record-metrics: --agent '$agent' must be [A-Za-z0-9_.-]" >&2; exit 2 ;;
+esac
+start_file="$RUNS_DIR/.start-$agent"
+now=$(date +%s)
+
+# --mark-start: persist the entry time and stop. No row is written.
+if $mark_start; then
+  printf '%s\n' "$now" > "$start_file"
+  echo "$now"
+  exit 0
+fi
+
+[ -n "$feature" ] || { echo "--feature required" >&2; exit 2; }
+
+# ---------------------------------------------------------------------------
+# Start time and wall-clock: take the mark, then sanity-check whatever we have.
+# A number that cannot be a real measurement is recorded as null, loudly.
+# ---------------------------------------------------------------------------
+if ! $since_given && [ -f "$start_file" ]; then
+  since=$(tr -d '[:space:]' < "$start_file")
+  since_given=true
+fi
+
+is_uint() { case "$1" in ''|*[!0-9]*) return 1 ;; *) return 0 ;; esac; }
+
+if $since_given; then
+  if ! is_uint "$since"; then
+    echo "record-metrics: --since '$since' is not an epoch second (empty shell variable?) — ignoring it; tokens and wall_ms not measured." >&2
+    since=""
+  elif [ "$since" -gt $(( now + 60 )) ] || [ "$since" -lt $(( now - max_run_s )) ]; then
+    echo "record-metrics: --since $since is not within the last ${max_run_s}s — ignoring it; tokens and wall_ms not measured." >&2
+    since=""
+  fi
+fi
+
+if [ "$wall_ms" = "null" ] && [ -n "$since" ]; then
+  wall_ms=$(( (now - since) * 1000 ))
+elif [ "$wall_ms" != "null" ]; then
+  if ! is_uint "$wall_ms"; then
+    echo "record-metrics: --wall-ms '$wall_ms' is not a whole number of ms — recording wall_ms as null." >&2
+    wall_ms="null"
+  elif [ "${#wall_ms}" -gt 15 ] || [ "$wall_ms" -gt $(( max_run_s * 1000 )) ]; then
+    echo "record-metrics: --wall-ms $wall_ms exceeds ${max_run_s}s — not a real run (was \$start empty?). Recording wall_ms as null." >&2
+    wall_ms="null"
+  elif [ -n "$since" ] && [ "$wall_ms" -gt $(( (now - since + 60) * 1000 )) ]; then
+    echo "record-metrics: --wall-ms $wall_ms is longer than the time since --since $since — recording wall_ms as null." >&2
+    wall_ms="null"
+  fi
+fi
 
 # ---------------------------------------------------------------------------
 # Resolve --feature to a directory that already exists.
@@ -207,6 +279,9 @@ printf '%s\n' "$json_line" >> "$feature/metrics.jsonl"
 
 # Fleet-wide cost log
 printf '%s\n' "$json_line" >> "$COST_LOG"
+
+# The mark belongs to this run; a later run must take its own.
+rm -f "$start_file"
 
 echo "$json_line"
 echo "record-metrics: appended to $feature/metrics.jsonl and $COST_LOG" >&2

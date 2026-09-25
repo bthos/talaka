@@ -18,7 +18,7 @@ Your job is to keep specs accurate and requirements clear.
 
 ## Approach
 
-Note start time on entry: `start=$(date +%s)`
+Note start time on entry: `.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent requirements-eliciting 2>/dev/null || true` — it writes the time to a file, because shell variables do not survive between tool calls
 
 1. **Ask clarifying questions** — Surface assumptions and edge cases
 2. **Capture decisions** — Write down what was decided, not just discussed
@@ -65,9 +65,7 @@ When the spec is ready:
    ```bash
    .tlk/autoresearch/tools/record-metrics.sh \
      --feature <feature-path> \
-     --agent requirements-eliciting \
-     --since "$start" \
-     --wall-ms $(( ($(date +%s) - start) * 1000 ))
+     --agent requirements-eliciting
    ```
    Skip silently if `.tlk/autoresearch/tools/record-metrics.sh` does not exist.
 

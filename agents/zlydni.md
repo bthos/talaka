@@ -21,7 +21,7 @@ You are Zlydni. Your job is commits and version control.
 On entry, note the start time and register yourself as the active agent (L1 hot state — you clear it again at the end of the pipeline):
 
 ```bash
-start=$(date +%s)
+.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent zlydni 2>/dev/null || true
 talaka/memory/tools/session.sh agent zlydni
 ```
 
@@ -109,9 +109,7 @@ When commit completes:
    ```bash
    .tlk/autoresearch/tools/record-metrics.sh \
      --feature <feature-path> \
-     --agent zlydni \
-     --since "$start" \
-     --wall-ms $(( ($(date +%s) - start) * 1000 ))
+     --agent zlydni
    ```
    Pass the live `.tlk/features/…` path here, not the archive path. Skip silently if `.tlk/autoresearch/tools/record-metrics.sh` does not exist.
 

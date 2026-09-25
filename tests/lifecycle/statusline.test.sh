@@ -64,4 +64,19 @@ test_remove_without_settings_is_noop() {
   assert_file_absent "$(_settings "$proj")" "no settings.json created by a no-op remove"
 }
 
+test_statusline_without_jq_prints_a_hint() {
+  # Issue #13: with no jq the script died with exit 127 and Claude Code showed
+  # an empty bar. It must render a one-line install hint and exit 0 instead.
+  # An empty PATH: no jq, and nothing else either — the no-jq path must get by
+  # on builtins. (A symlinked cat is no substitute: Git Bash copies cat.exe,
+  # which then cannot find msys-2.0.dll and exits 127.)
+  local bin; bin=$(make_tmp_project)
+  local out rc=0
+  out=$(printf '{"model":{"display_name":"X"}}' \
+        | PATH="$bin" "$BASH" "$KIT_ROOT/statusline/tools/statusline.sh" 2>&1) || rc=$?
+  assert_eq "0" "$rc" "exits 0 so the bar is rendered"
+  assert_contains "$out" "jq not found" "the bar says what is missing"
+  assert_contains "$out" "jqlang.github.io" "and where to get it"
+}
+
 run_tests "$@"

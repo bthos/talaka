@@ -21,7 +21,7 @@ Your job is to design interfaces and create UX mockups before code.
 On entry, note the start time and register yourself as the active agent (L1 hot state):
 
 ```bash
-start=$(date +%s)
+.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent ux-designing 2>/dev/null || true
 talaka/memory/tools/session.sh agent ux-designing
 ```
 
@@ -74,9 +74,7 @@ When the UX design is complete:
    ```bash
    .tlk/autoresearch/tools/record-metrics.sh \
      --feature <feature-path> \
-     --agent ux-designing \
-     --since "$start" \
-     --wall-ms $(( ($(date +%s) - start) * 1000 ))
+     --agent ux-designing
    ```
    Skip silently if `.tlk/autoresearch/tools/record-metrics.sh` does not exist.
 

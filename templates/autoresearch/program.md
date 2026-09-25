@@ -14,7 +14,7 @@ composite = accuracy_score − λ · cost_normalized
 
 ### Where cost comes from
 
-`tools/collect-usage.sh` reads the per-message `usage` blocks out of the Claude Code session transcript — real input, output, cache-write and cache-read counts per model — and prices them from `tools/pricing.json`. `tools/record-metrics.sh --since "$start"` writes that as a row tagged `"source":"measured"`.
+`tools/collect-usage.sh` reads the per-message `usage` blocks out of the Claude Code session transcript — real input, output, cache-write and cache-read counts per model — and prices them from `tools/pricing.json`. `tools/record-metrics.sh` (after `--mark-start` on entry) writes that as a row tagged `"source":"measured"`.
 
 Rows tagged `"estimated"` (a `--tokens N` the caller asserted) and `"none"` (nothing measurable) exist so the gap is visible. They are **not** inputs to the composite.
 
