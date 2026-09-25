@@ -8,9 +8,8 @@
 # tweaks — are carried forward and merged with the incoming kit changes. Only a
 # genuine overlap surfaces as a conflict to resolve; nothing is silently lost.
 #
-# After the refresh, this script sweeps any obsolete .cursor/ and .github/
-# artefacts left behind by older kit versions. Only manifest-matching files
-# are removed; locally-edited files are preserved with a warning.
+# If .cursor/ or .github/ copies from a pre-Claude-only install are still
+# around, it prints one warning pointing at the manual cleanup steps.
 #
 # Usage (from project root):
 #   talaka/shared/lifecycle/tools/update.sh
@@ -47,9 +46,8 @@ talaka / update.sh
   new-kit): local edits (Veles ratchets, apply-patches, hand tweaks) are merged
   with the incoming kit changes. Only true overlaps surface as a conflict.
 
-  After the refresh, sweeps any obsolete .cursor/ and .github/ artefacts left
-  behind by older kit versions. Only manifest-matching files are removed;
-  locally-edited files are preserved with a warning.
+  If .cursor/ or .github/ copies from a pre-Claude-only install are still
+  around, prints one warning pointing at the manual cleanup steps in README.
 
   USAGE
     talaka/shared/lifecycle/tools/update.sh [--no-pull] [INIT_FLAGS…]
@@ -153,68 +151,18 @@ if [ -f "$PIPELINE_CANONICAL" ] && [ -f "$PIPELINE_TEMPLATE" ]; then
   fi
 fi
 
-# Run the refresh, then sweep legacy IDE artefacts. We don't `exec` because
-# we need to run the sweep after init.sh returns.
+# Run the refresh. Not `exec`: the legacy-leftover notice runs after it.
 "$SCRIPT_DIR/shared/lifecycle/tools/init.sh" "${forward_args[@]}"
 init_exit=$?
 if [ $init_exit -ne 0 ]; then
   exit $init_exit
 fi
 
-# Legacy IDE sweep — manifest-safe; locally-edited files are preserved.
-header "Legacy IDE sweep (Cursor / Copilot pre-vX.Y artefacts)"
-swept=0
-skipped=0
-
-_sweep_file() {
-  local rel="$1"
-  if kit_managed_file_remove "$rel" >/dev/null 2>&1; then
-    swept=$((swept + 1))
-  else
-    skipped=$((skipped + 1))
+# Pre-Claude-only installs left .cursor/ and .github/ copies behind. The kit no
+# longer scans for or deletes them (issue #16) — it only says so, once.
+for _legacy in .cursor/agents .cursor/skills .cursor/rules .github/agents .github/instructions; do
+  if [ -d "$PROJECT_ROOT/$_legacy" ]; then
+    warn "Found $_legacy from a pre-Claude-only kit install — the kit no longer removes it. See README → Updating the kit → Leftovers from old installs."
+    break
   fi
-}
-
-if [ -d "$PROJECT_ROOT/.cursor/agents" ]; then
-  for f in "$PROJECT_ROOT/.cursor/agents/"*.md; do
-    [ -e "$f" ] || continue
-    _sweep_file ".cursor/agents/$(basename "$f")"
-  done
-fi
-if [ -d "$PROJECT_ROOT/.cursor/skills" ]; then
-  for skill_dir in "$PROJECT_ROOT/.cursor/skills/"*/; do
-    [ -d "$skill_dir" ] || continue
-    name=$(basename "$skill_dir")
-    if kit_managed_tree_remove ".cursor/skills/$name" "$SCRIPT_DIR/skills/$name" >/dev/null 2>&1; then
-      swept=$((swept + 1))
-    else
-      skipped=$((skipped + 1))
-    fi
-  done
-fi
-if [ -d "$PROJECT_ROOT/.github/agents" ]; then
-  for f in "$PROJECT_ROOT/.github/agents/"*.agent.md; do
-    [ -e "$f" ] || continue
-    _sweep_file ".github/agents/$(basename "$f")"
-  done
-fi
-if [ -d "$PROJECT_ROOT/.github/instructions" ]; then
-  for f in "$PROJECT_ROOT/.github/instructions/"*.instructions.md; do
-    [ -e "$f" ] || continue
-    _sweep_file ".github/instructions/$(basename "$f")"
-  done
-fi
-if [ -f "$PROJECT_ROOT/.github/copilot-instructions.md" ]; then
-  kit_include_block_remove ".github/copilot-instructions.md"
-fi
-
-# Prune now-empty parents
-for d in .cursor/agents .cursor/skills .cursor/rules .cursor .github/agents .github/instructions .github; do
-  [ -d "$PROJECT_ROOT/$d" ] && rmdir "$PROJECT_ROOT/$d" 2>/dev/null && removed "$d (empty dir)" || true
 done
-
-if [ $swept -gt 0 ] || [ $skipped -gt 0 ]; then
-  info "Legacy IDE sweep: removed $swept files, skipped $skipped (locally modified)."
-else
-  info "Legacy IDE sweep: nothing to do."
-fi
