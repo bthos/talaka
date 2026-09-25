@@ -158,11 +158,18 @@ extract_verdict() {
 
 # Run judge: prompt is passed via stdin. stderr is kept out of the parsed text
 # but retained for the diagnostic below.
+#
+# stdin is a file, not a pipe. Under pipefail, `printf … | judge` reported the
+# *printf's* status: a judge that answers without reading all of stdin made the
+# writer die of SIGPIPE, the pipeline exited 141, and a real verdict was thrown
+# away as "broken judge" — timing-dependent, always on a large prompt.
 judge_err=$(mktemp "${TMPDIR:-/tmp}/tlk-judge-err.XXXXXX")
-trap 'rm -f "$judge_err"' EXIT
+judge_in=$(mktemp "${TMPDIR:-/tmp}/tlk-judge-in.XXXXXX")
+trap 'rm -f "$judge_err" "$judge_in"' EXIT
+printf '%s\n' "$prompt" > "$judge_in"
 
 set +e
-raw_verdict=$(printf '%s\n' "$prompt" | eval "$JUDGE_CMD" 2>"$judge_err")
+raw_verdict=$(eval "$JUDGE_CMD" <"$judge_in" 2>"$judge_err")
 judge_rc=$?
 set -e
 
