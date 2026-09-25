@@ -292,7 +292,7 @@ Memory is organised as a five-layer tree modelled on **OpenClaw's self-evolving 
 observed → logged (L2) → curated (L3, 2-strike rule) → hardened (L0 patch) → stable
 ```
 
-- **Writing memory:** agents call **`memory/tools/log.sh`** (append a structured L2 entry + auto-run promote) and **`memory/tools/session.sh`** (set L1 active feature / agent / in-flight decisions) rather than hand-editing YAML — the deterministic seam that actually keeps the tree filled.
+- **Writing memory:** agents call **`memory/tools/log.sh`** (append a structured L2 entry + auto-run promote — every time for `--confidence high`, at most once per `MEMORY_PROMOTE_INTERVAL` seconds, default 900, for medium/low) and **`memory/tools/session.sh`** (set L1 active feature / agent / in-flight decisions) rather than hand-editing YAML — the deterministic seam that actually keeps the tree filled.
 - **Single-shot curation:** a `--confidence high` entry promotes to L3 **immediately** (the schema treats `high` as a rule). Medium/low entries wait for the 2-strike rule below.
 - **2-strike rule:** if the same fact appears in two daily files it auto-promotes to L3 with `confidence: medium` (no manual curation required).
 - **Temporal awareness:** every L3 entry has `decided:`. New entries can declare `supersedes: mem_<id>`; the resolver tags the older entry `[superseded by …]` (no silent overwrites — the past is preserved).
@@ -315,7 +315,7 @@ talaka/memory/tools/log.sh --type decision --confidence high "Adopt trunk-based 
 talaka/memory/tools/session.sh feature 2025-06-03-login
 talaka/memory/tools/session.sh decision "Chose device flow over PKCE."
 
-# Curate + roll over (promote runs automatically on every log.sh write)
+# Curate + roll over (log.sh runs promote for high-confidence writes, and at most every 15 min otherwise)
 talaka/memory/tools/promote.sh
 talaka/memory/tools/promote.sh --propose-hardening
 talaka/memory/tools/rollover.sh
@@ -326,7 +326,7 @@ Python TF-IDF (`memory/tools/search.py`) is used automatically when `python3` + 
 
 ### Scheduling regular maintenance
 
-Two things benefit from running on a schedule. **`promote.sh`** already runs on every `log.sh` write, so the only *time-based* work is **`rollover.sh`** (clears L1 `SESSION-STATE.md` after 24 h idle; compacts L2 daily files older than 7 days). **`tick.sh`** runs promote + rollover together, so scheduling `tick.sh` once a day covers everything. (AutoResearch's `autoresearch/run.sh` is optional and only worth scheduling if you want continuous self-tuning.)
+Two things benefit from running on a schedule. **`promote.sh`** already runs from `log.sh` (on every high-confidence write, and at most every 15 minutes otherwise), so the main *time-based* work is **`rollover.sh`** (clears L1 `SESSION-STATE.md` after 24 h idle; compacts L2 daily files older than 7 days). **`tick.sh`** runs promote + rollover together, so scheduling `tick.sh` once a day covers everything. (AutoResearch's `autoresearch/run.sh` is optional and only worth scheduling if you want continuous self-tuning.)
 
 Pick **one** of the options below — they are alternatives, not all required. Each runs from the **project root** and honours `ARTEFACTS_DIR`.
 
