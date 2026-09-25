@@ -271,7 +271,7 @@ The composite metric Veles ratchets on is `accuracy − λ·cost`. That only mea
 
 Every agent and skill prompt marks its start this way — never with a `start=$(date +%s)` shell variable, which does not survive between tool calls — and none of them estimates its own token use. An agent's guess about itself is not evidence, and a ratchet fed guesses optimises for whichever worker guessed highest.
 
-The statusline is on the same footing: session cost, context percentage, and the 5-hour / 7-day / spend limits all come from the JSON Claude Code hands the status line on stdin. The kit renders them; it does not compute them.
+The statusline is on the same footing: session cost, context percentage, and the 5-hour / 7-day / spend limits all come from the JSON Claude Code hands the status line on stdin. The kit renders them; it does not compute them. Reading that JSON takes **`jq`, a hard dependency of the statusline** (unlike the test suite, where it is optional): `install-statusline.sh` refuses to install without it, and if jq later goes missing the bar shows a one-line install hint instead of the status.
 
 ### Memory layers
 

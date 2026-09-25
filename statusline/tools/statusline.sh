@@ -2,10 +2,19 @@
 # talaka statusline — pipeline-aware status bar for Claude Code.
 # Line 1 (always): agent | feature [STAGE] | context bar | cost | lines
 # Line 2 (alerts): only rendered when something needs attention
-# Requires: jq
+# Requires: jq (hard dependency — without it the bar is a one-line install hint)
 set -euo pipefail
 
 input=$(cat)
+
+# Every field below comes out of the stdin JSON through jq. Without it the
+# script used to die with exit 127 and Claude Code showed an empty bar with no
+# hint why (issue #13). Say so on the bar itself instead, and exit 0 so the
+# line is actually rendered.
+if ! command -v jq >/dev/null 2>&1; then
+  printf 'talaka statusline: jq not found on PATH — install it: https://jqlang.github.io/jq/download/\n'
+  exit 0
+fi
 
 # --- JSON fields ---
 # Everything here is computed by Claude Code and handed to us on stdin: the
