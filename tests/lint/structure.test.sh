@@ -164,6 +164,18 @@ test_build_command_has_an_owner() {
     || fail "PIPELINE.md.template: test-scope table has no Build command column"
 }
 
+test_yaga_has_an_offline_capture_mode() {
+  # Issue #7: a target with no route to 127.0.0.1 can never feed the log
+  # server. Yaga must name the alternative, and say an empty runtime.jsonl is
+  # expected there rather than a missing artifact.
+  local f="$KIT_ROOT/agents/yaga.md"
+  grep -q 'Offline mode' "$f" || fail "yaga.md: step 4 has no offline capture mode"
+  grep -qi 'empty or absent `runtime.jsonl` is then the \*\*expected outcome' "$f" \
+    || fail "yaga.md: does not say an empty runtime.jsonl is expected offline"
+  grep -q 'Mode: server | offline' "$KIT_ROOT/skills/bugs-diagnosing/templates/instrumentation-log.md" \
+    || fail "instrumentation-log.md template: no Mode line"
+}
+
 test_every_worker_carries_the_output_discipline_block() {
   # The kit runs a coordinator plus six agents and fourteen skills, all of them
   # narrating. Concise output is a shipped rule, not a preference: a worker that
