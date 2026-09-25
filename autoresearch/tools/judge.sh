@@ -4,9 +4,21 @@
 #   judge.sh --requirement-file <path> --output-file <path>
 #   judge.sh --requirement "..." --output "..."
 #   judge.sh --self-test        # check the judge pipeline works at all
+# Options:
+#   --samples N   ask the judge N times (default 3, or .tlk/PROJECT.md → Judge samples)
+#   --no-cache    ignore and do not write the verdict cache
+#   --json        print {"verdict":…,"votes":[…],"samples":N,"cached":…} instead of the digit
 #
 # Defaults to `claude -p` (Haiku-class model). Override via .tlk/PROJECT.md:
 #   - **Judge command:** `<your CLI>` (must accept stdin and emit one char on stdout)
+#   - **Judge samples:** `3`
+#
+# A model's answer is sampled, so one call can flip on identical inputs. The
+# verdict is therefore strict: 1 only if every sample says 1 (judge.md rule 5 —
+# disagreement between samples is uncertainty, and uncertainty is failure). The
+# first 0 ends the run. Verdicts are cached in .tlk/autoresearch/judge-cache/,
+# keyed on the full prompt (judge.md + requirement + output), the judge command
+# and N, so identical inputs return an identical verdict.
 #
 # Exit codes:
 #   0  a verdict was produced — "0" or "1" on stdout
@@ -36,6 +48,9 @@ out=""
 req_file=""
 out_file=""
 self_test=false
+samples=""
+use_cache=true
+as_json=false
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -47,8 +62,12 @@ while [ $# -gt 0 ]; do
     --log-file=*) LOG_FILE="${1#--log-file=}"; shift ;;
     --log-file) LOG_FILE="${2:-}"; shift 2 ;;
     --output-file)        out_file="$2"; shift 2 ;;
+    --samples)            samples="${2:-}"; shift 2 ;;
+    --samples=*)          samples="${1#--samples=}"; shift ;;
+    --no-cache)           use_cache=false; shift ;;
+    --json)               as_json=true; shift ;;
     -h|--help)
-      sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '2,34p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *) echo "Unknown arg: $1" >&2; exit 2 ;;
@@ -96,6 +115,21 @@ PROJECT_MD="$ARTEFACTS/PROJECT.md"
 if [ -f "$PROJECT_MD" ]; then
   JUDGE_CMD=$(grep -E '^\s*-\s+\*\*Judge command:\*\*' "$PROJECT_MD" 2>/dev/null \
               | sed -E 's/^[^`]*`([^`]+)`.*/\1/' | head -n1 || true)
+fi
+
+# Samples: --samples, else PROJECT.md → Judge samples, else 3. Kept next to the
+# judge command rather than in settings.json "env": that env reaches only
+# Claude's tool calls, so a ratchet run from a terminal would score with a
+# different N than the same run from an agent.
+if [ -z "$samples" ] && [ -f "$PROJECT_MD" ]; then
+  samples=$(grep -E '^\s*-\s+\*\*Judge samples:\*\*' "$PROJECT_MD" 2>/dev/null \
+            | sed -E 's/^[^`]*`([^`]+)`.*/\1/' | head -n1 || true)
+  [[ $samples =~ ^[0-9]+$ ]] || samples=""
+fi
+samples="${samples:-3}"
+if ! [[ $samples =~ ^[0-9]+$ ]] || [ "$samples" -lt 1 ] || [ "$samples" -gt 15 ]; then
+  echo "--samples takes an integer 1..15 (got: $samples)" >&2
+  exit 2
 fi
 
 if [ -z "$JUDGE_CMD" ]; then
@@ -156,8 +190,11 @@ extract_verdict() {
   return 1
 }
 
-# Run judge: prompt is passed via stdin. stderr is kept out of the parsed text
-# but retained for the diagnostic below.
+# ---------------------------------------------------------------------------
+# judge_once → sets VERDICT, or prints the broken-pipeline diagnostic and
+# returns 3. stderr is kept out of the parsed text but retained for the
+# diagnostic.
+# ---------------------------------------------------------------------------
 #
 # stdin is a file, not a pipe. Under pipefail, `printf … | judge` reported the
 # *printf's* status: a judge that answers without reading all of stdin made the
@@ -168,41 +205,90 @@ judge_in=$(mktemp "${TMPDIR:-/tmp}/tlk-judge-in.XXXXXX")
 trap 'rm -f "$judge_err" "$judge_in"' EXIT
 printf '%s\n' "$prompt" > "$judge_in"
 
-set +e
-raw_verdict=$(eval "$JUDGE_CMD" <"$judge_in" 2>"$judge_err")
-judge_rc=$?
-set -e
+judge_once() {
+  local raw_verdict judge_rc err_tail
+  set +e
+  raw_verdict=$(eval "$JUDGE_CMD" <"$judge_in" 2>"$judge_err")
+  judge_rc=$?
+  set -e
 
-if [ "${VERBOSE:-}" = "1" ] || [ "${DEBUG:-}" = "1" ]; then
-  echo "judge.sh: command exited $judge_rc; raw stdout: ${raw_verdict:0:400}" >&2
+  if [ "${VERBOSE:-}" = "1" ] || [ "${DEBUG:-}" = "1" ]; then
+    echo "judge.sh: command exited $judge_rc; raw stdout: ${raw_verdict:0:400}" >&2
+  fi
+
+  # A non-zero exit means the judge itself failed — the bytes it managed to
+  # print are an error message, not an answer. Never parse a verdict out of those.
+  if [ "$judge_rc" -ne 0 ] || ! extract_verdict "$raw_verdict"; then
+    {
+      echo "judge.sh: no usable verdict from the judge command (exit $judge_rc)."
+      echo "  command: $JUDGE_CMD"
+      echo "  This is a broken judge pipeline, not a failing score — do not record it as accuracy 0."
+      echo "  --- last 200 chars of judge stdout ---"
+      echo "  ${raw_verdict: -200}"
+      if [ -s "$judge_err" ]; then
+        echo "  --- last 200 chars of judge stderr ---"
+        err_tail=$(tail -c 200 "$judge_err")
+        echo "  $err_tail"
+      fi
+      echo "  Check the judge with: $0 --self-test"
+    } >&2
+    return 3
+  fi
+  return 0
+}
+
+# ---------------------------------------------------------------------------
+# Cache. One small file per key: "verdict=…" and "votes=…". Only produced
+# verdicts are cached — never a broken run, never the self-test. Written only
+# when the artefacts dir exists; the kit does not create .tlk behind your back.
+# ---------------------------------------------------------------------------
+cache_file=""
+if $use_cache && ! $self_test && [ -d "$ARTEFACTS" ]; then
+  # shellcheck source=../../shared/lifecycle/tools/lib.sh
+  source "$PKG_DIR/../shared/lifecycle/tools/lib.sh"
+  if key=$(kit_sha256_string "$JUDGE_CMD"$'\n'"samples=$samples"$'\n'"$prompt" 2>/dev/null) && [ -n "$key" ]; then
+    cache_file="$ARTEFACTS/autoresearch/judge-cache/$key"
+  fi
 fi
 
-# A non-zero exit means the judge itself failed — the bytes it managed to print
-# are an error message, not an answer. Never parse a verdict out of those.
-if [ "$judge_rc" -ne 0 ] || ! extract_verdict "$raw_verdict"; then
-  {
-    echo "judge.sh: no usable verdict from the judge command (exit $judge_rc)."
-    echo "  command: $JUDGE_CMD"
-    echo "  This is a broken judge pipeline, not a failing score — do not record it as accuracy 0."
-    echo "  --- last 200 chars of judge stdout ---"
-    echo "  ${raw_verdict: -200}"
-    if [ -s "$judge_err" ]; then
-      echo "  --- last 200 chars of judge stderr ---"
-      err_tail=$(tail -c 200 "$judge_err")
-      echo "  $err_tail"
-    fi
-    echo "  Check the judge with: $0 --self-test"
-  } >&2
-  exit 3
+emit() {  # emit VERDICT VOTES CACHED
+  if $as_json; then
+    printf '{"verdict":%s,"votes":[%s],"samples":%s,"cached":%s}\n' "$1" "$2" "$samples" "$3"
+  else
+    echo "$1"
+  fi
+}
+
+if [ -n "$cache_file" ] && [ -f "$cache_file" ]; then
+  c_verdict=""; c_votes=""
+  while IFS='=' read -r k v || [ -n "$k" ]; do
+    case "$k" in verdict) c_verdict=$v ;; votes) c_votes=$v ;; esac
+  done < "$cache_file"
+  if { [ "$c_verdict" = 0 ] || [ "$c_verdict" = 1 ]; } && [[ $c_votes =~ ^[01](,[01])*$ ]]; then
+    [ "${VERBOSE:-}" = "1" ] && echo "judge.sh: cached verdict $c_verdict (votes $c_votes)" >&2
+    emit "$c_verdict" "$c_votes" true
+    exit 0
+  fi
 fi
+
+# ---------------------------------------------------------------------------
+# Sample. Strict: every sample must say 1; the first 0 decides.
+# ---------------------------------------------------------------------------
+votes=""
+final=1
+for (( i = 1; i <= samples; i++ )); do
+  judge_once || exit 3
+  votes="${votes:+$votes,}$VERDICT"
+  if [ "$VERDICT" = "0" ]; then final=0; break; fi
+done
 
 if $self_test; then
-  if [ "$VERDICT" = "1" ]; then
-    echo "judge self-test OK — '$JUDGE_CMD' returned 1 for a trivially satisfied pair."
+  if [ "$final" = "1" ]; then
+    echo "judge self-test OK — '$JUDGE_CMD' returned 1 on all $samples samples for a trivially satisfied pair."
     exit 0
   fi
   {
-    echo "judge.sh: self-test FAILED — the judge returned $VERDICT for a pair it cannot"
+    echo "judge.sh: self-test FAILED — the judge returned 0 (votes: $votes) for a pair it cannot"
     echo "  legitimately fail (requirement: contain the word BANANA; output: BANANA)."
     echo "  command: $JUDGE_CMD"
     echo "  Scores from this pipeline are not trustworthy. Fix the judge before scoring."
@@ -210,6 +296,15 @@ if $self_test; then
   exit 3
 fi
 
+if [ -n "$cache_file" ]; then
+  mkdir -p "${cache_file%/*}" 2>/dev/null || true
+  tmp="$cache_file.tmp.$$"
+  if printf 'verdict=%s\nvotes=%s\n' "$final" "$votes" > "$tmp" 2>/dev/null; then
+    mv -f "$tmp" "$cache_file" 2>/dev/null || rm -f "$tmp"
+  fi
+fi
+
 # Per program.md rule 5 the *model* answers 0 when it is uncertain; that arrives
-# here as a real verdict. Tool-level failures no longer masquerade as one.
-echo "$VERDICT"
+# here as a real verdict, and so does disagreement between samples. Tool-level
+# failures no longer masquerade as one.
+emit "$final" "$votes" false

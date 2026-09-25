@@ -127,28 +127,84 @@ $linesFmt = "${green}+${linesAdded}${reset}/${red}-${linesRemoved}${reset}"
 
 $l1 += " ${dim}|${reset} ${bar} ${pct}% ${dim}|${reset} ${costFmt} ${dim}|${reset} ${linesFmt}"
 
-# Usage limits — a pacing verdict rather than a bare percentage. Same rules as
-# statusline.sh (see the comment there): surplus = quota left − time left.
+# Usage limits — a pace badge, then one bar per window. Same rules, thresholds
+# and snapshot as pace.sh / statusline.sh (see the comments there):
+#   surplus = quota left − time left; the bar's fill is quota used and its │ is
+#   the share of the window already elapsed.
+$now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 function Get-Pace([int]$used, [long]$at, [long]$win) {
-    $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
     if ($used -lt 0 -or $at -le $now) { return $null }
     $left = [math]::Min($at - $now, $win)
     $tleft = [math]::Floor($left * 100 / $win)
     return @{ Surplus = [int](100 - $used - $tleft); TLeft = [int]$tleft }
 }
+
+# Thresholds: defaults, then `- **Pace thresholds:** `k=v …`` in .tlk/PROJECT.md
+$th = @{ slow5h = -15; slow7d = -10; push5h = 20; push7d = 10; stop5h = 90; stop7d = 95 }
+$projectMd = Join-Path $tlkDir "PROJECT.md"
+if (Test-Path $projectMd) {
+    $thLine = Get-Content $projectMd | Where-Object { $_ -match '^\s*-\s+\*\*Pace thresholds:\*\*' } | Select-Object -First 1
+    if ($thLine -and $thLine -match '`([^`<][^`]*)`') {
+        foreach ($kv in ($Matches[1] -split '\s+')) {
+            if ($kv -match '^(slow5h|slow7d|push5h|push7d|stop5h|stop7d)=(-?\d+)$') { $th[$Matches[1]] = [int]$Matches[2] }
+        }
+    }
+}
+
 $p5 = Get-Pace $lim5h $reset5h 18000
 $p7 = Get-Pace $lim7d $reset7d 604800
 $s7OrZero = if ($p7) { $p7.Surplus } else { 0 }
 $s5OrZero = if ($p5) { $p5.Surplus } else { 0 }
 
-$verdict = ""
-if     ($lim7d -ge 95) { $verdict = "${red}$([char]0x25A0) wait:7d${reset}" }
-elseif ($lim5h -ge 95) { $verdict = "${red}$([char]0x25A0) wait:5h${reset}" }
-elseif ($p7 -and $p7.Surplus -le -10) { $verdict = "${yellow}$([char]0x25BC) slow:7d${reset}" }
-elseif ($p5 -and $p5.Surplus -le -15) { $verdict = "${yellow}$([char]0x25BC) slow:5h${reset}" }
-elseif ($p5 -and $p5.TLeft -le 20 -and $p5.Surplus -ge 20 -and $s7OrZero -ge 0) { $verdict = "${green}$([char]0x25B2) push:5h${reset}" }
-elseif ($p7 -and $p7.Surplus -ge 10 -and $s5OrZero -ge -5) { $verdict = "${green}$([char]0x25B2) push:7d${reset}" }
-elseif ($p5 -or $p7) { $verdict = "${dim}$([char]0x25CF) steady${reset}" }
+$mode = ""; $win = ""
+if     ($lim7d -ge $th.stop7d) { $mode = "stop"; $win = "7d" }
+elseif ($lim5h -ge $th.stop5h) { $mode = "stop"; $win = "5h" }
+elseif ($p7 -and $p7.Surplus -le $th.slow7d) { $mode = "slow-down"; $win = "7d" }
+elseif ($p5 -and $p5.Surplus -le $th.slow5h) { $mode = "slow-down"; $win = "5h" }
+elseif ($p5 -and $p5.TLeft -le 20 -and $p5.Surplus -ge $th.push5h -and $s7OrZero -ge 0) { $mode = "speed-up"; $win = "5h" }
+elseif ($p7 -and $p7.Surplus -ge $th.push7d -and $s5OrZero -ge -5) { $mode = "speed-up"; $win = "7d" }
+elseif ($lim5h -ge 0 -or $lim7d -ge 0) { $mode = "normal" }
+
+$middot = [char]0x00B7
+$badge = switch ($mode) {
+    "stop"      { "${red}$([char]0x25A0) stop${middot}${win}${reset}" }
+    "slow-down" { "${yellow}$([char]0x25BC) slow-down${middot}${win}${reset}" }
+    "speed-up"  { "${green}$([char]0x25B2) speed-up${middot}${win}${reset}" }
+    "normal"    { "${dim}$([char]0x25CF) normal${reset}" }
+    default     { "" }
+}
+
+# Hand the measurement to the coordinator (pace.sh --mode reads it back).
+if ((Test-Path $tlkDir) -and ($lim5h -ge 0 -or $lim7d -ge 0)) {
+    $snap = Join-Path $tlkDir "usage.env"
+    $tmp = "$snap.tmp.$PID"
+    $body = "captured_at=$now`nused_5h=$lim5h`nresets_5h=$reset5h`nused_7d=$lim7d`nresets_7d=$reset7d`nused_spend=$limSpend`n"
+    try {
+        [System.IO.File]::WriteAllText($tmp, $body)
+        Move-Item -Force $tmp $snap
+    } catch { Remove-Item -Force $tmp -ErrorAction SilentlyContinue }
+}
+
+$eighths = @("", [char]0x258F, [char]0x258E, [char]0x258D, [char]0x258C, [char]0x258B, [char]0x258A, [char]0x2589)
+function Format-Bar([int]$used, $elapsed, $col) {
+    $cells = 8
+    if ($used -gt 100) { $used = 100 }
+    $eighthsUsed = [math]::Floor($used * $cells * 8 / 100); $full = [math]::Floor($eighthsUsed / 8); $rem = $eighthsUsed % 8
+    $mark = if ($null -ne $elapsed) { [math]::Floor(($elapsed * $cells + 50) / 100) } else { -1 }
+    $out = ""; $cur = ""
+    for ($i = 0; $i -le $cells; $i++) {
+        if ($i -eq $mark) {
+            if ($cur -ne $bold) { $out += "${reset}${bold}" }; $cur = $bold; $out += [char]0x2502
+        }
+        if ($i -ge $cells) { break }
+        if     ($i -lt $full)                   { $sty = $col; $ch = [char]0x2588 }
+        elseif ($i -eq $full -and $rem -gt 0)   { $sty = $col; $ch = $eighths[$rem] }
+        else                                    { $sty = $dim; $ch = [char]0x2591 }
+        if ($cur -ne $sty) { $out += "${reset}${sty}" }; $cur = $sty
+        $out += $ch
+    }
+    return "${out}${reset}"
+}
 
 function Format-Limit($lbl, [int]$used, $pace, [long]$at) {
     if ($used -lt 0) { return "" }
@@ -158,16 +214,17 @@ function Format-Limit($lbl, [int]$used, $pace, [long]$at) {
     elseif ($used -ge 80)                     { $col = $red }
     elseif ($used -ge 50)                     { $col = $yellow }
     else                                      { $col = $green }
-    $seg = "${col}${lbl} ${used}%${reset}"
+    $elapsed = if ($pace) { 100 - $pace.TLeft } else { $null }
+    $seg = "$lbl $(Format-Bar $used $elapsed $col) ${col}${used}%${reset}"
     $until = Format-Until $at
-    if ($until) { $seg += "${dim}$([char]0x2192)${until}${reset}" }
+    if ($until) { $seg += " ${dim}$([char]0x21BB)${until}${reset}" }
     return $seg
 }
 
-$limSegs = @($verdict, (Format-Limit "5h" $lim5h $p5 $reset5h), (Format-Limit "7d" $lim7d $p7 $reset7d))
+$limSegs = @($badge, (Format-Limit "5h" $lim5h $p5 $reset5h), (Format-Limit "7d" $lim7d $p7 $reset7d))
 if ($limSpend -ge 50) { $limSegs += Format-Limit "spend" $limSpend $null 0 }
 $limSegs = @($limSegs | Where-Object { $_ })
-if ($limSegs.Count -gt 0) { $l1 += " ${dim}|${reset} " + ($limSegs -join " ") }
+if ($limSegs.Count -gt 0) { $l1 += " ${dim}|${reset} " + ($limSegs -join " ${dim}|${reset} ") }
 
 Write-Host $l1
 

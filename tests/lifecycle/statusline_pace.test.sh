@@ -46,49 +46,96 @@ _case() {  # _case NEEDLE MSG USED_5H T5 USED_7D T7 — runs both implementation
   [ "$ran" -eq 1 ] || skip_test "neither jq nor pwsh present"
 }
 
-test_on_pace_week_is_steady() {
-  _case "● steady" "41% used with 4d of 7d left is on pace" 30 $((2*H)) 41 $((4*DAY))
+test_on_pace_week_is_normal() {
+  _case "● normal" "41% used with 4d of 7d left is on pace" 30 $((2*H)) 41 $((4*DAY))
 }
 
-test_week_overspent_says_slow_7d() {
-  _case "▼ slow:7d" "60% used with 4d left" 20 $((3*H)) 60 $((4*DAY))
+test_week_overspent_says_slow_down_7d() {
+  _case "▼ slow-down·7d" "60% used with 4d left" 20 $((3*H)) 60 $((4*DAY))
 }
 
 test_week_overspent_beats_spare_5h_near_reset() {
-  _case "▼ slow:7d" "weekly overspend outranks use-it-or-lose-it 5h" 10 $((20*60)) 60 $((4*DAY))
+  _case "▼ slow-down·7d" "weekly overspend outranks use-it-or-lose-it 5h" 10 $((20*60)) 60 $((4*DAY))
 }
 
-test_5h_burning_says_slow_5h() {
-  _case "▼ slow:5h" "50% of 5h gone in the first hour" 50 $((4*H)) 20 $((4*DAY))
+test_5h_burning_says_slow_down_5h() {
+  _case "▼ slow-down·5h" "50% of 5h gone in the first hour" 50 $((4*H)) 20 $((4*DAY))
 }
 
-test_week_spare_says_push_7d() {
-  _case "▲ push:7d" "20% used with 4d left" 20 $((3*H)) 20 $((4*DAY))
+test_week_spare_says_speed_up_7d() {
+  _case "▲ speed-up·7d" "20% used with 4d left" 20 $((3*H)) 20 $((4*DAY))
 }
 
-test_5h_about_to_reset_unused_says_push_5h() {
-  _case "▲ push:5h" "70% of 5h unused with 30m left, week on pace" 30 $((30*60)) 43 $((4*DAY))
+test_5h_about_to_reset_unused_says_speed_up_5h() {
+  _case "▲ speed-up·5h" "70% of 5h unused with 30m left, week on pace" 30 $((30*60)) 43 $((4*DAY))
 }
 
-test_5h_nearly_exhausted_says_wait_5h() {
-  _case "■ wait:5h" "5h at 96%" 96 $((30*60)) 20 $((4*DAY))
+test_5h_nearly_exhausted_says_stop_5h() {
+  _case "■ stop·5h" "5h at 96%" 96 $((30*60)) 20 $((4*DAY))
 }
 
 test_both_windows_are_shown() {
-  _case "5h 30%" "5h window shown" 30 $((2*H)) 41 $((4*DAY))
-  _case "7d 41%" "7d window shown" 30 $((2*H)) 41 $((4*DAY))
+  _case "5h ██▍" "5h window shown" 30 $((2*H)) 41 $((4*DAY))
+  _case "7d ███" "7d window shown" 30 $((2*H)) 41 $((4*DAY))
 }
 
 test_single_window_still_gets_a_verdict() {
-  _case "▲ push:7d" "no 5h window on this plan" - 0 10 $((5*DAY))
+  _case "▲ speed-up·7d" "no 5h window on this plan" - 0 10 $((5*DAY))
 }
 
 test_no_rate_limits_renders_no_verdict() {
   command -v jq >/dev/null 2>&1 || { skip_test "jq absent"; return; }
   local out
   out=$(printf '{"workspace":{"project_dir":"%s"}}' "$NO_PROJ" | _sh)
-  assert_not_contains "$out" "steady" "no verdict without limits"
+  assert_not_contains "$out" "normal" "no verdict without limits"
   assert_not_contains "$out" "5h" "no window segment without limits"
+}
+
+test_bar_marks_elapsed_share_of_the_window() {
+  # 5h: 30% used, 2h of 5h left → 60% elapsed → │ after cell 5 of 8.
+  _case "5h ██▍░░│░░░ 30% ↻" "fill is quota used, │ is time elapsed" 30 $((2*H)) - 0
+}
+
+test_fill_past_the_marker_shows_overspend() {
+  # 7d: 60% used with 4d left → 43% elapsed → │ lands inside the fill.
+  _case "7d ███│█▊░░░ 60%" "overspend reads as fill beyond the │" 20 $((3*H)) 60 $((4*DAY))
+}
+
+test_stop_fires_before_the_window_is_exhausted() {
+  _case "■ stop·5h" "default stop5h=90 leaves room to stop cleanly" 91 $((2*H)) 20 $((4*DAY))
+}
+
+# A project with .tlk, for the snapshot and PROJECT.md threshold cases.
+_tlk_payload() {  # _tlk_payload PROJ USED_5H T5 USED_7D T7
+  local now; now=$(date +%s)
+  printf '{"workspace":{"project_dir":"%s"},"rate_limits":{"five_hour":{"used_percentage":%s,"resets_at":%s},"seven_day":{"used_percentage":%s,"resets_at":%s}}}' \
+    "$1" "$2" $((now + $3)) "$4" $((now + $5))
+}
+
+test_project_thresholds_override_the_defaults() {
+  command -v jq >/dev/null 2>&1 || { skip_test "jq absent"; return; }
+  local proj out; proj=$(make_tmp_project); mkdir -p "$proj/.tlk"
+  printf -- '- **Pace thresholds:** `stop5h=50`\n' > "$proj/.tlk/PROJECT.md"
+  out=$(_tlk_payload "$proj" 55 $((2*H)) 41 $((4*DAY)) | _sh)
+  assert_contains "$out" "■ stop·5h" "stop5h from PROJECT.md applies"
+}
+
+test_statusline_writes_usage_snapshot_for_the_coordinator() {
+  command -v jq >/dev/null 2>&1 || { skip_test "jq absent"; return; }
+  local proj snap; proj=$(make_tmp_project); mkdir -p "$proj/.tlk"
+  _tlk_payload "$proj" 42 $((2*H)) 17 $((4*DAY)) | _sh >/dev/null
+  snap="$proj/.tlk/usage.env"
+  assert_file_exists "$snap" "snapshot written into .tlk"
+  assert_file_contains "$snap" "used_5h=42" "5h usage recorded"
+  assert_file_contains "$snap" "used_7d=17" "7d usage recorded"
+  assert_file_contains "$snap" "captured_at=" "capture time recorded"
+}
+
+test_no_snapshot_without_rate_limits() {
+  command -v jq >/dev/null 2>&1 || { skip_test "jq absent"; return; }
+  local proj; proj=$(make_tmp_project); mkdir -p "$proj/.tlk"
+  printf '{"workspace":{"project_dir":"%s"}}' "$proj" | _sh >/dev/null
+  assert_file_absent "$proj/.tlk/usage.env" "nothing measured, nothing written"
 }
 
 run_tests "$@"
