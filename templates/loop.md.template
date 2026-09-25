@@ -49,7 +49,7 @@ If the definition of done is not observable, fix that with the user before itera
 
 ## The iteration
 
-1. **Assess.** Read `goal.md`, the last entries of `handoff-log.md`, and `.tlk/MEMORY.md`. State in one line where the goal stands.
+1. **Assess.** Read `goal.md`, the last entries of `handoff-log.md`, `.tlk/MEMORY.md`, and the pace (see *Pace*). State in one line where the goal stands.
 2. **Pick ONE technique** from the menu below. Prefer the cheapest technique that can move the goal; prefer a technique that produces an artifact over one that produces an opinion.
 3. **Invoke it** with the standard invocation prompt (PIPELINE.md → *Invocation Prompt Template*), passing `.tlk/goals/<slug>/` as the feature path.
 4. **Read the return entry.** Not the worker's prose — the log.
@@ -116,6 +116,22 @@ Stop and report when **any** holds:
 - The next step would write code, and the user has not authorised writes for this goal.
 
 On stop: one return entry, plus a `summary.md` in the goal folder — what changed, what is left, what to run next. Then end the `/loop` rather than scheduling another wake. Nothing else.
+
+---
+
+## Pace
+
+Every iteration starts by reading the usage-limit pace — `.tlk/PIPELINE.md` → *Pace* has the modes and what each allows:
+
+```bash
+talaka/statusline/tools/pace.sh           # mode=… window=… measured=… reason="…"
+talaka/statusline/tools/pace.sh --delay   # seconds until the next wake, for this mode
+```
+
+- `stop` is a stop condition like the ones above: log the exact resume point and do not start the iteration's technique.
+- `slow-down` rules out `@veles` rounds and other optional sweeps; pick the cheapest technique that still moves the goal, or log the deferral and wait.
+- In `/loop` **dynamic** mode (no interval), pass `--delay`'s number as `ScheduleWakeup` `delaySeconds`: `60` in speed-up, `1200` in normal (and when unmeasured), `1800` in slow-down, and in stop the time until the deciding window resets (clamped to `3600` — a later wake reads the pace again).
+- Log only mode switches, never every reading.
 
 ---
 

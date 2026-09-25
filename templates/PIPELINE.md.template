@@ -137,12 +137,41 @@ Two roles, and they never swap:
 ### The coordinator loop
 
 1. **Read the log.** `handoff-log.md` in the active feature folder is the event track — the full chain of custody. The last **return entry** (the one with `→ Coordinator`) says where the pipeline stands; `progress` entries under it are in-flight detail, not routing signals.
-2. **Decide.** Apply the Routing Table below to `(last worker, context, status)`. The worker's `Recommend:` line is an input, not a verdict — override it when the log says otherwise (see *Loop breaking*).
-3. **Invoke exactly one step.** One agent, or one parallel pair where the table says so (only Mokash runs in parallel).
-4. **Wait for the return.** The worker finishes, having appended its log entry.
-5. **Repeat** until the table says STOP (user input required) or the pipeline ends.
+2. **Check pace.** Run `talaka/statusline/tools/pace.sh` and read its `mode=` (see *Pace* below). It bounds what step 4 may launch.
+3. **Decide.** Apply the Routing Table below to `(last worker, context, status)`. The worker's `Recommend:` line is an input, not a verdict — override it when the log says otherwise (see *Loop breaking*).
+4. **Invoke exactly one step.** One agent, or one parallel pair where the table says so (only Mokash runs in parallel — plus independent read-only steps in `speed-up` mode).
+5. **Wait for the return.** The worker finishes, having appended its log entry.
+6. **Repeat** until the table says STOP (user input required), the pace says `stop`, or the pipeline ends.
 
 The coordinator does not do the workers' jobs. It routes, relays context, and stops for the user.
+
+### Pace — usage-limit modes
+
+Long pipelines outrun the usage limits: they under-use a large headroom, then get cut off mid-step when the window runs dry. Before every routing decision the coordinator reads the pace:
+
+```bash
+talaka/statusline/tools/pace.sh
+# mode=slow-down window=7d measured=yes reason="7d 38% used, 21% of window elapsed, resets in 5d"
+```
+
+The numbers are Claude Code's own `rate_limits`, which only the statusline receives; it writes them to `.tlk/usage.env` on every render and `pace.sh` re-applies the rules to them at the current clock. **Never estimate the limit yourself.** Exit `4` means there is no usable measurement (statusline not installed, snapshot older than 10 minutes, plan without limits): run at `normal` and log that once.
+
+| Mode | When | The coordinator may |
+|------|------|---------------------|
+| `speed-up` | Headroom will go unused before the window resets | Run **independent read-only** steps in parallel (research, mapping, auditing, assumption challenges); re-run a gate instead of arguing with a flaky result. Builds stay one at a time — never two `@cmok` on one tree. |
+| `normal` | On pace | Everything in this protocol, nothing more. |
+| `slow-down` | Spending faster than the window refills | Start no new epic or feature; one full-suite run per gate (no re-runs "to be sure"); no parallel agents, Mokash included; defer optional steps — docs sweeps, mutation/Veles rounds, audits — to a progress entry. |
+| `stop` | A window is at its stop threshold | Start nothing new. Let the running worker return, then write a progress entry with the **exact resume point** (next worker, its prompt inputs, what was deferred), update `.tlk/SESSION-STATE.md`, and tell the user when the window resets. |
+
+Thresholds default to `slow5h=-15 slow7d=-10 push5h=20 push7d=10 stop5h=90 stop7d=95` (surplus = quota left − time left, in points of the window; `stop` is % used). Override any of them in `.tlk/PROJECT.md` → `Pace thresholds`. The statusline badge (`▲ speed-up` · `● normal` · `▼ slow-down` · `■ stop`) uses the same rules, so what the user sees is what the coordinator acts on.
+
+**Log switches, not readings.** Append a line to `handoff-log.md` only when the mode changes (and once for an unmeasured fallback):
+
+```markdown
+## HH:MM [Coordinator] pace normal → slow-down
+- 7d 38% used, 21% of window elapsed, resets in 5d
+- Deferred: docs sweep, Veles round
+```
 
 ### Worker contract
 
@@ -331,7 +360,7 @@ The coordinator reads this log before every routing decision. It is the only pla
 4. **Carry failure history** — In fix loops, tell the worker what was already tried; it has no memory of its previous run
 5. **Flag blockers early** — Workers report blockers in the return entry; the coordinator routes or stops
 6. **Log partial results** — Progress entries as checkpoints land, not one dump at the end
-7. **Parallel work** — Only Mokash runs in parallel; pass it the same context
+7. **Parallel work** — Only Mokash runs in parallel; pass it the same context. In `speed-up` pace, independent read-only steps may run in parallel too; in `slow-down`, nothing does (see *Pace*)
 8. **Close feature after commit** — After Zlydni commit, move feature folder to `.tlk/archive/`
 9. **Version bumping** — Cmok: bump patch before each build. Zlydni: bump minor before commit. Update all version files listed in Project-Specific Configuration.
 

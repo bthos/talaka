@@ -10,6 +10,34 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Added — coordinator paces itself by the usage limits (#14)
+
+- **The problem.** The coordinator ran every step at one pace. With plenty of headroom it
+  parallelised too little; close to the limit it still started full-suite reruns, parallel agents
+  and optional sweeps, and got cut off mid-step instead of stopping cleanly.
+- **`statusline/tools/pace.sh`.** One set of rules for the statusline and the coordinator. Prints
+  `mode=speed-up|normal|slow-down|stop` with the deciding window and the measured numbers;
+  `--delay` prints a `/loop` `ScheduleWakeup` delay for the mode. Exit `4` when nothing is
+  measured (no snapshot, older than 10 min, no windows) — the caller runs at `normal`.
+- **Measured, never estimated.** Only the statusline receives Claude Code's `rate_limits`, so
+  `statusline.sh` / `statusline.ps1` now write them to `.tlk/usage.env` (atomic, `KEY=integer`,
+  parsed rather than sourced) on every render.
+- **Thresholds** in `.tlk/PROJECT.md` → `Pace thresholds` (`slow5h slow7d push5h push7d stop5h
+  stop7d`). `stop` now fires at 90 % of 5h / 95 % of 7d so a running step can finish.
+- **Protocol.** `PIPELINE.md` → *Pace*: the coordinator reads the pace before each routing
+  decision. `speed-up` allows independent read-only steps in parallel and re-gates, never two
+  builds; `slow-down` starts no new epic, runs one full suite per gate, no parallel agents, and
+  defers optional steps; `stop` writes a progress entry with the exact resume point. Only mode
+  switches are logged. `loop.md` uses the same modes and `--delay` for dynamic `/loop` wakes.
+
+### Changed — statusline limits render as bars with a pace marker
+
+- `▼ slow:7d 5h 26%→3h 7d 20%→6d` is now
+  `▼ slow-down·7d | 5h ██░│░░░░░ 26% ↻3h | 7d █│▌░░░░░░ 20% ↻6d`. The fill is quota used; the
+  `│` marks how much of the window has elapsed, so fill past it means spending faster than the
+  window refills. Badge names match the coordinator modes (`push`→`speed-up`, `steady`→`normal`,
+  `slow`→`slow-down`, `wait`→`stop`).
+
 ### Added — kit settings live in settings.json "env", under a TALAKA_ prefix
 
 - **The problem.** Kit settings were bare environment variables (`MEMORY_PROMOTE_INTERVAL`,

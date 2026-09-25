@@ -132,44 +132,62 @@ LINES_FMT="${G}+${LINES_ADD}${Z}/${R}-${LINES_DEL}${Z}"
 
 L1="${L1} ${D}|${Z} ${BAR} ${PCT}% ${D}|${Z} ${COST_FMT} ${D}|${Z} ${LINES_FMT}"
 
-# Usage limits — a pacing verdict rather than a bare percentage. Per window,
-# surplus = quota left − time left, in points of the window: positive means
-# capacity will go unused at the current straight-line pace, negative means the
-# window runs dry before it resets. Inputs are the payload and the clock only.
-#   ■ wait   a window is ≥95% used
-#   ▼ slow   7d surplus ≤ −10, or 5h surplus ≤ −15
-#   ▲ push   5h resets within its last fifth with ≥20 points spare and the week
-#            is not behind; or 7d surplus ≥ +10 and 5h is not burning
-#   ● steady otherwise
-# The suffix names the window that decided it. Checks run in the order above.
+# Usage limits — a pace badge, then one bar per window.
+# The rules and thresholds live in pace.sh, shared with the coordinator:
+#   ▲ speed-up · ● normal · ▼ slow-down · ■ stop   (suffix: the deciding window)
+# Each window renders as `5h ██▌░│░░░ 26% ↻3h`: the fill is quota used, the │
+# is how much of the window has elapsed. Fill past the │ means spending faster
+# than straight-line pace. Inputs are the payload and the clock only.
 NOW=$(date +%s)
-W5H=18000; W7D=604800
-
-pace() {  # pace USED RESETS_AT WINDOW_SECS → sets P_SURPLUS, P_TLEFT (empty when unknown)
-  P_SURPLUS=""; P_TLEFT=""
-  local used="$1" at="$2" win="$3" left
-  { [ "$used" -ge 0 ] && [ "$at" -gt "$NOW" ]; } 2>/dev/null || return 0
-  left=$(( at - NOW )); [ "$left" -gt "$win" ] && left=$win
-  P_TLEFT=$(( left * 100 / win ))
-  P_SURPLUS=$(( 100 - used - P_TLEFT ))
-}
-pace "$LIM_5H" "$RESET_5H" "$W5H"; S5=$P_SURPLUS; T5=$P_TLEFT
-pace "$LIM_7D" "$RESET_7D" "$W7D"; S7=$P_SURPLUS
-
-VERDICT=""
-if   [ "$LIM_7D" -ge 95 ]; then VERDICT="${R}■ wait:7d${Z}"
-elif [ "$LIM_5H" -ge 95 ]; then VERDICT="${R}■ wait:5h${Z}"
-elif [ -n "$S7" ] && [ "$S7" -le -10 ]; then VERDICT="${Y}▼ slow:7d${Z}"
-elif [ -n "$S5" ] && [ "$S5" -le -15 ]; then VERDICT="${Y}▼ slow:5h${Z}"
-elif [ -n "$S5" ] && [ "$T5" -le 20 ] && [ "$S5" -ge 20 ] && [ "${S7:-0}" -ge 0 ]; then
-  VERDICT="${G}▲ push:5h${Z}"
-elif [ -n "$S7" ] && [ "$S7" -ge 10 ] && [ "${S5:-0}" -ge -5 ]; then
-  VERDICT="${G}▲ push:7d${Z}"
-elif [ -n "$S5$S7" ]; then VERDICT="${D}● steady${Z}"
+PACE_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/pace.sh"
+PACE_MODE=""; PACE_WINDOW=""; PACE_T5=""; PACE_T7=""; PACE_S5=""; PACE_S7=""
+if [ -f "$PACE_LIB" ]; then
+  # shellcheck source=pace.sh
+  . "$PACE_LIB"
+  pace_load_thresholds "$AKT/PROJECT.md"
+  pace_decide "$LIM_5H" "$RESET_5H" "$LIM_7D" "$RESET_7D" "$NOW"
+  # Hand the measurement to the coordinator (pace.sh --mode). Only this script
+  # ever sees rate_limits, so the snapshot is the coordinator's one source.
+  if [ -d "$AKT" ] && { [ "$LIM_5H" -ge 0 ] || [ "$LIM_7D" -ge 0 ]; }; then
+    pace_write_snapshot "$AKT/usage.env" "$NOW" "$LIM_5H" "$RESET_5H" "$LIM_7D" "$RESET_7D" "$LIM_SPEND"
+  fi
 fi
 
-lim_seg() {  # lim_seg LABEL USED SURPLUS RESETS_AT — empty when the window is absent
-  local lbl="$1" used="$2" surplus="$3" at="$4" col until
+BADGE=""
+case "$PACE_MODE" in
+  stop)      BADGE="${R}■ stop·${PACE_WINDOW}${Z}" ;;
+  slow-down) BADGE="${Y}▼ slow-down·${PACE_WINDOW}${Z}" ;;
+  speed-up)  BADGE="${G}▲ speed-up·${PACE_WINDOW}${Z}" ;;
+  normal)    BADGE="${D}● normal${Z}" ;;
+esac
+
+# Partial blocks, in eighths of a cell. An array rather than string slicing so
+# it holds under a non-UTF-8 locale.
+EIGHTHS=("" "▏" "▎" "▍" "▌" "▋" "▊" "▉")
+
+# lim_bar USED ELAPSED COLOR — 8 cells of fill, plus a │ at ELAPSED (0..100) when known.
+# Style codes are emitted only where the style changes.
+lim_bar() {
+  local used="$1" elapsed="$2" col="$3" cells=8 e full rem i mark=-1 out="" cur="" sty ch
+  [ "$used" -gt 100 ] && used=100
+  e=$(( used * cells * 8 / 100 )); full=$(( e / 8 )); rem=$(( e % 8 ))
+  [ -n "$elapsed" ] && mark=$(( (elapsed * cells + 50) / 100 ))
+  for (( i = 0; i <= cells; i++ )); do
+    if [ "$i" -eq "$mark" ]; then
+      [ "$cur" = "$B" ] || out="${out}${Z}${B}"; cur="$B"; out="${out}│"
+    fi
+    [ "$i" -lt "$cells" ] || break
+    if   [ "$i" -lt "$full" ]; then sty="$col"; ch="█"
+    elif [ "$i" -eq "$full" ] && [ "$rem" -gt 0 ]; then sty="$col"; ch="${EIGHTHS[$rem]}"
+    else sty="$D"; ch="░"; fi
+    [ "$cur" = "$sty" ] || out="${out}${Z}${sty}"; cur="$sty"
+    out="${out}${ch}"
+  done
+  printf '%s' "${out}${Z}"
+}
+
+lim_seg() {  # lim_seg LABEL USED SURPLUS TIME_LEFT RESETS_AT — empty when the window is absent
+  local lbl="$1" used="$2" surplus="$3" tleft="$4" at="$5" col until elapsed=""
   [ "$used" -ge 0 ] || return 0
   if   [ "$used" -ge 95 ]; then col="$R"
   elif [ -n "$surplus" ] && [ "$surplus" -lt -5 ]; then col="$Y"
@@ -177,18 +195,19 @@ lim_seg() {  # lim_seg LABEL USED SURPLUS RESETS_AT — empty when the window is
   elif [ "$used" -ge 80 ]; then col="$R"
   elif [ "$used" -ge 50 ]; then col="$Y"
   else col="$G"; fi
-  printf '%s' "${col}${lbl} ${used}%${Z}"
+  [ -n "$tleft" ] && elapsed=$(( 100 - tleft ))
+  printf '%s' "${lbl} $(lim_bar "$used" "$elapsed" "$col") ${col}${used}%${Z}"
   until=$(fmt_until "$at")
-  [ -n "$until" ] && printf '%s' "${D}→${until}${Z}"
+  [ -n "$until" ] && printf '%s' " ${D}↻${until}${Z}"
   return 0
 }
 
 LIM_SEGS=""
-for _seg in "$VERDICT" "$(lim_seg 5h "$LIM_5H" "$S5" "$RESET_5H")" \
-            "$(lim_seg 7d "$LIM_7D" "$S7" "$RESET_7D")"; do
-  [ -n "$_seg" ] && LIM_SEGS="${LIM_SEGS:+$LIM_SEGS }${_seg}"
+for _seg in "$BADGE" "$(lim_seg 5h "$LIM_5H" "$PACE_S5" "$PACE_T5" "$RESET_5H")" \
+            "$(lim_seg 7d "$LIM_7D" "$PACE_S7" "$PACE_T7" "$RESET_7D")"; do
+  [ -n "$_seg" ] && LIM_SEGS="${LIM_SEGS:+$LIM_SEGS ${D}|${Z} }${_seg}"
 done
-[ "$LIM_SPEND" -ge 50 ] && LIM_SEGS="${LIM_SEGS:+$LIM_SEGS }$(lim_seg spend "$LIM_SPEND" "" 0)"
+[ "$LIM_SPEND" -ge 50 ] && LIM_SEGS="${LIM_SEGS:+$LIM_SEGS ${D}|${Z} }$(lim_seg spend "$LIM_SPEND" "" "" 0)"
 [ -n "$LIM_SEGS" ] && L1="${L1} ${D}|${Z} ${LIM_SEGS}"
 
 echo -e "$L1"

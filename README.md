@@ -308,6 +308,8 @@ Every agent and skill prompt marks its start this way — never with a `start=$(
 
 The statusline is on the same footing: session cost, context percentage, and the 5-hour / 7-day / spend limits all come from the JSON Claude Code hands the status line on stdin. The kit renders them; it does not compute them. Reading that JSON takes **`jq`, a hard dependency of the statusline** (unlike the test suite, where it is optional): `install-statusline.sh` refuses to install without it, and if jq later goes missing the bar shows a one-line install hint instead of the status.
 
+The limits render as a pace badge and one bar per window: `▼ slow-down·7d | 5h ██▍░░│░░░ 30% ↻2h | 7d ███│█▊░░░ 60% ↻4d`. The fill is quota used; the `│` marks how much of the window has elapsed, so fill past the `│` means spending faster than the window refills. The badge — `▲ speed-up`, `● normal`, `▼ slow-down`, `■ stop`, suffixed with the window that decided it — comes from **`talaka/statusline/tools/pace.sh`**, and so does the coordinator's pace: the statusline writes the measured limits to `.tlk/usage.env` on every render, and the coordinator runs `pace.sh` before each routing decision to decide whether to parallelise read-only steps, hold back optional ones, or stop cleanly with a resume point (`PIPELINE.md` → *Pace*). Without the statusline there is no measurement, and the coordinator runs at normal pace. Thresholds are set in `.tlk/PROJECT.md` → `Pace thresholds`.
+
 ### Memory layers
 
 Memory is organised as a five-layer tree modelled on **OpenClaw's self-evolving memory** (with all four of its known gaps explicitly closed). All layers are plain Markdown — `git diff`-able, hand-editable, no DB.
@@ -558,6 +560,7 @@ Each skill bundles its own script. Shared scripts live under `talaka/shared/<cat
 | `talaka/shared/project/tools/bump-version.sh patch\|minor` | Bumps version in all files listed in `.tlk/PROJECT.md` (Cmok uses `patch`, Zlydni uses `minor`) — run from project root |
 | `talaka/shared/project/tools/validate-config.sh` | Checks `.tlk/PROJECT.md` for unfilled `<placeholder>` values — run after `init.sh` |
 | `talaka/shared/project/tools/feature-status.sh` | Shows pipeline status for active features in `.tlk/features/` |
+| `talaka/statusline/tools/pace.sh [--delay]` | Usage-limit pace for the coordinator: `mode=speed-up\|normal\|slow-down\|stop` from the snapshot the statusline writes (`.tlk/usage.env`); `--delay` prints a `/loop` wake delay for that mode. Exit 4 = not measured, run at normal. See `PIPELINE.md` → *Pace*. |
 | `talaka/shared/feedback/tools/kit-issue.sh add\|list\|show\|submit\|link\|dismiss` | Field reports about the kit itself: agents record slow/hanging scripts, fabrication pressure, misplaced artifacts in `.tlk/kit-issues.md`; `submit` previews, `submit --confirm` files a GitHub issue after the user agrees. See *Kit issues* above. |
 | `talaka/shared/debug/tools/debug-log-server.py` | Local debug log server (Python 3 stdlib, loopback only). Captures runtime probes from instrumented code into `<investigation>/runtime.jsonl`. Endpoints: `/log`, `/console`, `/network`, `/tail`, `/stream`, `/shutdown`. |
 | `talaka/shared/debug/tools/debug-log-server.sh` | Degraded `nc`-based fallback when `python3` is unavailable. Same investigation contract, no SSE. |
