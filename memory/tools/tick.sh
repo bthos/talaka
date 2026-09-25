@@ -4,7 +4,7 @@
 # fresh and stale L1/L2 gets compacted without anyone remembering to run them.
 #
 # Note: log.sh runs promote.sh on every high-confidence write but throttles it
-# for medium/low ones (MEMORY_PROMOTE_INTERVAL), so tick.sh also catches those
+# for medium/low ones (TALAKA_MEMORY_PROMOTE_INTERVAL), so tick.sh also catches those
 # up; its other job is the time-based rollover (24h SESSION clear, 7-day L2
 # compaction).
 #

@@ -73,7 +73,7 @@ test_dry_run_writes_nothing() {
 # --- promote throttling (issue #8) ----------------------------------------
 # promote.sh is ~40 processes — ~10s per write on Git Bash. log.sh runs it for
 # high confidence (single-shot contract) and otherwise at most once per
-# $MEMORY_PROMOTE_INTERVAL seconds, tracked by promote.sh's own stamp.
+# $TALAKA_MEMORY_PROMOTE_INTERVAL seconds, tracked by promote.sh's own stamp.
 
 _stamp() { printf '%s/memory/.last-promote' "$1"; }
 
@@ -130,8 +130,8 @@ test_interval_zero_promotes_every_write() {
   local art; art=$(_art)
   _log "$art" --type pattern --promote "Seed the tree." >/dev/null 2>&1
   echo 12345 > "$art/MEMORY.md"
-  MEMORY_PROMOTE_INTERVAL=0 _log "$art" --type pattern "Old behaviour." >/dev/null 2>&1
-  assert_file_not_contains "$art/MEMORY.md" "12345" "MEMORY_PROMOTE_INTERVAL=0 restores promote-on-every-write"
+  TALAKA_MEMORY_PROMOTE_INTERVAL=0 _log "$art" --type pattern "Old behaviour." >/dev/null 2>&1
+  assert_file_not_contains "$art/MEMORY.md" "12345" "TALAKA_MEMORY_PROMOTE_INTERVAL=0 restores promote-on-every-write"
 }
 
 run_tests "$@"

@@ -12,7 +12,7 @@
 # runs only when it can matter:
 #   - always for --confidence high (the single-shot contract: L3 right now);
 #   - for medium/low, only if promote.sh has not run in the last
-#     $MEMORY_PROMOTE_INTERVAL seconds (default 900). Such an entry can only be
+#     $TALAKA_MEMORY_PROMOTE_INTERVAL seconds (default 900). Such an entry can only be
 #     promoted by the 2-strike rule, so a later run loses nothing; tick.sh, the
 #     Stop hook and workers' own promote.sh calls pick it up.
 #   - --promote forces a run; --no-promote skips it.
@@ -136,7 +136,7 @@ echo "Logged ($TYPE, $CONFIDENCE) → $DAILY"
 
 # promote.sh stamps the epoch of its last run here.
 STAMP="$MEM_DIR/.last-promote"
-INTERVAL="${MEMORY_PROMOTE_INTERVAL:-900}"
+INTERVAL="${TALAKA_MEMORY_PROMOTE_INTERVAL:-900}"
 case "$INTERVAL" in ''|*[!0-9]*) INTERVAL=900 ;; esac
 
 run_promote=false

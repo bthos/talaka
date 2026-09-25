@@ -473,7 +473,7 @@ talaka/memory/tools/log.sh --type <person|project|file|tool|library|pattern|anti
 write can change L3. A `--confidence high` entry lands in L3 **immediately**
 (single-shot); medium/low entries wait for the 2-strike rule (same fact on two
 different days), so for them `promote.sh` runs at most once per
-`MEMORY_PROMOTE_INTERVAL` seconds (default 900) — it costs seconds on Git Bash,
+`TALAKA_MEMORY_PROMOTE_INTERVAL` seconds (default 900) — it costs seconds on Git Bash,
 and a later run loses nothing. Reserve `high` for facts you'd treat as a rule.
 
 **Promotion** (`talaka/memory/tools/promote.sh`): observed → logged (L2) → curated (L3 via single-shot high-confidence *or* the 2-strike rule) → hardened (L0 patch) → stable. `log.sh` triggers it on every high-confidence write and at most every 15 min otherwise; `talaka/memory/tools/tick.sh` also runs the time-based rollover (24h L1 clear, 7-day L2 compaction) — wire it to a Stop hook or daily cron.

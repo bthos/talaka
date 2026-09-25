@@ -292,7 +292,7 @@ Memory is organised as a five-layer tree modelled on **OpenClaw's self-evolving 
 observed → logged (L2) → curated (L3, 2-strike rule) → hardened (L0 patch) → stable
 ```
 
-- **Writing memory:** agents call **`memory/tools/log.sh`** (append a structured L2 entry + auto-run promote — every time for `--confidence high`, at most once per `MEMORY_PROMOTE_INTERVAL` seconds, default 900, for medium/low) and **`memory/tools/session.sh`** (set L1 active feature / agent / in-flight decisions) rather than hand-editing YAML — the deterministic seam that actually keeps the tree filled.
+- **Writing memory:** agents call **`memory/tools/log.sh`** (append a structured L2 entry + auto-run promote — every time for `--confidence high`, at most once per `TALAKA_MEMORY_PROMOTE_INTERVAL` seconds, default 900, for medium/low) and **`memory/tools/session.sh`** (set L1 active feature / agent / in-flight decisions) rather than hand-editing YAML — the deterministic seam that actually keeps the tree filled.
 - **Single-shot curation:** a `--confidence high` entry promotes to L3 **immediately** (the schema treats `high` as a rule). Medium/low entries wait for the 2-strike rule below.
 - **2-strike rule:** if the same fact appears in two daily files it auto-promotes to L3 with `confidence: medium` (no manual curation required).
 - **Temporal awareness:** every L3 entry has `decided:`. New entries can declare `supersedes: mem_<id>`; the resolver tags the older entry `[superseded by …]` (no silent overwrites — the past is preserved).
