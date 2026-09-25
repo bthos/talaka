@@ -216,4 +216,27 @@ test_agent_name_cannot_escape_the_runs_dir() {
   assert_file_absent "$proj/.tlk/x" "nothing written outside runs/"
 }
 
+# --- TALAKA_ settings ------------------------------------------------------
+
+test_max_run_seconds_setting_is_honoured() {
+  local proj; proj=$(_proj_with_feature)
+  ( cd "$proj" && TALAKA_METRICS_MAX_RUN=60 ARTEFACTS_DIR="$proj/.tlk" bash "$METRICS" \
+      --feature 2026-08-10-club-invite-link --agent cmok --wall-ms 120000 ) >/dev/null 2>&1
+  assert_contains "$(_row "$proj")" '"wall_ms":null' "a run over TALAKA_METRICS_MAX_RUN is null"
+}
+
+test_cost_per_token_setting_prices_an_estimated_row() {
+  local proj; proj=$(_proj_with_feature)
+  ( cd "$proj" && TALAKA_COST_PER_TOKEN=0.001 ARTEFACTS_DIR="$proj/.tlk" bash "$METRICS" \
+      --feature 2026-08-10-club-invite-link --agent cmok --tokens 1000 ) >/dev/null 2>&1
+  assert_contains "$(_row "$proj")" '"cost_usd":1.000000' "TALAKA_COST_PER_TOKEN applied"
+}
+
+test_pre_prefix_cost_name_still_works() {
+  local proj; proj=$(_proj_with_feature)
+  ( cd "$proj" && COST_PER_TOKEN=0.002 ARTEFACTS_DIR="$proj/.tlk" bash "$METRICS" \
+      --feature 2026-08-10-club-invite-link --agent cmok --tokens 1000 ) >/dev/null 2>&1
+  assert_contains "$(_row "$proj")" '"cost_usd":2.000000' "COST_PER_TOKEN fallback applied"
+}
+
 run_tests "$@"

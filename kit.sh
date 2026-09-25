@@ -274,6 +274,8 @@ register_components() {
        "Claude Code Stop hook: runs memory promote + rollover when a session/subagent ends."
   cadd concise      "Concise output style" "$KIT/shared/lifecycle/tools/install-output-style.sh::--force" "$KIT/shared/lifecycle/tools/install-output-style.sh::--remove" \
        "Sets outputStyle=Concise in .claude/settings.json — trims the coordinator's own narration."
+  cadd kitenv       "Kit settings (env)"   "$KIT/shared/lifecycle/tools/install-env.sh" "$KIT/shared/lifecycle/tools/install-env.sh::--remove" \
+       "Adds the TALAKA_* settings to \"env\" in .claude/settings.json, where agent tool calls see them."
 }
 
 # component_installed KEY → return 0 if the component is currently active.
@@ -284,6 +286,7 @@ component_installed() {
     autoresearch) [ -f "$ARTEFACTS/autoresearch/program.md" ] ;;
     memhook)      [ -f "$sf" ] && grep -q 'memory/tools/tick.sh' "$sf" 2>/dev/null ;;
     concise)      [ -f "$sf" ] && grep -q '"outputStyle"[[:space:]]*:[[:space:]]*"Concise"' "$sf" 2>/dev/null ;;
+    kitenv)       [ -f "$sf" ] && grep -q '"TALAKA_[A-Z_]*"[[:space:]]*:' "$sf" 2>/dev/null ;;
     *) return 1 ;;
   esac
 }

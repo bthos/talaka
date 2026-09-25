@@ -674,6 +674,16 @@ if [ -x "$_os_install" ]; then
 fi
 
 # ---------------------------------------------------------------------------
+# Kit settings: the TALAKA_* variables go into settings.json "env", the one
+# place a setting reaches every agent tool call (shell state does not survive
+# between calls). Only missing keys are added — a value you changed is kept.
+# ---------------------------------------------------------------------------
+_env_install="$SCRIPT_DIR/shared/lifecycle/tools/install-env.sh"
+if [ -x "$_env_install" ]; then
+  ( cd "$PROJECT_ROOT" && "$_env_install" ) || warn "install-env.sh exited non-zero."
+fi
+
+# ---------------------------------------------------------------------------
 # Statusline: pipeline-aware status bar for Claude Code
 # ---------------------------------------------------------------------------
 _sl_install="$SCRIPT_DIR/statusline/tools/install-statusline.sh"
@@ -697,6 +707,7 @@ printf "  ${DIM}%-38s${RESET} %s\n" "Skills installed:"  "${CYAN}.claude/skills/
 printf "  ${DIM}%-38s${RESET} %s\n" "Goal loop:"         "${CYAN}.claude/loop.md${RESET} (default prompt of a bare ${CYAN}/loop${RESET})"
 printf "  ${DIM}%-38s${RESET} %s\n" "Statusline:"        "${CYAN}.claude/settings.json (statusLine)${RESET}"
 printf "  ${DIM}%-38s${RESET} %s\n" "Output style:"      "${CYAN}.claude/settings.json (outputStyle: Concise)${RESET}"
+printf "  ${DIM}%-38s${RESET} %s\n" "Kit settings:"      "${CYAN}.claude/settings.json (env: TALAKA_*)${RESET}"
 
 printf "\n  ${BOLD}Next steps${RESET}\n"
 printf "  ${DIM}%-38s${RESET} %s\n" "Start a feature:"       "${CYAN}/requirements-eliciting${RESET}"
