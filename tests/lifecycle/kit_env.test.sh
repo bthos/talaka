@@ -28,7 +28,7 @@ test_creates_env_with_defaults() {
   local p; p=$(_project_with_kit); cd "$p" || return
   bash "$(_tool)" >/dev/null 2>&1
   assert_eq "900"   "$(jq -r '.env.TALAKA_MEMORY_PROMOTE_INTERVAL' .claude/settings.json)" "promote interval default"
-  assert_eq "86400" "$(jq -r '.env.TALAKA_METRICS_MAX_RUN_SECONDS' .claude/settings.json)" "metrics cap default"
+  assert_eq "86400" "$(jq -r '.env.TALAKA_METRICS_MAX_RUN' .claude/settings.json)" "metrics cap default"
 }
 
 test_keeps_a_value_the_user_changed() {
@@ -38,7 +38,7 @@ test_keeps_a_value_the_user_changed() {
   printf '{"env":{"TALAKA_MEMORY_PROMOTE_INTERVAL":"60","OTHER":"x"}}\n' > .claude/settings.json
   bash "$(_tool)" >/dev/null 2>&1
   assert_eq "60"    "$(jq -r '.env.TALAKA_MEMORY_PROMOTE_INTERVAL' .claude/settings.json)" "user value kept"
-  assert_eq "86400" "$(jq -r '.env.TALAKA_METRICS_MAX_RUN_SECONDS' .claude/settings.json)" "missing key added"
+  assert_eq "86400" "$(jq -r '.env.TALAKA_METRICS_MAX_RUN' .claude/settings.json)" "missing key added"
   assert_eq "x"     "$(jq -r '.env.OTHER' .claude/settings.json)" "foreign env key untouched"
 }
 

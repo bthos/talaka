@@ -28,7 +28,7 @@ source "$_TOOLS_DIR/lib.sh"
 # have a meaningful default, belong here.
 KIT_ENV_DEFAULTS=(
   "TALAKA_MEMORY_PROMOTE_INTERVAL=900"
-  "TALAKA_METRICS_MAX_RUN_SECONDS=86400"
+  "TALAKA_METRICS_MAX_RUN=86400"
 )
 
 REMOVE=false

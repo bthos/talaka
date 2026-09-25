@@ -220,9 +220,9 @@ test_agent_name_cannot_escape_the_runs_dir() {
 
 test_max_run_seconds_setting_is_honoured() {
   local proj; proj=$(_proj_with_feature)
-  ( cd "$proj" && TALAKA_METRICS_MAX_RUN_SECONDS=60 ARTEFACTS_DIR="$proj/.tlk" bash "$METRICS" \
+  ( cd "$proj" && TALAKA_METRICS_MAX_RUN=60 ARTEFACTS_DIR="$proj/.tlk" bash "$METRICS" \
       --feature 2026-08-10-club-invite-link --agent cmok --wall-ms 120000 ) >/dev/null 2>&1
-  assert_contains "$(_row "$proj")" '"wall_ms":null' "a run over TALAKA_METRICS_MAX_RUN_SECONDS is null"
+  assert_contains "$(_row "$proj")" '"wall_ms":null' "a run over TALAKA_METRICS_MAX_RUN is null"
 }
 
 test_cost_per_token_setting_prices_an_estimated_row() {

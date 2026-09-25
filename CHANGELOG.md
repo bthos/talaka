@@ -15,7 +15,7 @@ tags yet — entries are dated and grouped by submodule HEAD).
 - **The problem.** Kit settings were bare environment variables (`MEMORY_PROMOTE_INTERVAL`,
   `MAX_RUN_SECONDS`, `COST_PER_TOKEN`, `BELUN_WIKI_DIR`, …) with no documented place to set them.
   Agents run kit scripts in separate shell calls, so an `export` never reached the next call.
-- **Prefix.** They are now `TALAKA_MEMORY_PROMOTE_INTERVAL`, `TALAKA_METRICS_MAX_RUN_SECONDS`,
+- **Prefix.** They are now `TALAKA_MEMORY_PROMOTE_INTERVAL`, `TALAKA_METRICS_MAX_RUN`,
   `TALAKA_COST_PER_TOKEN`, `TALAKA_COST_PER_MIN` and `TALAKA_WIKI_DIR`. `COST_PER_TOKEN`,
   `COST_PER_MIN` and `BELUN_WIKI_DIR` are still honoured.
 - **`shared/lifecycle/tools/install-env.sh`**, run by `init.sh`, adds the settings that change agent

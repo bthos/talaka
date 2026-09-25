@@ -28,8 +28,8 @@
 # when --wall-ms is absent, and removes it once the row is written.
 #
 # An explicit --since or --wall-ms is still accepted, but checked: a --since that
-# is empty, not an epoch, in the future or older than TALAKA_METRICS_MAX_RUN_SECONDS
-# (default 86400), and a --wall-ms that is not a whole number, exceeds that cap, or
+# is empty, not an epoch, in the future or older than TALAKA_METRICS_MAX_RUN
+# (seconds, default 86400), and a --wall-ms that is not a whole number, exceeds that cap, or
 # exceeds the time elapsed since --since, is dropped with a warning and recorded
 # as null — never written as if it were measured.
 #
@@ -100,7 +100,7 @@ since=""
 since_given=false
 mark_start=false
 usage_json=""
-max_run_s="${TALAKA_METRICS_MAX_RUN_SECONDS:-86400}"
+max_run_s="${TALAKA_METRICS_MAX_RUN:-86400}"
 case "$max_run_s" in ''|*[!0-9]*) max_run_s=86400 ;; esac
 source_kind="none"
 

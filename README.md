@@ -180,17 +180,19 @@ Kit settings that are read from the environment carry a `TALAKA_` prefix. Agents
 {
   "env": {
     "TALAKA_MEMORY_PROMOTE_INTERVAL": "900",
-    "TALAKA_METRICS_MAX_RUN_SECONDS": "86400"
+    "TALAKA_METRICS_MAX_RUN": "86400"
   }
 }
 ```
+
+Names carry no unit suffix: **every duration is in seconds**, and each value's unit is stated below. Values in `"env"` are written as strings (`"900"`).
 
 **Written into `settings.json` by `init.sh`** — they change what agents' tool calls do:
 
 | Variable | Default | Read by | Effect |
 |---|---|---|---|
-| `TALAKA_MEMORY_PROMOTE_INTERVAL` | `900` | `memory/tools/log.sh` | Seconds between `promote.sh` runs triggered by medium/low-confidence memory writes. High-confidence writes always promote at once. `0` promotes on every write (slow on Git Bash). |
-| `TALAKA_METRICS_MAX_RUN_SECONDS` | `86400` | `.tlk/autoresearch/tools/record-metrics.sh` | Longest plausible worker run. A `--since` older than this, or a `--wall-ms` above it, is recorded as `null` rather than as a measurement. |
+| `TALAKA_MEMORY_PROMOTE_INTERVAL` | `900` s | `memory/tools/log.sh` | Seconds between `promote.sh` runs triggered by medium/low-confidence memory writes. High-confidence writes always promote at once. `0` promotes on every write (slow on Git Bash). |
+| `TALAKA_METRICS_MAX_RUN` | `86400` s (24 h) | `.tlk/autoresearch/tools/record-metrics.sh` | Longest plausible worker run, in seconds. A `--since` older than this, or a `--wall-ms` above it, is recorded as `null` rather than as a measurement. |
 
 **Documented only — not written by `init.sh`:**
 
@@ -200,7 +202,7 @@ Kit settings that are read from the environment carry a `TALAKA_` prefix. Agents
 | `TALAKA_COST_PER_MIN` | `0` | `record-metrics.sh` | $/minute of wall clock added to `cost_usd`. The API bills tokens, not time — set it only if your team really prices agent minutes. |
 | `TALAKA_WIKI_DIR` | `wiki` | `knowledge-curating/new-wiki.sh` | Where the committed knowledge wiki lives, relative to the project root. |
 | `TALAKA_ISSUES_REPO` | `bthos/talaka` | `shared/feedback/tools/kit-issue.sh` | Repository field reports are filed on — point it at your fork. |
-| `TALAKA_PROMPT_TIMEOUT` | `15` | `shared/lifecycle/tools/init.sh` | Seconds `init.sh` waits for an answer at its interactive prompts. Set it in your terminal, not `settings.json`. |
+| `TALAKA_PROMPT_TIMEOUT` | `15` s | `shared/lifecycle/tools/init.sh` | Seconds `init.sh` waits for an answer at its interactive prompts. Set it in your terminal, not `settings.json`. |
 
 `COST_PER_TOKEN`, `COST_PER_MIN` and `BELUN_WIKI_DIR` are the pre-prefix names and are still honoured. Two related knobs are **not** environment variables: the ratchet's cost weight λ lives in `.tlk/autoresearch/program.md` (`λ = 0.3`), and `ARTEFACTS_DIR` (default `.tlk`) relocates the whole artefacts tree for every kit script.
 
