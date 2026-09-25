@@ -25,7 +25,7 @@ Your invocation prompt carries the context — read it before assuming which of 
 On entry, note the start time and register yourself as the active agent (L1 hot state):
 
 ```bash
-start=$(date +%s)
+.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent cmok 2>/dev/null || true
 talaka/memory/tools/session.sh agent cmok
 ```
 
@@ -47,9 +47,7 @@ talaka/memory/tools/session.sh agent cmok
    ```bash
    .tlk/autoresearch/tools/record-metrics.sh \
      --feature <feature-path> \
-     --agent cmok \
-     --since "$start" \
-     --wall-ms $(( ($(date +%s) - start) * 1000 ))
+     --agent cmok
    ```
    If `.tlk/autoresearch/tools/record-metrics.sh` does not exist (autoresearch not initialised for this project), skip this step silently — it is opt-in.
 

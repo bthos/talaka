@@ -45,7 +45,7 @@ File conventions (they keep the output portable to design tools that index by co
 On entry, note the start time and register yourself as the active agent (L1 hot state):
 
 ```bash
-start=$(date +%s)
+.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent design-generating 2>/dev/null || true
 talaka/memory/tools/session.sh agent design-generating
 ```
 
@@ -150,9 +150,7 @@ When the design system is written:
    ```bash
    .tlk/autoresearch/tools/record-metrics.sh \
      --feature <feature-path> \
-     --agent design-generating \
-     --since "$start" \
-     --wall-ms $(( ($(date +%s) - start) * 1000 ))
+     --agent design-generating
    ```
    Skip silently if `.tlk/autoresearch/tools/record-metrics.sh` does not exist.
 

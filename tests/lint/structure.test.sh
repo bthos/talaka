@@ -213,16 +213,22 @@ test_no_guessed_token_counts_in_metrics_calls() {
   fi
 }
 
-test_metrics_callers_capture_a_start_time() {
-  # --since "$start" only measures if the prompt told the worker to capture
-  # $start on entry. Without it the shell expands to empty and the row silently
-  # degrades to unmeasured.
-  local f
-  for f in "$KIT_ROOT"/agents/*.md "$KIT_ROOT"/skills/*/SKILL.md; do
+test_metrics_callers_mark_their_start_in_a_file() {
+  # A worker's start time must survive the shell being reset between tool calls
+  # (issues #9, #10): a `start=$(date +%s)` captured in one call is empty in the
+  # next, and `--wall-ms $(( ($(date +%s) - start) * 1000 ))` then records "now"
+  # in epoch ms. Every prompt that records metrics marks its start with
+  # `record-metrics.sh --mark-start`, and none relies on the shell variable.
+  local f rel
+  for f in "$KIT_ROOT"/agents/*.md "$KIT_ROOT"/skills/*/SKILL.md "$KIT_ROOT"/templates/PIPELINE.md.template; do
     [ -f "$f" ] || continue
-    grep -q -- '--since "\$start"' "$f" || continue
-    grep -q 'start=\$(date +%s)' "$f" \
-      || fail "${f#"$KIT_ROOT"/}: uses --since \"\$start\" but never sets start=\$(date +%s)"
+    rel="${f#"$KIT_ROOT"/}"
+    if grep -qE 'start=\$\(date \+%s\)|--since "\$start"|- start\) \* 1000' "$f"; then
+      fail "$rel: carries the start time in a shell variable — use record-metrics.sh --mark-start"
+    fi
+    grep -q 'record-metrics.sh \\$' "$f" || continue
+    grep -q -- 'record-metrics.sh --mark-start --agent' "$f" \
+      || fail "$rel: records metrics but never calls record-metrics.sh --mark-start on entry"
   done
 }
 

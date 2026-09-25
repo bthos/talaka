@@ -92,6 +92,16 @@ if $INIT; then
     fi
   done
 
+  # Agent prompts now mark their start with `record-metrics.sh --mark-start`
+  # (a file, not a shell variable — issues #9, #10). A copy from before that
+  # rejects the flag, and every row silently loses its measured tokens.
+  if [ -f "$TOOLS_DIR/record-metrics.sh" ] \
+     && ! grep -q -- '--mark-start' "$TOOLS_DIR/record-metrics.sh"; then
+    echo "  WARNING: $TOOLS_DIR/record-metrics.sh predates --mark-start, which agent prompts now call." >&2
+    echo "           Rows will record tokens as null until it is refreshed. Merge your edits into" >&2
+    echo "           $TEMPLATES_DIR/tools/record-metrics.sh, or delete the copy and re-run --init." >&2
+  fi
+
   ARTEFACTS_DIR="$ARTEFACTS" "$PKG_DIR/tools/build-eval-set.sh"
   echo "OK. Eval entries:"
   ls -1 "$EVAL_DIR" 2>/dev/null || echo "  (none yet — archive a feature first)"

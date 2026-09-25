@@ -21,7 +21,7 @@ Your job is to keep the architecture sound and tests solid.
 On entry, note the start time and register yourself as the active agent (L1 hot state):
 
 ```bash
-start=$(date +%s)
+.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent architecture-planning 2>/dev/null || true
 talaka/memory/tools/session.sh agent architecture-planning
 ```
 
@@ -102,9 +102,7 @@ Record metrics before returning:
 ```bash
 .tlk/autoresearch/tools/record-metrics.sh \
   --feature <feature-path> \
-  --agent architecture-planning \
-  --since "$start" \
-  --wall-ms $(( ($(date +%s) - start) * 1000 ))
+  --agent architecture-planning
 ```
 Skip silently if `.tlk/autoresearch/tools/record-metrics.sh` does not exist.
 

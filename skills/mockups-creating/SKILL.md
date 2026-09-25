@@ -19,7 +19,7 @@ Your job is to create high-fidelity mockups from the UX design before implementa
 On entry, note the start time and register yourself as the active agent (L1 hot state):
 
 ```bash
-start=$(date +%s)
+.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent mockups-creating 2>/dev/null || true
 talaka/memory/tools/session.sh agent mockups-creating
 ```
 
@@ -49,9 +49,7 @@ After mockups are complete:
   ```bash
   .tlk/autoresearch/tools/record-metrics.sh \
     --feature <feature-path> \
-    --agent mockups-creating \
-    --since "$start" \
-    --wall-ms $(( ($(date +%s) - start) * 1000 ))
+    --agent mockups-creating
   ```
   Skip silently if `.tlk/autoresearch/tools/record-metrics.sh` does not exist.
 - Append your log entry to `handoff-log.md`:

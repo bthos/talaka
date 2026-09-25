@@ -266,10 +266,10 @@ The composite metric Veles ratchets on is `accuracy − λ·cost`. That only mea
 | `collect-usage.sh` | Reads the per-message `usage` blocks out of the Claude Code session transcript — input, output, 5-minute cache writes, 1-hour cache writes and cache reads, per model. Exits 3 rather than return a number it could not measure. |
 | `pricing.json` | Prices per model **and per token kind**. The two cache-write TTLs are priced differently (1.25× and 2× input), so folding them together understates a Claude Code session badly. Carries `_source_url`, `_fetched` and `_verified`. |
 | `fetch-pricing.sh` | Rewrites `pricing.json` from Anthropic's published price list. Run it before trusting a dollar figure; `--check` exits 4 when the table is stale. |
-| `record-metrics.sh --since "$start"` | Writes the row and tags it `"source":"measured"`. Without `--since` the row is `"estimated"` (a caller's assertion) or `"none"` — and only `measured` rows feed the composite. |
+| `record-metrics.sh --mark-start` → `record-metrics.sh` | The first call, on entry, writes the start time to `.tlk/autoresearch/runs/.start-<agent>`; the second reads it as `--since`, derives `--wall-ms`, writes the row and tags it `"source":"measured"`. Without a start the row is `"estimated"` (a caller's assertion) or `"none"` — and only `measured` rows feed the composite. |
 | `analyze-metrics.sh` | Reads the rows back. Ranks agents and skills by measured cost against the accuracy it bought, names the one with composite headroom, and prints how old the price table is. Veles runs this before picking a target. |
 
-Every agent and skill prompt passes `--since "$start"`; none of them estimates its own token use. An agent's guess about itself is not evidence, and a ratchet fed guesses optimises for whichever worker guessed highest.
+Every agent and skill prompt marks its start this way — never with a `start=$(date +%s)` shell variable, which does not survive between tool calls — and none of them estimates its own token use. An agent's guess about itself is not evidence, and a ratchet fed guesses optimises for whichever worker guessed highest.
 
 The statusline is on the same footing: session cost, context percentage, and the 5-hour / 7-day / spend limits all come from the JSON Claude Code hands the status line on stdin. The kit renders them; it does not compute them.
 

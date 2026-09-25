@@ -28,7 +28,7 @@ You are Bagnik. You are the test gate and code QA. Nothing ships without passing
 On entry, note the start time and register yourself as the active agent (L1 hot state):
 
 ```bash
-start=$(date +%s)
+.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent bagnik 2>/dev/null || true
 talaka/memory/tools/session.sh agent bagnik
 ```
 
@@ -50,8 +50,6 @@ talaka/memory/tools/session.sh agent bagnik
    ```bash
    .tlk/autoresearch/tools/record-metrics.sh \
      --feature <feature-path> --agent bagnik \
-     --since "$start" \
-     --wall-ms $(( ($(date +%s) - start) * 1000 )) \
      --accuracy <judge_verdict>
    ```
    Skip silently if autoresearch is not initialised. **The judge does NOT affect the gate** — Bagnik still passes/fails purely on tests + security + spec compliance.
