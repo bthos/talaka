@@ -9,7 +9,7 @@ composite = accuracy_score − λ · cost_normalized
 λ = 0.3
 ```
 
-- **accuracy_score ∈ [0, 1]** — fraction of acceptance criteria from `eval-set/*.md` that LLM-as-judge marks as satisfied. Computed by `tools/judge.sh`.
+- **accuracy_score ∈ [0, 1]** — fraction of `eval-set/*.md` entries whose **generated** output LLM-as-judge marks as satisfying the entry's acceptance criteria. `tools/generate.sh` runs the variant on the entry's input; `tools/judge.sh` scores the result. The entry's reference output is never scored.
 - **cost_normalized ∈ [0, 1]** — the run's measured USD cost, divided by the 95th-percentile of the last 50 **measured** runs in `runs/cost.jsonl`. Capped at 1.0.
 
 ### Where cost comes from
@@ -26,7 +26,7 @@ Rows tagged `"estimated"` (a `--tokens N` the caller asserted) and `"none"` (not
 
 1. **Tests are sacred.** Never delete or simplify tests anywhere in the project (`tests/`, `__tests__/`, `*_test.*`, `*.spec.*`, `*.test.*`, etc.). Never alter test assertions to make them pass.
 2. **Acceptance criteria are sacred.** Never edit `eval-set/*.md`. Never lower the bar of any acceptance criterion in archived `spec.md` files referenced by the eval-set.
-3. **The judge is sacred.** Never edit `judge.md` to make scoring looser. Veles hashes `judge.md` at round start and end; mismatch = abort round.
+3. **The judge is sacred.** Never edit `judge.md` to make scoring looser, nor `generate.md` to change what the variants are asked. The ratchet hashes both at round start and end; mismatch = abort round.
 4. **Eval-set is read-only for Veles.** New eval pairs are added by humans or by `tools/build-eval-set.sh` (which only adds, never edits or removes).
 5. **No network mutations.** Veles never runs `git push`, `gh pr create`, package publish commands, deployment commands, or anything that affects systems beyond the project root.
 6. **No `rm -rf`.** Veles only modifies installed agent/skill copies and writes to `talaka/autoresearch/`.
@@ -50,7 +50,7 @@ Veles may **NOT** modify:
 
 - The kit source under `talaka/` (only the user does that, via PRs).
 - `PROJECT.md`, `CLAUDE.md`, `AGENTS.md`, `templates/PIPELINE.md.template`, `templates/PROJECT.md.template`.
-- `program.md`, `judge.md`, `eval-set/`.
+- `program.md`, `judge.md`, `generate.md`, `eval-set/`.
 
 ## Stop conditions
 
@@ -66,7 +66,8 @@ Veles stops a session when **any** of the following hold:
 Every round appends to `runs/`:
 
 - **`runs/cost.jsonl`** — one row per evaluated run: `{ts, run_id, feature, agent, variant, tokens, wall_ms, cost_usd, accuracy, source}`. `source` is `measured` | `estimated` | `none`; only `measured` feeds the composite. Read it back with `tools/analyze-metrics.sh --report`.
-- **`runs/ratchet.jsonl`** — one row per accepted mutation: `{ts, round, file, baseline_composite, proposal_composite, delta, rationale}`.
-- **`runs/rejected.jsonl`** — one row per rejected mutation: `{ts, round, file, baseline_composite, proposal_composite, reason}`.
+- **`runs/ratchet.jsonl`** — one row per accepted mutation: `{ts, round, file, baseline_composite, proposal_composite, delta, baseline_accuracy, proposal_accuracy, baseline_cost_usd, proposal_cost_usd, cost, rationale}`. `cost` says whether the cost term was measured and what normalised it; `*_cost_usd` is `null` when unmeasured.
+- **`runs/rejected.jsonl`** — one row per rejected mutation, same fields, with `reason` instead of `delta`/`rationale`.
+- **`variants/<round>/outputs/<variant>/<entry>.md`** — the candidate each variant generated, so a decision can be read back.
 
 Rows are JSON Lines so `jq` can compute trends easily.

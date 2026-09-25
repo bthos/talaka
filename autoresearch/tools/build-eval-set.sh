@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Auto-generates eval-set entries from .tlk/archive/<feature>/.
 # Each archived feature with both spec.md and handoff-log.md becomes an
-# eval-set/<feature-id>.md file containing a list of (requirement, expected)
-# pairs. Existing files are NOT modified (per program.md invariants).
+# eval-set/<feature-id>.md file: the acceptance criteria (Requirements), the
+# build's QA evidence (Reference output — for people, never scored) and the spec
+# as the task given to the agent (Input, between tlk:input markers).
+# Existing files are NOT modified (per program.md invariants).
 #
 # Override the artefacts directory with $ARTEFACTS_DIR.
 #
@@ -132,6 +134,16 @@ for dir in "$ARCHIVE_DIR"/*/; do
     echo "## Reference output"
     echo ""
     printf '%s\n' "$built"
+    echo ""
+    # The task the ratchet's generator hands the variant under test: the whole
+    # spec, as the agent saw it. Bounded by markers, not a heading — the spec
+    # has "## " lines of its own. The reference output above is kept for
+    # people; it is never scored (#21).
+    echo "## Input"
+    echo ""
+    echo "<!-- tlk:input:begin -->"
+    cat "$spec"
+    echo "<!-- tlk:input:end -->"
   } > "$out"
 
   added=$((added+1))

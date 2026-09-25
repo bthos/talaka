@@ -10,6 +10,29 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Fixed — the ratchet scores what each variant produces, not a static reference (#21)
+
+- **The problem.** `ratchet.sh` judged every eval entry's stored *Reference output* for both the
+  baseline and the proposal. Nothing it scored depended on the variant, and both cost terms were
+  hard-coded `0`, so `composite_proposal − composite_baseline` was judge noise: mutations were
+  accepted or rejected at random. With the #11 verdict cache every round would tie.
+- **Generator → Evaluator.** New `autoresearch/tools/generate.sh` runs the variant on the entry's
+  task and writes a candidate to `variants/<round>/outputs/<variant>/<entry>.md`; `judge.sh`
+  scores that. Default generator: read-only `claude -p --output-format json` with the variant's
+  front-matter `model:`, so a model swap is really tested. `Generator command` in
+  `.tlk/PROJECT.md` overrides it. Outputs are cached like verdicts, so an unchanged baseline is not
+  paid for twice. A failing or empty generator aborts the round (exit 3), like a broken judge.
+- **Task.** `build-eval-set.sh` now writes `## Input` — the archived `spec.md`, between
+  `<!-- tlk:input:… -->` markers. Existing entries are not rewritten (the eval-set is read-only);
+  their requirements serve as the task.
+- **Kit law.** `autoresearch/generate.md` is the generator prompt. The ratchet hashes it with
+  `judge.md` and `program.md`, and a change mid-round is an invariant violation.
+- **Measured cost.** The cost term is the CLI's own `total_cost_usd`: the mean per entry, divided
+  by the p95 of measured rows in `runs/cost.jsonl` (or by the round's dearer variant with no
+  history), capped at 1. A plain-text generator has no measured cost, and then the term is dropped
+  for both variants (invariant 10) and logged as `"cost":"unmeasured"`. Ratchet and reject rows
+  now carry both accuracies and costs.
+
 ### Fixed — judge.sh verdicts are stable on identical inputs (#11)
 
 - **The problem.** `judge.sh` asked the model once. A sampled answer flips on borderline pairs,

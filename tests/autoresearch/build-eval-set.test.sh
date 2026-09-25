@@ -54,6 +54,21 @@ test_builds_entry_from_full_feature() {
   assert_file_contains "$out" "src/auth.js:42" "reference output captured from code QA pass"
 }
 
+test_entry_carries_the_spec_as_generator_input() {
+  # The ratchet's generator runs the variant on the whole spec, not on the
+  # reference output. Markers bound it: the spec has "## " headings of its own.
+  local art; art="$(make_tmp_project)/.tlk"
+  _feature "$art" 2026-05-01-auth
+  _run "$art"
+  local out="$art/autoresearch/eval-set/2026-05-01-auth.md" input
+  assert_file_contains "$out" "<!-- tlk:input:begin -->" "input block opens"
+  assert_file_contains "$out" "<!-- tlk:input:end -->" "input block closes"
+  input=$(awk '/^<!-- tlk:input:end -->/ {cap=0} cap {print} /^<!-- tlk:input:begin -->/ {cap=1}' "$out")
+  assert_contains "$input" "## Overview" "whole spec, headings included"
+  assert_contains "$input" "Social login." "sections past the criteria included"
+  assert_not_contains "$input" "src/auth.js:42" "reference output is not part of the task"
+}
+
 test_skips_feature_without_handoff() {
   local art; art="$(make_tmp_project)/.tlk"
   _feature "$art" 2026-05-02-nohandoff --no-handoff
