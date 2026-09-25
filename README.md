@@ -451,6 +451,14 @@ This builds `talaka/autoresearch/eval-set/*.md` from existing archived features.
 
 Set this to any CLI that accepts the prompt on stdin and emits a single `0` or `1` to stdout (e.g. `gemini -p`).
 
+**The verdict is sampled, so the judge asks more than once.** A model can answer `0` then `1` on byte-identical inputs. `judge.sh` therefore asks the judge **N times (default 3)** and returns `1` only if **every** sample says `1`. Disagreement between samples is uncertainty, and `judge.md` rule 5 makes uncertainty a `0`. The first `0` ends the run, so a failing pair costs one call. Verdicts are cached in `.tlk/autoresearch/judge-cache/`, keyed on the full prompt (`judge.md` + requirement + output), the judge command and N, so identical inputs return an identical verdict and an unchanged baseline is not paid for twice. `--no-cache` bypasses the cache; `--json` prints the votes (`{"verdict":0,"votes":[1,1,0],"samples":3,"cached":false}`).
+
+```markdown
+- **Judge samples:** `3`   # 1..15; --samples N overrides per call
+```
+
+N lives in `PROJECT.md` next to the judge command rather than in `settings.json` `"env"`: that env reaches only Claude's own tool calls, so a ratchet run from a terminal would score with a different N than the same run from an agent.
+
 ## Knowledge wiki (knowledge-curating)
 
 `/knowledge-curating` maintains an LLM-owned wiki at **`wiki/`** (project root) — [Karpathy's LLM-wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f): instead of re-reading raw documents at every query, the model incrementally builds a persistent, interlinked markdown wiki that sits between you and the sources, so knowledge **compounds** across sessions.

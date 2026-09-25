@@ -10,6 +10,23 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Fixed — judge.sh verdicts are stable on identical inputs (#11)
+
+- **The problem.** `judge.sh` asked the model once. A sampled answer flips on borderline pairs,
+  so two runs on byte-identical inputs returned `0` then `1`, both exit 0 — and Veles ratchets
+  on that number.
+- **Strict sampling.** The judge is asked N times (`--samples N`, else `.tlk/PROJECT.md` →
+  `Judge samples`, else 3) and the verdict is `1` only if every sample says `1` — judge.md
+  rule 5, uncertainty is failure. The first `0` stops the run. `--self-test` must pass on all
+  N samples.
+- **Cache.** Verdicts are cached in `.tlk/autoresearch/judge-cache/`, keyed on the full prompt,
+  the judge command and N. Broken runs and the self-test are never cached; `--no-cache`
+  bypasses it.
+- **`--json`** prints `{"verdict":…,"votes":[…],"samples":N,"cached":…}` — the variance signal
+  the report asked for. Plain stdout stays a bare `0`/`1`.
+- **Found along the way:** the ratchet scores both variants on the same static reference
+  outputs, so its accuracy delta measures nothing but judge noise (#21, not fixed here).
+
 ### Added — coordinator paces itself by the usage limits (#14)
 
 - **The problem.** The coordinator ran every step at one pace. With plenty of headroom it
