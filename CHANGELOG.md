@@ -10,12 +10,28 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Fixed — init no longer asks before refreshing its own managed blocks
+
+- **The problem.** Every re-run of `init.sh` / `update.sh` asked
+  `exists CLAUDE.md — [s]kip [o]verwrite …` for the managed blocks in `CLAUDE.md`, `AGENTS.md` and
+  `.gitignore`. The text between the markers is the kit's, so there was nothing for the user to
+  decide. Under `--skip` / `--non-interactive` the answer was always "skip", so the blocks went
+  stale even though `update.sh` promises to refresh them in place.
+- **Now** an identical block is reported `managed block up to date`, and a changed one is replaced
+  **where it stands**. It is no longer stripped and re-appended at the end of the file, so the
+  content above and below it keeps its place. Line endings are ignored in the comparison, so a
+  CRLF checkout is not rewritten on every run. A start marker with no end marker leaves the file
+  untouched and prints a warning.
+
 ### Fixed — the pace marker replaces a bar cell instead of adding one
 
 - The elapsed-time marker was inserted between cells, so a limit bar grew to 9 columns. It now
   takes the place of the cell the elapsed share falls into, so every bar is 8 cells wide. The glyph
   is `┆` instead of `│`, so it no longer reads as the ` | ` segment separator:
-  `5h ██▍░┆░░░ 30%`, `7d ███┆▊░░░ 60%`.
+  `5h ▓▓▓░┆░░░ 30%`, `7d ▓▓▓┆▓░░░ 60%`.
+- The fill uses the context bar's `▓` / `░` and rounds **up** to whole cells: the eighth-block
+  partials (`▏▎▍▌▋▊▉`) are gone. Any use at all shows at least one cell, and the exact figure is
+  the percentage beside the bar.
 
 ### Fixed — `↻` no longer overlaps the time-to-reset
 

@@ -135,7 +135,7 @@ L1="${L1} ${D}|${Z} ${BAR} ${PCT}% ${D}|${Z} ${COST_FMT} ${D}|${Z} ${LINES_FMT}"
 # Usage limits — a pace badge, then one bar per window.
 # The rules and thresholds live in pace.sh, shared with the coordinator:
 #   ▲ speed-up · ● normal · ▼ slow-down · ■ stop   (suffix: the deciding window)
-# Each window renders as `5h ██▍░┆░░░ 30% ↻ 2h`: the fill is quota used, the ┆
+# Each window renders as `5h ▓▓▓░┆░░░ 30% ↻ 2h`: the fill is quota used, the ┆
 # replaces the cell the elapsed share of the window falls into. Fill past the ┆
 # means spending faster than straight-line pace. Inputs are the payload and the
 # clock only.
@@ -162,24 +162,20 @@ case "$PACE_MODE" in
   normal)    BADGE="${D}● normal${Z}" ;;
 esac
 
-# Partial blocks, in eighths of a cell. An array rather than string slicing so
-# it holds under a non-UTF-8 locale.
-EIGHTHS=("" "▏" "▎" "▍" "▌" "▋" "▊" "▉")
-
-# lim_bar USED ELAPSED COLOR — always 8 cells. When ELAPSED (0..100) is known, the
-# cell it falls into is drawn as ┆ in place of its fill, so the width never changes.
-# Style codes are emitted only where the style changes.
+# lim_bar USED ELAPSED COLOR — always 8 cells, same ▓/░ as the context bar. The fill
+# rounds up to whole cells, so any use at all shows. When ELAPSED (0..100) is known,
+# the cell it falls into is drawn as ┆ in place of its fill, so the width never
+# changes. Style codes are emitted only where the style changes.
 lim_bar() {
-  local used="$1" elapsed="$2" col="$3" cells=8 e full rem i mark=-1 out="" cur="" sty ch
+  local used="$1" elapsed="$2" col="$3" cells=8 full i mark=-1 out="" cur="" sty ch
   [ "$used" -gt 100 ] && used=100
-  e=$(( used * cells * 8 / 100 )); full=$(( e / 8 )); rem=$(( e % 8 ))
+  full=$(( (used * cells + 99) / 100 ))
   if [ -n "$elapsed" ]; then
     mark=$(( elapsed * cells / 100 )); [ "$mark" -ge "$cells" ] && mark=$(( cells - 1 ))
   fi
   for (( i = 0; i < cells; i++ )); do
     if   [ "$i" -eq "$mark" ]; then sty="$B"; ch="┆"
-    elif [ "$i" -lt "$full" ]; then sty="$col"; ch="█"
-    elif [ "$i" -eq "$full" ] && [ "$rem" -gt 0 ]; then sty="$col"; ch="${EIGHTHS[$rem]}"
+    elif [ "$i" -lt "$full" ]; then sty="$col"; ch="▓"
     else sty="$D"; ch="░"; fi
     [ "$cur" = "$sty" ] || out="${out}${Z}${sty}"; cur="$sty"
     out="${out}${ch}"

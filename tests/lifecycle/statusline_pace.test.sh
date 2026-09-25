@@ -75,8 +75,8 @@ test_5h_nearly_exhausted_says_stop_5h() {
 }
 
 test_both_windows_are_shown() {
-  _case "5h ██▍" "5h window shown" 30 $((2*H)) 41 $((4*DAY))
-  _case "7d ███" "7d window shown" 30 $((2*H)) 41 $((4*DAY))
+  _case "5h ▓▓▓" "5h window shown" 30 $((2*H)) 41 $((4*DAY))
+  _case "7d ▓▓▓" "7d window shown" 30 $((2*H)) 41 $((4*DAY))
 }
 
 test_single_window_still_gets_a_verdict() {
@@ -92,22 +92,27 @@ test_no_rate_limits_renders_no_verdict() {
 }
 
 test_bar_marks_elapsed_share_of_the_window() {
-  # 5h: 30% used, 2h of 5h left → 60% elapsed → ┆ replaces cell 5 of 8.
-  _case "5h ██▍░┆░░░ 30% ↻" "fill is quota used, ┆ is time elapsed" 30 $((2*H)) - 0
+  # 5h: 30% used → 2.4 cells, rounded up to 3; 2h of 5h left → 60% elapsed → ┆ in cell 5 of 8.
+  _case "5h ▓▓▓░┆░░░ 30% ↻" "fill is quota used, ┆ is time elapsed" 30 $((2*H)) - 0
 }
 
 test_fill_past_the_marker_shows_overspend() {
-  # 7d: 60% used with 4d left → 43% elapsed → ┆ replaces cell 4, inside the fill.
-  _case "7d ███┆▊░░░ 60%" "overspend reads as fill beyond the ┆" 20 $((3*H)) 60 $((4*DAY))
+  # 7d: 60% used → 4.8 → 5 cells; 4d left → 43% elapsed → ┆ in cell 4, inside the fill.
+  _case "7d ▓▓▓┆▓░░░ 60%" "overspend reads as fill beyond the ┆" 20 $((3*H)) 60 $((4*DAY))
 }
 
 test_marker_replaces_a_cell_not_adds_one() {
   # 100% used with 20m of 5h left → 94% elapsed → ┆ in the last cell; still 8 wide.
-  _case "5h ███████┆ 100%" "bar stays 8 cells with the marker" 100 $((20*60)) 20 $((4*DAY))
+  _case "5h ▓▓▓▓▓▓▓┆ 100%" "bar stays 8 cells with the marker" 100 $((20*60)) 20 $((4*DAY))
   # 40m left → 87% elapsed → ┆ in cell 7, fill continues past it.
-  _case "5h ██████┆█ 100%" "marker inside the fill replaces that cell" 100 $((40*60)) 20 $((4*DAY))
+  _case "5h ▓▓▓▓▓▓┆▓ 100%" "marker inside the fill replaces that cell" 100 $((40*60)) 20 $((4*DAY))
   # Window just opened → ┆ in the first cell.
   _case "5h ┆░░░░░░░ 0%" "marker at the start of a fresh window" 0 $((5*H - 60)) - 0
+}
+
+test_fill_rounds_up_to_whole_cells() {
+  # 1% of 8 cells is 0.08 → one full cell: any use at all shows, no partial glyphs.
+  _case "5h ▓░░░┆░░░ 1%" "1% fills one whole cell" 1 $((2*H)) - 0
 }
 
 test_reset_glyph_is_spaced_from_the_time() {
