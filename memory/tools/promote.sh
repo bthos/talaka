@@ -70,7 +70,7 @@ if [ ! -d "$MEM_DIR" ]; then
   exit 0
 fi
 
-TODAY=$(date +%Y-%m-%d)
+printf -v TODAY '%(%Y-%m-%d)T' -1   # builtin — no date fork
 
 if command -v sha1sum >/dev/null 2>&1; then SHA1_CMD=sha1sum; else SHA1_CMD=shasum; fi
 
@@ -478,6 +478,11 @@ if $PROPOSE_HARDENING; then
            | head -n 20 \
            | awk -F: '{print $1":"$2" id "}')
   echo "  Hardening proposals written to $PATCHES_DIR/  (review with apply-patches.sh)"
+fi
+
+# Stamp the run so log.sh can skip a redundant one (see log.sh, issue #8).
+if ! $DRY_RUN; then
+  printf '%(%s)T\n' -1 > "$MEM_DIR/.last-promote" 2>/dev/null || true
 fi
 
 echo

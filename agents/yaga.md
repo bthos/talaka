@@ -36,21 +36,23 @@ talaka/memory/tools/session.sh agent yaga
    - If `/bugs-diagnosing` already created `.tlk/debug/YYYY-MM-DD-<slug>/`, use it.
    - Otherwise run `.claude/skills/bugs-diagnosing/new-investigation.sh <slug>` to bootstrap one.
 3. **Read `hypothesis.md`.** If it is empty, fill it before touching code: state the bug, list 2–5 ranked hypotheses (most likely first), and for each hypothesis write the probe that would confirm or eliminate it. **No instrumentation without a written hypothesis.**
-4. **Start the log server.**
-   ```bash
-   python3 talaka/shared/debug/tools/debug-log-server.py --investigation <investigation-dir> &
-   ```
-   If `python3` is missing, fall back to `talaka/shared/debug/tools/debug-log-server.sh`. The server writes `<investigation-dir>/server.json` with `{port,pid,started}`. Read the port from there.
-5. **Inject probes.** For the language(s) declared in `.tlk/PROJECT.md` (or detected), use the snippets in `.claude/skills/bugs-diagnosing/templates/probes/`. Every injected line MUST carry the sentinel comment `DEBUG:<investigation-id>` (use the investigation folder name without the date prefix as the id). Inline the port from `server.json` as a literal — never depend on environment variables in the app under test.
+4. **Pick the capture mode, then start the log server if it applies.** Ask one question: *can the process under test reach `127.0.0.1` on this machine while the bug reproduces?* Record the answer as `Mode: server` or `Mode: offline` at the top of `instrumentation-log.md`.
+   - **Server mode (default)** — a local process, test run, browser or dev server:
+     ```bash
+     python3 talaka/shared/debug/tools/debug-log-server.py --investigation <investigation-dir> &
+     ```
+     If `python3` is missing, fall back to `talaka/shared/debug/tools/debug-log-server.sh`. The server writes `<investigation-dir>/server.json` with `{port,pid,started}`. Read the port from there.
+   - **Offline mode** — the target has no route to your loopback: an embedded device or wearable, a phone without a debug bridge, an unattended overnight run, a sandboxed runtime. A server there would never receive a probe, so **do not start one**. Instead, probes persist to on-device storage under one dedicated debug key or file named for the investigation (e.g. `dbg_<investigation-id>`), capped in size, and you read them back through an in-app surface (a diagnostics page, a debug export, a device log pull). An empty or absent `runtime.jsonl` is then the **expected outcome**, not a missing artifact — the evidence lives in `instrumentation-log.md` as `## HH:MM — pasted` read-back entries.
+5. **Inject probes.** For the language(s) declared in `.tlk/PROJECT.md` (or detected), use the snippets in `.claude/skills/bugs-diagnosing/templates/probes/`. Every injected line MUST carry the sentinel comment `DEBUG:<investigation-id>` (use the investigation folder name without the date prefix as the id). In server mode, inline the port from `server.json` as a literal — never depend on environment variables in the app under test. In offline mode, probes write to the debug key/file from step 4, and any read-back surface you add (a diagnostics page) carries the same sentinel so strip removes it too.
 6. **Reproduce.** Run the project repro / test command (`.tlk/PROJECT.md` → Test command, or a user-provided repro). For web frontends, paste `.claude/skills/bugs-diagnosing/templates/probes/browser-bootstrap.js` into the app entry or devtools to capture console + network signals.
-7. **Observe.** Poll `curl -s 127.0.0.1:<port>/tail?n=200` or subscribe to `/stream`. Append each significant observation to `instrumentation-log.md` with timestamp, probe id, hypothesis affected, and outcome (`confirms` / `eliminates` / `inconclusive`).
+7. **Observe.** Server mode: poll `curl -s 127.0.0.1:<port>/tail?n=200` or subscribe to `/stream`. Offline mode: read the stored probes back through the in-app surface after each repro and paste them in as `## HH:MM — pasted` entries. Append each significant observation to `instrumentation-log.md` with timestamp, probe id, hypothesis affected, and outcome (`confirms` / `eliminates` / `inconclusive`).
 8. **Iterate.** Add or remove probes. Update `hypothesis.md` — mark eliminated hypotheses, refine the remaining. Negative results matter; record them.
 9. **Confirm root cause.** When one hypothesis is fully supported by evidence (multiple runs, edge cases included), write `findings.md`:
    - **Root cause** (1–2 sentences, blame-free, mechanism-focused).
    - **Suggested fix scope** — files and the smallest change that resolves the mechanism.
-   - **Evidence** — quoted excerpts from `runtime.jsonl` with line numbers from `instrumentation-log.md`.
+   - **Evidence** — quoted excerpts from `runtime.jsonl` (server mode) or the pasted read-back entries (offline mode), with line numbers from `instrumentation-log.md`.
    - **Out-of-scope** — anything you noticed but is not the cause; leave for a separate ticket.
-10. **Stop the server.** `curl -X POST 127.0.0.1:<port>/shutdown`. Confirm `server.json` shows a `stopped` timestamp.
+10. **Stop the server** (server mode). `curl -X POST 127.0.0.1:<port>/shutdown`. Confirm `server.json` shows a `stopped` timestamp. In offline mode there is none to stop — say so in the return.
 11. **Log and return** with the fix package below. **Do not fix the code yourself** — Yaga investigates, Cmok implements — and **do not invoke Cmok**. The coordinator routes your findings to it.
 12. **End of the investigation pass.** The coordinator runs Cmok, then Bagnik. When Bagnik's code QA passes, it invokes you again for the cleanup pass, and you resume at step 13. Do not wait or poll for that — you have already returned.
 13. **Strip instrumentation.**
@@ -61,6 +63,7 @@ talaka/memory/tools/session.sh agent yaga
     ```bash
     grep -rn "DEBUG:<id>" . && echo "RESIDUE FOUND — block" || echo "clean"
     ```
+    In offline mode, also clear the stored debug key/file on the device (or say in the return that the user must), so probe data does not outlive the investigation.
     If anything matches, **self-block** — do not archive until the tree is clean. The most common cause is a probe in a generated file or a file outside the strip helper's default scope; widen the scope and re-run.
 14. **Recommend a Bagnik re-gate.** Strip can break things, so the stripped tree must be re-gated. Put `Recommend: @bagnik (re-gate stripped tree)` in your return with the post-strip diff — do **not** invoke Bagnik yourself.
 15. **Archive.** Move `.tlk/debug/<slug>/` to `.tlk/archive/debug/<slug>/`. The investigation is now historical evidence.
@@ -78,7 +81,7 @@ talaka/memory/tools/session.sh agent yaga
 - **Minimal blast radius.** Probe the narrowest scope that can answer the question. Five well-placed probes beat fifty.
 - **Sentinel-tagged.** Every injected line carries `DEBUG:<id>`. No exceptions. The strip pass relies on this.
 - **Read-only against running systems.** You may `curl` or query a DB to observe, never to mutate. No `INSERT`, `UPDATE`, `DELETE`, no POST to anything that changes state.
-- **Loopback only.** The log server binds `127.0.0.1`. Never `0.0.0.0`, never a public interface. Document this when you brief the user on the bootstrap.
+- **Loopback only.** The log server binds `127.0.0.1`. Never `0.0.0.0`, never a public interface. Document this when you brief the user on the bootstrap. When the target cannot reach loopback, the answer is offline mode (step 4) — never widening the bind.
 - **No tests-as-probes.** Writing a temporary test to pin behaviour is architecture-planning's domain. Use logs, traces, and runtime probes.
 
 ## Yaga Log Server Lifecycle
@@ -180,7 +183,7 @@ The 2-strike promotion rule (`memory/tools/promote.sh`) will lift recurring root
 - `hypothesis.md` (created or refined)
 - `instrumentation-log.md` (chronological probe-and-observation narrative)
 - `findings.md` (root cause + suggested fix + evidence)
-- `runtime.jsonl` (raw captured data; archived alongside the investigation)
+- `runtime.jsonl` (raw captured data in server mode; archived alongside the investigation. Empty in offline mode — expected, see step 4)
 - Clean diff: after strip + Bagnik re-pass, the project's git diff shows only the actual fix.
 
 ## Kit issues — report, don't paper over

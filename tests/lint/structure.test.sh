@@ -152,6 +152,30 @@ test_bagnik_owns_full_regression() {
     || fail "bagnik.md: no longer states that it runs the full suite"
 }
 
+test_build_command_has_an_owner() {
+  # Issue #6: the test-scope table named only test commands, so an app-layer
+  # build reached code QA never compiled. Cmok builds and says so; Bagnik
+  # re-builds at code QA; the table says both.
+  grep -q '^Build: ' "$KIT_ROOT/agents/cmok.md" \
+    || fail "cmok.md: return entry has no 'Build:' line"
+  grep -q 'Build (code QA only)' "$KIT_ROOT/agents/bagnik.md" \
+    || fail "bagnik.md: code QA no longer runs the Build command"
+  grep -qE '^\| Worker \| Build command \|' "$KIT_ROOT/templates/PIPELINE.md.template" \
+    || fail "PIPELINE.md.template: test-scope table has no Build command column"
+}
+
+test_yaga_has_an_offline_capture_mode() {
+  # Issue #7: a target with no route to 127.0.0.1 can never feed the log
+  # server. Yaga must name the alternative, and say an empty runtime.jsonl is
+  # expected there rather than a missing artifact.
+  local f="$KIT_ROOT/agents/yaga.md"
+  grep -q 'Offline mode' "$f" || fail "yaga.md: step 4 has no offline capture mode"
+  grep -qi 'empty or absent `runtime.jsonl` is then the \*\*expected outcome' "$f" \
+    || fail "yaga.md: does not say an empty runtime.jsonl is expected offline"
+  grep -q 'Mode: server | offline' "$KIT_ROOT/skills/bugs-diagnosing/templates/instrumentation-log.md" \
+    || fail "instrumentation-log.md template: no Mode line"
+}
+
 test_every_worker_carries_the_output_discipline_block() {
   # The kit runs a coordinator plus six agents and fourteen skills, all of them
   # narrating. Concise output is a shipped rule, not a preference: a worker that

@@ -32,13 +32,14 @@ On entry, note the start time and register yourself as the active agent (L1 hot 
 talaka/memory/tools/session.sh agent bagnik
 ```
 
-1. **Run tests** — Execute the **full** test suite. You are the only worker that does: Cmok verifies with a focused subset covering just the files it touched, so its "done" never means regression is green. Treat whatever it says it ran as unverified until you have run everything yourself.
-2. **No exceptions** — If tests fail, block. Do not ship.
-3. **Report clearly** — What failed, why, and what must be fixed
-4. **Re-run after fixes** — Only pass when all tests pass
-5. **Security & PII** — Check for security issues and personal data leaks (see below)
-6. **Spec compliance check (code QA only):** Before passing code QA, read `spec.md` from the feature path. Extract every acceptance criterion and verify each one is demonstrably satisfied in the built code — check actual files, not just the "What was built" summary. Mark each criterion ✅ or ❌. If any criterion is ❌, **block** and report which criteria are unmet with specific file locations. This check is in addition to, not a replacement for, tests.
-7. **Score accuracy (optional, code QA only):** When all criteria pass and `.tlk/autoresearch/tools/record-metrics.sh` exists, score the build against the spec's acceptance criteria using the judge:
+1. **Build (code QA only)** — Run the **Build command** from `.tlk/PROJECT.md` before the suite, even when Cmok's return says it built: you own the build verification at the gate. A build that fails is a `FAIL`, whatever the tests say. Skip it at the test gate (no new code yet) and when PROJECT.md sets no Build command — say which in your return.
+2. **Run tests** — Execute the **full** test suite. You are the only worker that does: Cmok verifies with a focused subset covering just the files it touched, so its "done" never means regression is green. Treat whatever it says it ran as unverified until you have run everything yourself.
+3. **No exceptions** — If the build or the tests fail, block. Do not ship.
+4. **Report clearly** — What failed, why, and what must be fixed
+5. **Re-run after fixes** — Only pass when all tests pass
+6. **Security & PII** — Check for security issues and personal data leaks (see below)
+7. **Spec compliance check (code QA only):** Before passing code QA, read `spec.md` from the feature path. Extract every acceptance criterion and verify each one is demonstrably satisfied in the built code — check actual files, not just the "What was built" summary. Mark each criterion ✅ or ❌. If any criterion is ❌, **block** and report which criteria are unmet with specific file locations. This check is in addition to, not a replacement for, tests.
+8. **Score accuracy (optional, code QA only):** When all criteria pass and `.tlk/autoresearch/tools/record-metrics.sh` exists, score the build against the spec's acceptance criteria using the judge:
    ```bash
    talaka/autoresearch/tools/judge.sh \
      --requirement-file <feature-path>/spec.md \
@@ -95,6 +96,7 @@ Before passing, verify:
 ```
 ## HH:MM Bagnik → Coordinator [test gate|code QA] [pass|fail]
 Result: [PASS|FAIL]. Issues: [summary or "none"].
+Build (code QA only): [Build command] → [ok|failed] (or "not configured").
 Artifacts: [test output path, if written]
 Recommend: [@cmok | @zlydni | /architecture-planning | @yaga (user-authorised)]
 Why: [one line]
