@@ -5,16 +5,18 @@
 # Requires: jq (hard dependency — without it the bar is a one-line install hint)
 set -euo pipefail
 
-input=$(cat)
-
 # Every field below comes out of the stdin JSON through jq. Without it the
 # script used to die with exit 127 and Claude Code showed an empty bar with no
 # hint why (issue #13). Say so on the bar itself instead, and exit 0 so the
-# line is actually rendered.
+# line is actually rendered. Builtins only on this path: stdin is drained with
+# `read`, not `cat`, so the hint prints even on a PATH that has nothing else.
 if ! command -v jq >/dev/null 2>&1; then
+  while IFS= read -r _line || [ -n "$_line" ]; do :; done
   printf 'talaka statusline: jq not found on PATH — install it: https://jqlang.github.io/jq/download/\n'
   exit 0
 fi
+
+input=$(cat)
 
 # --- JSON fields ---
 # Everything here is computed by Claude Code and handed to us on stdin: the
