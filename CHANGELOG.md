@@ -10,6 +10,11 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Fixed — `↻` no longer overlaps the time-to-reset
+
+- In many terminal fonts `↻` renders wider than one cell and ran into the digits after it
+  (`↻30m` read as `↻80m`). The statusline now prints `↻ 30m` (`statusline.sh` and `statusline.ps1`).
+
 ### Fixed — the ratchet scores what each variant produces, not a static reference (#21)
 
 - **The problem.** `ratchet.sh` judged every eval entry's stored *Reference output* for both the

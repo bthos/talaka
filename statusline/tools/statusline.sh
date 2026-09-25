@@ -135,7 +135,7 @@ L1="${L1} ${D}|${Z} ${BAR} ${PCT}% ${D}|${Z} ${COST_FMT} ${D}|${Z} ${LINES_FMT}"
 # Usage limits — a pace badge, then one bar per window.
 # The rules and thresholds live in pace.sh, shared with the coordinator:
 #   ▲ speed-up · ● normal · ▼ slow-down · ■ stop   (suffix: the deciding window)
-# Each window renders as `5h ██▌░│░░░ 26% ↻3h`: the fill is quota used, the │
+# Each window renders as `5h ██▌░│░░░ 26% ↻ 3h`: the fill is quota used, the │
 # is how much of the window has elapsed. Fill past the │ means spending faster
 # than straight-line pace. Inputs are the payload and the clock only.
 NOW=$(date +%s)
@@ -198,7 +198,7 @@ lim_seg() {  # lim_seg LABEL USED SURPLUS TIME_LEFT RESETS_AT — empty when the
   [ -n "$tleft" ] && elapsed=$(( 100 - tleft ))
   printf '%s' "${lbl} $(lim_bar "$used" "$elapsed" "$col") ${col}${used}%${Z}"
   until=$(fmt_until "$at")
-  [ -n "$until" ] && printf '%s' " ${D}↻${until}${Z}"
+  [ -n "$until" ] && printf '%s' " ${D}↻ ${until}${Z}"
   return 0
 }
 

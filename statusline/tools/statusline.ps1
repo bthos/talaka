@@ -217,7 +217,7 @@ function Format-Limit($lbl, [int]$used, $pace, [long]$at) {
     $elapsed = if ($pace) { 100 - $pace.TLeft } else { $null }
     $seg = "$lbl $(Format-Bar $used $elapsed $col) ${col}${used}%${reset}"
     $until = Format-Until $at
-    if ($until) { $seg += " ${dim}$([char]0x21BB)${until}${reset}" }
+    if ($until) { $seg += " ${dim}$([char]0x21BB) ${until}${reset}" }
     return $seg
 }
 

@@ -101,6 +101,11 @@ test_fill_past_the_marker_shows_overspend() {
   _case "7d ███│█▊░░░ 60%" "overspend reads as fill beyond the │" 20 $((3*H)) 60 $((4*DAY))
 }
 
+test_reset_glyph_is_spaced_from_the_time() {
+  # ↻ renders wider than one cell in many fonts and overlaps what follows it.
+  _case "↻ 6d" "space between ↻ and time-to-reset" 20 $((3*H)) 20 $((6*DAY + H))
+}
+
 test_stop_fires_before_the_window_is_exhausted() {
   _case "■ stop·5h" "default stop5h=90 leaves room to stop cleanly" 91 $((2*H)) 20 $((4*DAY))
 }
