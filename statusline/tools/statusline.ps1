@@ -129,8 +129,8 @@ $l1 += " ${dim}|${reset} ${bar} ${pct}% ${dim}|${reset} ${costFmt} ${dim}|${rese
 
 # Usage limits — a pace badge, then one bar per window. Same rules, thresholds
 # and snapshot as pace.sh / statusline.sh (see the comments there):
-#   surplus = quota left − time left; the bar's fill is quota used and its │ is
-#   the share of the window already elapsed.
+#   surplus = quota left − time left; the bar's fill is quota used and its ┆
+#   replaces the cell the elapsed share of the window falls into (8 cells, always).
 $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 function Get-Pace([int]$used, [long]$at, [long]$win) {
     if ($used -lt 0 -or $at -le $now) { return $null }
@@ -190,14 +190,11 @@ function Format-Bar([int]$used, $elapsed, $col) {
     $cells = 8
     if ($used -gt 100) { $used = 100 }
     $eighthsUsed = [math]::Floor($used * $cells * 8 / 100); $full = [math]::Floor($eighthsUsed / 8); $rem = $eighthsUsed % 8
-    $mark = if ($null -ne $elapsed) { [math]::Floor(($elapsed * $cells + 50) / 100) } else { -1 }
+    $mark = if ($null -ne $elapsed) { [math]::Min([math]::Floor($elapsed * $cells / 100), $cells - 1) } else { -1 }
     $out = ""; $cur = ""
-    for ($i = 0; $i -le $cells; $i++) {
-        if ($i -eq $mark) {
-            if ($cur -ne $bold) { $out += "${reset}${bold}" }; $cur = $bold; $out += [char]0x2502
-        }
-        if ($i -ge $cells) { break }
-        if     ($i -lt $full)                   { $sty = $col; $ch = [char]0x2588 }
+    for ($i = 0; $i -lt $cells; $i++) {
+        if     ($i -eq $mark)                   { $sty = $bold; $ch = [char]0x2506 }
+        elseif ($i -lt $full)                   { $sty = $col; $ch = [char]0x2588 }
         elseif ($i -eq $full -and $rem -gt 0)   { $sty = $col; $ch = $eighths[$rem] }
         else                                    { $sty = $dim; $ch = [char]0x2591 }
         if ($cur -ne $sty) { $out += "${reset}${sty}" }; $cur = $sty
@@ -217,7 +214,7 @@ function Format-Limit($lbl, [int]$used, $pace, [long]$at) {
     $elapsed = if ($pace) { 100 - $pace.TLeft } else { $null }
     $seg = "$lbl $(Format-Bar $used $elapsed $col) ${col}${used}%${reset}"
     $until = Format-Until $at
-    if ($until) { $seg += " ${dim}$([char]0x21BB)${until}${reset}" }
+    if ($until) { $seg += " ${dim}$([char]0x21BB) ${until}${reset}" }
     return $seg
 }
 

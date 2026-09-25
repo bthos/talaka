@@ -10,6 +10,18 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Fixed — the pace marker replaces a bar cell instead of adding one
+
+- The elapsed-time marker was inserted between cells, so a limit bar grew to 9 columns. It now
+  takes the place of the cell the elapsed share falls into, so every bar is 8 cells wide. The glyph
+  is `┆` instead of `│`, so it no longer reads as the ` | ` segment separator:
+  `5h ██▍░┆░░░ 30%`, `7d ███┆▊░░░ 60%`.
+
+### Fixed — `↻` no longer overlaps the time-to-reset
+
+- In many terminal fonts `↻` renders wider than one cell and ran into the digits after it
+  (`↻30m` read as `↻80m`). The statusline now prints `↻ 30m` (`statusline.sh` and `statusline.ps1`).
+
 ### Fixed — the ratchet scores what each variant produces, not a static reference (#21)
 
 - **The problem.** `ratchet.sh` judged every eval entry's stored *Reference output* for both the
