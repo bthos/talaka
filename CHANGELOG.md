@@ -28,7 +28,10 @@ tags yet — entries are dated and grouped by submodule HEAD).
 - The elapsed-time marker was inserted between cells, so a limit bar grew to 9 columns. It now
   takes the place of the cell the elapsed share falls into, so every bar is 8 cells wide. The glyph
   is `┆` instead of `│`, so it no longer reads as the ` | ` segment separator:
-  `5h ██▍░┆░░░ 30%`, `7d ███┆▊░░░ 60%`.
+  `5h ▓▓▓░┆░░░ 30%`, `7d ▓▓▓┆▓░░░ 60%`.
+- The fill uses the context bar's `▓` / `░` and rounds **up** to whole cells: the eighth-block
+  partials (`▏▎▍▌▋▊▉`) are gone. Any use at all shows at least one cell, and the exact figure is
+  the percentage beside the bar.
 
 ### Fixed — `↻` no longer overlaps the time-to-reset
 

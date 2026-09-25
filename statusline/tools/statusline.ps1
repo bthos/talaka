@@ -185,17 +185,16 @@ if ((Test-Path $tlkDir) -and ($lim5h -ge 0 -or $lim7d -ge 0)) {
     } catch { Remove-Item -Force $tmp -ErrorAction SilentlyContinue }
 }
 
-$eighths = @("", [char]0x258F, [char]0x258E, [char]0x258D, [char]0x258C, [char]0x258B, [char]0x258A, [char]0x2589)
+# Same ▓/░ as the context bar; the fill rounds up to whole cells.
 function Format-Bar([int]$used, $elapsed, $col) {
     $cells = 8
     if ($used -gt 100) { $used = 100 }
-    $eighthsUsed = [math]::Floor($used * $cells * 8 / 100); $full = [math]::Floor($eighthsUsed / 8); $rem = $eighthsUsed % 8
+    $full = [math]::Floor(($used * $cells + 99) / 100)
     $mark = if ($null -ne $elapsed) { [math]::Min([math]::Floor($elapsed * $cells / 100), $cells - 1) } else { -1 }
     $out = ""; $cur = ""
     for ($i = 0; $i -lt $cells; $i++) {
         if     ($i -eq $mark)                   { $sty = $bold; $ch = [char]0x2506 }
-        elseif ($i -lt $full)                   { $sty = $col; $ch = [char]0x2588 }
-        elseif ($i -eq $full -and $rem -gt 0)   { $sty = $col; $ch = $eighths[$rem] }
+        elseif ($i -lt $full)                   { $sty = $col; $ch = [char]0x2593 }
         else                                    { $sty = $dim; $ch = [char]0x2591 }
         if ($cur -ne $sty) { $out += "${reset}${sty}" }; $cur = $sty
         $out += $ch
