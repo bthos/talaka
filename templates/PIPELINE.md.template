@@ -339,11 +339,14 @@ The coordinator reads this log before every routing decision. It is the only pla
 
 Running the full suite on every build and every fix-loop iteration is the single largest avoidable cost in the pipeline. The split:
 
-| Worker | Runs | Why |
-|--------|------|-----|
-| Cmok (build, fix) | **Focused tests only** — the feature's own tests plus tests covering the files it touched. Uses **Focused test command** from `.tlk/PROJECT.md` when set, otherwise filters the test command itself. | Fast inner loop. Cmok's job is to arrive at the gate not-obviously-broken, not to be the gate. |
-| Bagnik (test gate, code QA) | **The full regression suite**, always. | Bagnik *is* the gate. It is the only worker whose pass means the suite is green. |
-| architecture-planning | Full suite via `check-coverage.sh` | Establishes the coverage baseline before any build exists. |
+| Worker | Build command | Tests | Why |
+|--------|---------------|-------|-----|
+| Cmok (build, fix) | **Always**, every build and every fix iteration, when `.tlk/PROJECT.md` sets one. Named in the return entry's `Build:` line. | **Focused tests only** — the feature's own tests plus tests covering the files it touched. Uses **Focused test command** from `.tlk/PROJECT.md` when set, otherwise filters the test command itself. | Fast inner loop. Cmok's job is to arrive at the gate not-obviously-broken, not to be the gate. Tests alone do not prove the app builds — a new page, manifest or i18n change can pass every unit test and never have been through the real bundler. |
+| Bagnik (code QA) | **Always**, before the suite. A broken build is a `FAIL`. | **The full regression suite**, always. | Bagnik *is* the gate. It is the only worker whose pass means the build is green *and* the suite is green. |
+| Bagnik (test gate) | Not run — there is no new code yet. | **The full regression suite**, always. | |
+| architecture-planning | Not run. | Full suite via `check-coverage.sh` | Establishes the coverage baseline before any build exists. |
+
+A project with no Build command (placeholder left in `.tlk/PROJECT.md`) skips the column, and the `Build:` line says so — it is never silently omitted.
 
 Cmok runs the full suite in exactly two cases: the change is cross-cutting (shared config, build tooling, dependency bump, wide rename) so no meaningful subset exists, or the coordinator asked for it in the invocation prompt. Cmok's return entry names which tests it ran — a Cmok "done" never means "regression is green".
 

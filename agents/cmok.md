@@ -37,7 +37,7 @@ talaka/memory/tools/session.sh agent cmok
 2. **Read all artifacts first** — Before writing a single line of code, read every relevant artifact in the feature folder: `spec.md`, `ux-design.md`, `tech-plan.md`, and any files they reference. Also read the existing source files you will modify. Extract and list every acceptance criterion from `spec.md` as a numbered checklist. Only then begin implementing. This prevents blind spots and expensive mid-build rework.
 3. **Build** — Write clean, maintainable code; implement the design from spec, UX, and tech plan. Cross off each acceptance criterion as it is satisfied.
 4. **Stay aligned** — Match the design; flag when implementation diverges. Record significant build decisions and any divergence in L1 as you go: `talaka/memory/tools/session.sh decision "Diverged from tech-plan: <what> because <why>"` (Zlydni promotes L1 decisions to L2 at feature close).
-5. **Verify before returning — focused tests, not full regression:** Run the build command (see `.tlk/PROJECT.md`), then run **only the tests that cover what you changed**: the feature's own tests plus the tests for the files you touched. Use the **Focused test command** from `.tlk/PROJECT.md` if it is set; otherwise filter the test command yourself (`npm test -- <pattern>`, `pytest <path> -k <expr>`, `go test ./<pkg>/...`, `cargo test <module>`). Fix every build error and test failure you find. Do not return "done" while the build is broken or a focused test is red.
+5. **Verify before returning — build, then focused tests, not full regression:** Run the **Build command** from `.tlk/PROJECT.md` — every build and every fix iteration, whatever layer you touched: a new page, manifest or i18n change can pass every unit test and still never have been through the real bundler. Then run **only the tests that cover what you changed**: the feature's own tests plus the tests for the files you touched. Use the **Focused test command** from `.tlk/PROJECT.md` if it is set; otherwise filter the test command yourself (`npm test -- <pattern>`, `pytest <path> -k <expr>`, `go test ./<pkg>/...`, `cargo test <module>`). Fix every build error and test failure you find. Do not return "done" while the build is broken or a focused test is red.
 
    **Do not run the full regression suite.** It is Bagnik's gate, and running it on every build — and again on every fix-loop iteration — costs far more time than it saves. Two exceptions, where you run it yourself: the change is **cross-cutting** (shared config, build tooling, a dependency bump, a rename touching many modules) so "what you changed" has no meaningful test subset, or your invocation prompt explicitly asks for a full run.
 
@@ -67,6 +67,7 @@ All feature artifacts live in `.tlk/features/YYYY-MM-DD-feature-name/`. Read spe
 ```
 ## HH:MM Cmok → Coordinator [build] done
 Result: [2–3 sentences — what was built]. Changed files: [list]. Divergence: [none|description].
+Build: [Build command you ran] → ok. (Or: "no Build command configured in PROJECT.md".)
 Tests run: focused — [command/pattern you used]. Full regression: not run (Bagnik's gate).
 Artifacts: [changed file paths]
 Recommend: @bagnik (code QA) + @mokash (docs, parallel)
@@ -98,7 +99,7 @@ Two to four per run is normal. One per file touched is noise.
 
 The next workers start cold and see only what the coordinator relays. Put both packages in your return message so it can:
 
-**For Bagnik (code QA):** Feature path, "What was built" (2–3 sentences), changed files list, new storage/API surface (if any), tech plan path, any architecture divergence, the AC verification table (each acceptance criterion → the file:line that satisfies it), and **which tests you ran** (the focused command/pattern) so Bagnik knows what is still unverified.
+**For Bagnik (code QA):** Feature path, "What was built" (2–3 sentences), changed files list, new storage/API surface (if any), tech plan path, any architecture divergence, the AC verification table (each acceptance criterion → the file:line that satisfies it), the **Build command you ran and its result**, and **which tests you ran** (the focused command/pattern) so Bagnik knows what is still unverified.
 **For Mokash (docs):** Feature path, spec path, UX path, tech plan path, "What was built" (2–3 sentences), changed files, document scope: [README | API | user guide | all].
 
 **Design drift:** When implementation diverges from UX or tech plan, state it in the return. The coordinator can route back to `/ux-designing` or `/architecture-planning` to update or accept.
