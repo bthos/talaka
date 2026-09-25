@@ -14,6 +14,7 @@
 - **Design system directory:** `design-system/`
 - **Judge command:** `<optional: CLI for LLM-as-judge in autoresearch loop. Defaults to `claude -p --allowedTools none`. Set to e.g. `gemini -p` to swap providers.>`
 - **Judge samples:** `3`
+- **Generator command:** `<optional: CLI the ratchet runs each variant with. Defaults to read-only `claude -p --output-format json`; plain-text output leaves the cost term unmeasured.>`
 - **Pace thresholds:** `<optional: override usage-limit pace rules, e.g. slow5h=-15 slow7d=-10 push5h=20 push7d=10 stop5h=90 stop7d=95 — any subset. Read by talaka/statusline/tools/pace.sh and the statusline.>`
 
 > **Test command vs Focused test command.** Bagnik's gate always runs the full **Test command** — it is the only worker that can say regression is green. Cmok runs only the tests covering what it changed: the **Focused test command** if you set one, otherwise it filters the test command itself. Keep both values as bare commands with no trailing prose — scripts read them by stripping the label and executing the rest.

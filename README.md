@@ -301,7 +301,7 @@ The kit ships a three-layer self-tuning system so installed agents adapt to your
 |-------|--------------|---------|
 | **1. Probe** | `shared/project/tools/probe-project.sh` writes `.tlk/PROJECT_PROFILE.md` (stack, frameworks, test/build commands, conventions). All skills read it before starting. | `talaka/shared/lifecycle/tools/init.sh --tune` (or run `probe-project.sh` directly) |
 | **2. Lesson distillation** | After each archived feature, `shared/learning/tools/distill-lessons.sh` turns `LESSONS.md` files into structured entries across the **memory tree** (see below). With `--target=agents` it also proposes targeted patches to specific agent files; review with `shared/learning/tools/apply-patches.sh`. | Manual: `distill-lessons.sh --target=both` |
-| **3. AutoResearch ratchet (Veles)** | `talaka/autoresearch/` — `program.md` (invariants + composite formula `accuracy − 0.3·cost`), `judge.md` (LLM-as-judge), `eval-set/` (auto-built from archive), `run.sh` (mutate → score → ratchet). Veles only accepts mutations that don't regress the composite metric and never edits tests, eval-set, or the judge. Mutation prompts now retrieve **prior rejected variants** and **top memory hits** before proposing — the **Karpathy AutoResearch** pattern that prevents reproposing already-failed ideas. | After Zlydni archive (auto, 2 rounds) or manual: `talaka/autoresearch/run.sh --rounds=N` |
+| **3. AutoResearch ratchet (Veles)** | `talaka/autoresearch/` — `program.md` (invariants + composite formula `accuracy − 0.3·cost`), `generate.md` + `judge.md` (the variant generates a candidate per eval entry; LLM-as-judge scores it), `eval-set/` (auto-built from archive), `run.sh` (mutate → generate → judge → ratchet). Veles only accepts mutations that don't regress the composite metric and never edits tests, eval-set, or the judge. Mutation prompts now retrieve **prior rejected variants** and **top memory hits** before proposing — the **Karpathy AutoResearch** pattern that prevents reproposing already-failed ideas. | After Zlydni archive (auto, 2 rounds) or manual: `talaka/autoresearch/run.sh --rounds=N` |
 
 ### Measured cost, not estimated cost
 
@@ -431,7 +431,7 @@ schtasks /Create /SC DAILY /ST 03:00 /TN "Talaka tick" `
 
 Unlike the memory tick, **`autoresearch/run.sh` is not a good fit for a frequent unattended schedule** and is intentionally left off the default list:
 
-- It makes **LLM calls** (mutation + LLM-as-judge over every eval entry) — real token cost per round.
+- It makes **LLM calls** (mutation, then per eval entry and per variant a generation and LLM-as-judge) — real token cost per round. Generations and verdicts are cached, so an unchanged baseline is not paid for twice.
 - It **mutates your installed agent/skill files** (L0). The ratchet only accepts non-regressing changes, but it still rewrites files unattended.
 - It needs a non-empty **eval-set** (built from archived features) to have anything to score against.
 
@@ -453,6 +453,14 @@ talaka/autoresearch/run.sh --init
 ```
 
 This builds `talaka/autoresearch/eval-set/*.md` from existing archived features. Without an eval-set Veles cannot ratchet (it has no evidence). Cmok and Bagnik append per-run cost+accuracy to `.tlk/features/<f>/metrics.jsonl` and `talaka/autoresearch/runs/cost.jsonl` via `autoresearch/tools/record-metrics.sh` — the data Veles uses to compute the composite.
+
+**How a round is scored.** Each eval entry holds the acceptance criteria (`## Requirements`), the task the agent was given (`## Input`: the archived `spec.md`, between `<!-- tlk:input:… -->` markers) and the build's QA evidence (`## Reference output`, for people only). For the baseline and then the proposal, `autoresearch/tools/generate.sh` runs the variant headless on each entry's input and writes a candidate to `.tlk/autoresearch/variants/<round>/outputs/<variant>/`. `judge.sh` then scores that candidate against the requirements. The reference output is never scored: it does not depend on the variant, so scoring it measured only judge noise (#21). Entries built before `## Input` existed use their requirements as the task.
+
+The default generator is `claude -p --output-format json` with read-only tools (`Read`, `Grep`, `Glob`) and `--model` from the variant's front-matter, so a model swap is really tested. Its JSON carries the CLI's own `total_cost_usd`, which becomes the measured cost term: the mean cost per entry, divided by the p95 of measured runs in `runs/cost.jsonl` (or by the round's dearer variant when there is no history), capped at 1. A generator that prints plain text has no measured cost, and then the cost term is dropped for both variants (invariant 10); it is never estimated.
+
+```markdown
+- **Generator command:** `claude -p --output-format json --allowedTools Read,Grep,Glob`   # stdin prompt → text or Claude JSON
+```
 
 **Override the judge model** in `.tlk/PROJECT.md`:
 
