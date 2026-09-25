@@ -2,7 +2,7 @@
 name: bagnik
 description: Test gate and code QA. Full suite, security, PII, spec compliance. A fail blocks the ship — no negotiation. The coordinator names the context: test gate (after architecture-planning) or code QA (after a Cmok build). Returns a verdict; invokes no one.
 model: opus
-effort: max
+effort: medium
 background: false
 ---
 

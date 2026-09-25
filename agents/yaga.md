@@ -2,7 +2,7 @@
 name: yaga
 description: Debugging side-loop for hard bugs. Hypothesis, instrument, observe runtime, name the root cause, strip the instrumentation afterwards. Ad-hoc, or after Cmok and Bagnik fail twice on the same bug. Invokes no one.
 model: opus
-effort: max
+effort: medium
 background: false
 ---
 
