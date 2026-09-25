@@ -53,11 +53,19 @@ test_new_wiki_ignores_artefacts_dir_but_honours_override() {
   assert_file_exists "$proj/wiki/SCHEMA.md"             "wiki stays at root regardless of ARTEFACTS_DIR"
   assert_file_absent "$proj/.custom/wiki/SCHEMA.md"     "ARTEFACTS_DIR does not relocate the wiki"
 
-  # BELUN_WIKI_DIR is the explicit override for teams that want a different home.
+  # TALAKA_WIKI_DIR is the explicit override for teams that want a different home.
   local proj2; proj2=$(make_tmp_project)
   install_kit_into "$proj2"
-  ( cd "$proj2" && BELUN_WIKI_DIR=docs/wiki bash talaka/skills/knowledge-curating/new-wiki.sh ) >/dev/null
-  assert_file_exists "$proj2/docs/wiki/SCHEMA.md"       "BELUN_WIKI_DIR override relocates the wiki"
+  ( cd "$proj2" && TALAKA_WIKI_DIR=docs/wiki bash talaka/skills/knowledge-curating/new-wiki.sh ) >/dev/null
+  assert_file_exists "$proj2/docs/wiki/SCHEMA.md"       "TALAKA_WIKI_DIR override relocates the wiki"
+}
+
+test_new_wiki_still_honours_the_pre_rename_variable() {
+  # BELUN_WIKI_DIR predates the TALAKA_ prefix; projects that set it keep working.
+  local proj; proj=$(make_tmp_project)
+  install_kit_into "$proj"
+  ( cd "$proj" && BELUN_WIKI_DIR=kb bash talaka/skills/knowledge-curating/new-wiki.sh ) >/dev/null
+  assert_file_exists "$proj/kb/SCHEMA.md" "BELUN_WIKI_DIR fallback still relocates the wiki"
 }
 
 run_tests "$@"

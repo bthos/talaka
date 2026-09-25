@@ -127,7 +127,7 @@ That's it.
 │
 ├── .claude/                                  ← agent + skill copies (kit copies git-ignored; Veles ratchets them)
 │   └── loop.md                               ← goal-loop protocol (default prompt of a bare /loop)
-│   (settings.json also gets statusLine + outputStyle: Concise)
+│   (settings.json also gets statusLine + outputStyle: Concise + env: TALAKA_*)
 │
 ├── wiki/                                      ← knowledge-curating knowledge wiki — committed knowledge (project root, outside .tlk/)
 │
@@ -163,13 +163,46 @@ The one deliberate exception is **knowledge-curating's `wiki/`**, which lives at
 5. Copies `skills/*/` → `.claude/skills/` (same).
 6. Copies `templates/loop.md.template` → `.claude/loop.md` — the goal-loop protocol, which Claude Code's bundled `/loop` runs when given no prompt (same SHA tracking). The kit ships no `/goal` or `/loop` command of its own, so the built-ins are never shadowed.
 7. Sets `"outputStyle": "Concise"` in `.claude/settings.json`, but **only when the key is unset** — a style you chose yourself is never overwritten. Undo with `talaka/shared/lifecycle/tools/install-output-style.sh --remove`, or toggle it in `kit.sh` → *Manage components*.
-8. Adds the managed include block to `CLAUDE.md` and `AGENTS.md` (creates a stub if absent; appends to existing file if present).
+8. Adds the kit's settings to `"env"` in `.claude/settings.json` with their defaults — see [Environment variables](#environment-variables). **Only missing keys are added**; a value you changed is kept on every re-init. `teardown.sh` removes the `TALAKA_*` keys again. Toggle in `kit.sh` → *Manage components*, or run `talaka/shared/lifecycle/tools/install-env.sh [--remove]`.
+9. Adds the managed include block to `CLAUDE.md` and `AGENTS.md` (creates a stub if absent; appends to existing file if present).
 
 **`.tlk/.talaka.files`** records SHA-256 per kit-managed path (paths are relative to the **project root**, e.g. `.claude/agents/bagnik.md`). It sits beside `.tlk/.talaka.cfg` and is listed in the managed `.gitignore` block so it stays local to each checkout.
 
 Shared scripts live under **`talaka/shared/<category>/tools/`** (lifecycle, project, learning, debug, deferred, audit), and component scripts under their component (e.g. `talaka/memory/tools/`, `talaka/statusline/tools/`) — run them from the **project root**, for example `talaka/shared/project/tools/validate-config.sh`.
 
 The script is **idempotent** — existing kit-managed files prompt for overwrite (or **s** / **o** / **a** / **r** as above). For CI or scripts, use **`--force`** / **`--overwrite-all`** or **`--skip`** / **`--skip-all`** so nothing blocks on prompts. Each installed path's content hash is tracked in **`.tlk/.talaka.files`** for **`teardown.sh`** (remove only if unchanged). Managed include blocks are tracked with `block:<sha>` (block-only entries) or `stub:<sha>` (whole-file stubs we created from scratch).
+
+## Environment variables
+
+Kit settings that are read from the environment carry a `TALAKA_` prefix. Agents run kit scripts in **separate shell calls**, so an `export` in one call is gone by the next: set them in the `"env"` block of `.claude/settings.json`, which Claude Code passes to every command it runs. `init.sh` writes the first group there with its defaults, so you edit the value in place:
+
+```json
+{
+  "env": {
+    "TALAKA_MEMORY_PROMOTE_INTERVAL": "900",
+    "TALAKA_METRICS_MAX_RUN_SECONDS": "86400"
+  }
+}
+```
+
+**Written into `settings.json` by `init.sh`** — they change what agents' tool calls do:
+
+| Variable | Default | Read by | Effect |
+|---|---|---|---|
+| `TALAKA_MEMORY_PROMOTE_INTERVAL` | `900` | `memory/tools/log.sh` | Seconds between `promote.sh` runs triggered by medium/low-confidence memory writes. High-confidence writes always promote at once. `0` promotes on every write (slow on Git Bash). |
+| `TALAKA_METRICS_MAX_RUN_SECONDS` | `86400` | `.tlk/autoresearch/tools/record-metrics.sh` | Longest plausible worker run. A `--since` older than this, or a `--wall-ms` above it, is recorded as `null` rather than as a measurement. |
+
+**Documented only — not written by `init.sh`:**
+
+| Variable | Default | Read by | Effect |
+|---|---|---|---|
+| `TALAKA_COST_PER_TOKEN` | unset | `record-metrics.sh` | Flat $/token for rows passed `--tokens` without a measurement. Unset on purpose: an invented rate makes an unmeasured row look priced. Measured rows are priced from `pricing.json` and ignore it. |
+| `TALAKA_COST_PER_MIN` | `0` | `record-metrics.sh` | $/minute of wall clock added to `cost_usd`. The API bills tokens, not time — set it only if your team really prices agent minutes. |
+| `TALAKA_WIKI_DIR` | `wiki` | `knowledge-curating/new-wiki.sh` | Where the committed knowledge wiki lives, relative to the project root. |
+| `TALAKA_ISSUES_REPO` | `bthos/talaka` | `shared/feedback/tools/kit-issue.sh` | Repository field reports are filed on — point it at your fork. |
+| `TALAKA_PROMPT_TIMEOUT` | `15` | `shared/lifecycle/tools/init.sh` | Seconds `init.sh` waits for an answer at its interactive prompts. Set it in your terminal, not `settings.json`. |
+
+`COST_PER_TOKEN`, `COST_PER_MIN` and `BELUN_WIKI_DIR` are the pre-prefix names and are still honoured. Two related knobs are **not** environment variables: the ratchet's cost weight λ lives in `.tlk/autoresearch/program.md` (`λ = 0.3`), and `ARTEFACTS_DIR` (default `.tlk`) relocates the whole artefacts tree for every kit script.
 
 ## Updating the kit
 
@@ -426,7 +459,7 @@ Three layers: `sources/` (raw, immutable), `pages/` + `index.md` + `log.md` (LLM
 /knowledge-curating lint                  # contradictions, stale claims, orphans, broken wikilinks, index drift
 ```
 
-Bootstrap with `.claude/skills/knowledge-curating/new-wiki.sh`. The wiki lives at the **project root** (`wiki/`), deliberately outside the per-developer, git-ignored `.tlk/` tree — it is **committed** knowledge, kept under ~100k tokens so direct reading beats retrieval machinery (no vector DB). Memory holds facts about *the project*; the wiki holds knowledge distilled from *sources*. (Override its location with `BELUN_WIKI_DIR`.)
+Bootstrap with `.claude/skills/knowledge-curating/new-wiki.sh`. The wiki lives at the **project root** (`wiki/`), deliberately outside the per-developer, git-ignored `.tlk/` tree — it is **committed** knowledge, kept under ~100k tokens so direct reading beats retrieval machinery (no vector DB). Memory holds facts about *the project*; the wiki holds knowledge distilled from *sources*. (Override its location with `TALAKA_WIKI_DIR`.)
 
 ## CLI factory (cli-designing)
 
@@ -509,7 +542,7 @@ Each skill bundles its own script. Shared scripts live under `talaka/shared/<cat
 | `.claude/skills/requirements-eliciting/new-feature.sh <slug>` | requirements-eliciting | Creates `.tlk/features/YYYY-MM-DD-<slug>/` with `spec.md` skeleton and `handoff-log.md` |
 | `.claude/skills/architecture-planning/check-coverage.sh [feature-path]` | architecture-planning | Runs test command, prints results, appends a progress entry (exit code + summary) to `handoff-log.md` |
 | `.claude/skills/bugs-diagnosing/new-investigation.sh <slug>` | bugs-diagnosing | Creates `.tlk/debug/YYYY-MM-DD-<slug>/` with `hypothesis.md`, `instrumentation-log.md`, `findings.md`, `handoff-log.md` skeletons. Probe snippets live under `.claude/skills/bugs-diagnosing/templates/probes/`. |
-| `.claude/skills/knowledge-curating/new-wiki.sh` | knowledge-curating | Bootstraps `wiki/` at the project root (`SCHEMA.md`, `index.md`, `log.md`, `pages/`, `sources/`). The wiki is committed knowledge — it lives outside the git-ignored `.tlk/` tree on purpose (override with `BELUN_WIKI_DIR`). |
+| `.claude/skills/knowledge-curating/new-wiki.sh` | knowledge-curating | Bootstraps `wiki/` at the project root (`SCHEMA.md`, `index.md`, `log.md`, `pages/`, `sources/`). The wiki is committed knowledge — it lives outside the git-ignored `.tlk/` tree on purpose (override with `TALAKA_WIKI_DIR`). |
 | `.claude/skills/cli-designing/new-cli.sh <api-slug>` | cli-designing | Creates `.tlk/features/YYYY-MM-DD-cli-<slug>/` with `research-brief.md`, `design.md`, `scorecard.md` (the ≥85/100 QA contract Bagnik gates on), and `handoff-log.md` |
 | `.claude/skills/codebase-mapping/new-map.sh <slug>` | codebase-mapping | Creates `.tlk/maps/YYYY-MM-DD-<slug>/` with `map.md`, `open-questions.md`, `handoff-log.md` skeletons |
 | `.claude/skills/consistency-auditing/new-audit.sh <slug>` | consistency-auditing | Creates `.tlk/audits/YYYY-MM-DD-<slug>/` with `audit.md` (ranked, located findings + recommended fixes) and `handoff-log.md` |

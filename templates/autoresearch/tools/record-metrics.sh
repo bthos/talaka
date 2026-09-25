@@ -28,8 +28,8 @@
 # when --wall-ms is absent, and removes it once the row is written.
 #
 # An explicit --since or --wall-ms is still accepted, but checked: a --since that
-# is empty, not an epoch, in the future or older than MAX_RUN_SECONDS (default
-# 86400), and a --wall-ms that is not a whole number, exceeds MAX_RUN_SECONDS, or
+# is empty, not an epoch, in the future or older than TALAKA_METRICS_MAX_RUN_SECONDS
+# (default 86400), and a --wall-ms that is not a whole number, exceeds that cap, or
 # exceeds the time elapsed since --since, is dropped with a warning and recorded
 # as null — never written as if it were measured.
 #
@@ -85,21 +85,23 @@ tokens="null"
 wall_ms="null"
 accuracy="null"
 variant="baseline"
-# Wall-clock is not billed — the API charges tokens. COST_PER_MIN stays at 0 by
+# Wall-clock is not billed — the API charges tokens. TALAKA_COST_PER_MIN stays at 0 by
 # default so cost_usd means "what this run cost", not "what it cost plus an
 # invented hourly rate". Set it if your team really does price agent minutes.
-cost_per_min="${COST_PER_MIN:-0}"
+# (COST_PER_MIN / COST_PER_TOKEN are the pre-TALAKA_ names, still honoured.)
+cost_per_min="${TALAKA_COST_PER_MIN:-${COST_PER_MIN:-0}}"
 # No default rate. A flat $/token is a made-up number the moment models differ,
 # and it used to turn every estimated row into a confident-looking cost. An
 # estimated row now gets cost_usd:null unless the caller states a rate it stands
 # behind. Measured rows never come through here — collect-usage.sh prices them
 # per model and per token kind from pricing.json.
-cost_per_tok="${COST_PER_TOKEN:-}"
+cost_per_tok="${TALAKA_COST_PER_TOKEN:-${COST_PER_TOKEN:-}}"
 since=""
 since_given=false
 mark_start=false
 usage_json=""
-max_run_s="${MAX_RUN_SECONDS:-86400}"
+max_run_s="${TALAKA_METRICS_MAX_RUN_SECONDS:-86400}"
+case "$max_run_s" in ''|*[!0-9]*) max_run_s=86400 ;; esac
 source_kind="none"
 
 while [ $# -gt 0 ]; do
@@ -254,7 +256,7 @@ if [ "$source_kind" != "measured" ] && [ "$tokens" != "null" ]; then
 fi
 
 # An estimated row still needs a cost. A measured row already has a per-model
-# one. A row with no tokens gets no cost: with COST_PER_MIN at 0 the old formula
+# one. A row with no tokens gets no cost: with TALAKA_COST_PER_MIN at 0 the old formula
 # produced a confident 0.000000 out of wall-clock alone, which reads as "this
 # run was free" instead of "this run was not measured".
 if [ "$cost_usd" = "null" ] \

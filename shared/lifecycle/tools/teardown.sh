@@ -253,18 +253,20 @@ teardown_gitignore_block || true
 
 # ---------------------------------------------------------------------------
 # 5b. Remove kit-added entries from .claude/settings.json — the opt-in memory
-#     Stop hook, the kit statusLine, and outputStyle. All are no-ops if never
+#     Stop hook, the kit statusLine, outputStyle and the TALAKA_* env keys. All are no-ops if never
 #     installed, and each preserves everything else (user hooks, a custom
 #     statusLine, an outputStyle the user chose themselves).
 # ---------------------------------------------------------------------------
 _hook_remove="$SCRIPT_DIR/memory/tools/memory-hook.sh"
 _sl_remove="$SCRIPT_DIR/statusline/tools/install-statusline.sh"
 _os_remove="$SCRIPT_DIR/shared/lifecycle/tools/install-output-style.sh"
-if [ -x "$_hook_remove" ] || [ -x "$_sl_remove" ] || [ -x "$_os_remove" ]; then
+_env_remove="$SCRIPT_DIR/shared/lifecycle/tools/install-env.sh"
+if [ -x "$_hook_remove" ] || [ -x "$_sl_remove" ] || [ -x "$_os_remove" ] || [ -x "$_env_remove" ]; then
   header ".claude/settings.json (kit entries)"
   [ -x "$_hook_remove" ] && ( cd "$PROJECT_ROOT" && DRY_RUN="$DRY_RUN" "$_hook_remove" --remove ) || true
   [ -x "$_sl_remove" ]   && ( cd "$PROJECT_ROOT" && DRY_RUN="$DRY_RUN" "$_sl_remove" --remove ) || true
   [ -x "$_os_remove" ]   && ( cd "$PROJECT_ROOT" && DRY_RUN="$DRY_RUN" "$_os_remove" --remove ) || true
+  [ -x "$_env_remove" ]  && ( cd "$PROJECT_ROOT" && DRY_RUN="$DRY_RUN" "$_env_remove" --remove ) || true
 fi
 
 # ---------------------------------------------------------------------------

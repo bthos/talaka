@@ -4,12 +4,13 @@
 # Run from project root. Idempotent — existing files are kept.
 #
 # The wiki lives at the PROJECT ROOT (not under the per-developer .tlk/), because
-# it is committed knowledge meant to be shared in git. Override with BELUN_WIKI_DIR.
+# it is committed knowledge meant to be shared in git. Override with TALAKA_WIKI_DIR
+# (BELUN_WIKI_DIR, the pre-rename name, is still honoured).
 
 set -euo pipefail
 
 DATE=$(date +%Y-%m-%d)
-WIKI_DIR="${BELUN_WIKI_DIR:-wiki}"
+WIKI_DIR="${TALAKA_WIKI_DIR:-${BELUN_WIKI_DIR:-wiki}}"
 
 # Locate template directory — supports both kit-submodule path and installed-skill path.
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
