@@ -186,7 +186,7 @@ test_no_legacy_ide_sweep() {
 }
 
 test_every_worker_carries_the_output_discipline_block() {
-  # The kit runs a coordinator plus six agents and fourteen skills, all of them
+  # The kit runs a coordinator plus six agents and fifteen skills, all of them
   # narrating. Concise output is a shipped rule, not a preference: a worker that
   # inherits it only from PIPELINE.md loses it on a trimmed context.
   local f
