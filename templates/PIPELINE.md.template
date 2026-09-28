@@ -438,7 +438,7 @@ talaka/shared/feedback/tools/kit-issue.sh add --kind slow \
   --evidence "time: 41.2s, 40.8s, 39.9s" --by cmok
 ```
 
-It appends to `.tlk/kit-issues.md`. The same title again bumps that entry's `Seen:` count instead of duplicating it — how often a problem bites is the most useful thing a maintainer can learn. Add `--evidence-file <log>` to attach the tail of an error log.
+It appends to `.tlk/kit-issues.md`. The same title again bumps that entry's `Seen:` count instead of duplicating it — how often a problem bites is the most useful thing a maintainer can learn. A title that shares its key words with another entry, or with a kit issue already on GitHub (open or closed, as of the last `sync`), is recorded with a warning naming the likely duplicate; if it is the same problem, `link` it instead of filing. Add `--evidence-file <log>` to attach the tail of an error log.
 
 - **Never fabricate to get past it.** A value the kit could not measure is recorded as missing, with the reason. That is the report. See *Metrics are measured, never estimated*.
 - **Never fix the kit in place.** Do not edit `talaka/` or patch around it silently; the user's task is still the task.
@@ -446,9 +446,9 @@ It appends to `.tlk/kit-issues.md`. The same title again bumps that entry's `See
 - **Describe the kit, not the project.** No source code, secrets, customer data or internal hostnames in any field. The tool redacts paths under the project root and `$HOME`; everything else is on you.
 - **Workers** name the `KI-` id in the `Result:` line of their return entry (and in `Blockers:` if it stopped them).
 
-**Coordinator — offer to file.** When the pipeline reaches a STOP or END, or the user's task is done, run `talaka/shared/feedback/tools/kit-issue.sh list`. If anything is pending, say it in one line — `2 kit issues recorded (KI-001 log.sh slow, KI-002 stray metrics dir). File them on GitHub?` — and ask once per session, not on every turn.
+**Coordinator — offer to file.** When the pipeline reaches a STOP or END, or the user's task is done, run `talaka/shared/feedback/tools/kit-issue.sh sync` (fetches every kit issue, open and closed, links any pending entry already filed verbatim, and lists the rest with `≈ #N` against likely duplicates; without `gh`, run `list`). If anything is pending, say it in one line — `2 kit issues recorded (KI-001 log.sh slow, KI-002 stray metrics dir). File them on GitHub?` — and ask once per session, not on every turn.
 
-- **Yes** → `kit-issue.sh submit KI-001`. That is a preview: it prints the exact issue body and any similar issues already open. Show it to the user. Only after they approve it: `kit-issue.sh submit KI-001 --confirm`. If a similar issue exists, offer to comment on it instead (the preview prints the command), then `kit-issue.sh link KI-001 <url>`.
+- **Yes** → `kit-issue.sh submit KI-001`. That is a preview: it prints the exact issue body and any similar issues, open or closed. Show it to the user. Only after they approve it: `kit-issue.sh submit KI-001 --confirm`. If a similar issue exists, offer to comment on it instead (the preview prints the command), then `kit-issue.sh link KI-001 <url>`.
 - **No, not a kit problem** → `kit-issue.sh dismiss KI-001 --reason "…"`.
 - **Not now** → leave it pending; it will be offered again next session.
 
