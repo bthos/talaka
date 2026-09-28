@@ -114,13 +114,53 @@ pace_fmt_until() {
 # --- Snapshot ------------------------------------------------------------------
 # .tlk/usage.env: KEY=integer lines, written atomically by the statusline.
 # Never sourced — only known keys with integer values are read back.
+#
+# The write goes to <file>.tmp.<pid> and is renamed over the file, so a reader
+# never sees a half-written number. Claude Code cancels a render that is still
+# running when the next one starts; a render killed between the two steps
+# leaves its temp file behind. Three things keep those from piling up:
+#   - the numbers are rewritten only when they change, or every
+#     PACE_SNAPSHOT_REFRESH seconds to keep captured_at fresh — most renders
+#     write nothing, so few are killed mid-write;
+#   - a TERM/INT/HUP during the write removes the temp file;
+#   - each write first sweeps temp files older than a minute (a SIGKILL
+#     leaves one no trap can catch). A younger one may be a live writer's.
+PACE_SNAPSHOT_REFRESH=${PACE_SNAPSHOT_REFRESH:-30}
+
 pace_write_snapshot() {  # FILE NOW USED_5H RESET_5H USED_7D RESET_7D USED_SPEND
-  local file="$1" tmp="$1.tmp.$$"
-  { printf 'captured_at=%s\n' "$2"
-    printf 'used_5h=%s\nresets_5h=%s\n' "$3" "$4"
-    printf 'used_7d=%s\nresets_7d=%s\n' "$5" "$6"
-    printf 'used_spend=%s\n' "$7"
-  } > "$tmp" 2>/dev/null && mv -f "$tmp" "$file" 2>/dev/null || rm -f "$tmp" 2>/dev/null
+  local file="$1" now="$2" tmp="$1.tmp.$$" body line prev=0 old="" dir
+  local refresh="$PACE_SNAPSHOT_REFRESH"
+  [[ $refresh =~ ^[0-9]+$ ]] || refresh=30
+  printf -v body 'used_5h=%s\nresets_5h=%s\nused_7d=%s\nresets_7d=%s\nused_spend=%s\n' \
+    "$3" "$4" "$5" "$6" "$7"
+
+  if [ -f "$file" ]; then
+    while IFS= read -r line || [ -n "$line" ]; do
+      line=${line%$'\r'}
+      case "$line" in
+        captured_at=*) prev=${line#captured_at=} ;;
+        *) old+="$line"$'\n' ;;
+      esac
+    done < "$file"
+    [[ $prev =~ ^[0-9]+$ ]] || prev=0
+    if [ "$old" = "$body" ] && [ $(( now - prev )) -ge 0 ] \
+       && [ $(( now - prev )) -lt "$refresh" ]; then
+      return 0
+    fi
+  fi
+
+  local -a stale=( "$file".tmp.* )
+  if [ -e "${stale[0]:-}" ]; then
+    dir=${file%/*}; [ "$dir" = "$file" ] && dir=.
+    find "$dir" -maxdepth 1 -type f -name "${file##*/}.tmp.*" -mmin +1 \
+      -exec rm -f {} + 2>/dev/null || true
+  fi
+
+  # shellcheck disable=SC2064  # expand now: the handler must name this exact file
+  trap "rm -f -- $(printf '%q' "$tmp") 2>/dev/null; exit 143" TERM INT HUP
+  { printf 'captured_at=%s\n' "$now"; printf '%s' "$body"; } > "$tmp" 2>/dev/null \
+    && mv -f "$tmp" "$file" 2>/dev/null || rm -f "$tmp" 2>/dev/null
+  trap - TERM INT HUP
   return 0
 }
 
