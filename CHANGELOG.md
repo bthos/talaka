@@ -10,6 +10,42 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Fixed — metrics rows measured for subagents and on Windows; stale tool copies refreshed (#27, #31, #34)
+
+- **The problem.** Three things made nearly every row `"source":"none"`. `run.sh --init` never
+  overwrote `.tlk/autoresearch/tools/`, so a project installed before `--mark-start` kept a copy that
+  rejected it, while the refreshed prompts called it with `2>/dev/null`. On Windows, Git Bash's
+  `/c/…` never matched the `C:\…` Claude Code records, so no transcript was found. And a subagent's
+  usage lives in `<session>/subagents/*.jsonl`, which was never read.
+- **Now** `--init` refreshes a tool copy that is still exactly what an earlier kit shipped (recorded
+  in `.kit-blobs`, or any version in the kit's history) and keeps one the project edited.
+  `collect-usage.sh` normalises Windows paths, reads subagent transcripts, and with `--agent` (which
+  `record-metrics.sh` passes) counts only the subagent that made that agent's `--mark-start` call.
+  `record-metrics.sh` warns when there is no start mark and prints why the collector could not measure.
+
+### Fixed — `defer.sh` no longer reuses a DD id (#28)
+
+- `DD-013` was read as octal, so the next id collided with an existing one (and `008`/`009` failed).
+  The next id is now the base-10 maximum across every `## DD-` heading form, plus one.
+
+### Fixed — `/loop` resumes a paused goal (#30)
+
+- `summary.md` starts with `Status: done | paused`. Only `done` closes a goal; a loop that stopped
+  on a stall, a blocker or the budget stays open and resumes from its `Resume point:`.
+
+### Changed — `kit-issue.sh` finds duplicates by key words, open and closed (#29)
+
+- `submit` compares key words against every kit issue instead of an exact-title search. New `sync`
+  caches all issues in `.tlk/kit-issues-remote.tsv` and links a pending entry already filed
+  verbatim; `add` and `list` flag likely duplicates, local or on GitHub.
+
+### Fixed — docs
+
+- `requirements-eliciting` and `architecture-planning` give their scripts as
+  `.claude/skills/<name>/…`, not a non-existent `/skills/…` (#25).
+- `design-generating` explains that the design tool's `_adherence.oxlintrc.json` uses ESLint-only
+  rules oxlint cannot run, and how to enforce it with ESLint instead (#26).
+
 ### Fixed — `usage.env.tmp.<pid>` files no longer pile up in `.tlk/`
 
 - **The problem.** The statusline writes `.tlk/usage.env` through a temp file and a rename, so the
