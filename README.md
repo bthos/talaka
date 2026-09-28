@@ -1,6 +1,6 @@
 # Talaka
 
-A reusable AI development pipeline — 6 agents, 15 skills, and a coordinator-driven handoff protocol. Installs one Claude-shaped layout (`.claude/agents/`, `.claude/skills/`) with two entry-point files at the project root: **`CLAUDE.md`** (read natively by Claude Code) and **`AGENTS.md`** (the cross-IDE convention — read by any workspace-aware tool that follows the AGENTS.md spec). One install covers every IDE.
+A reusable AI development pipeline — 6 agents, 16 skills, and a coordinator-driven handoff protocol. Installs one Claude-shaped layout (`.claude/agents/`, `.claude/skills/`) with two entry-point files at the project root: **`CLAUDE.md`** (read natively by Claude Code) and **`AGENTS.md`** (the cross-IDE convention — read by any workspace-aware tool that follows the AGENTS.md spec). One install covers every IDE.
 
 The kit is **minimally invasive** and **per-developer** (it commits nothing of its own): every kit-touched path is either inside the git-ignored `.tlk/`, inside `.claude/`, the optional committed `wiki/`, or wrapped in a removable `<!-- talaka:start --> … <!-- talaka:end -->` block in `CLAUDE.md` / `AGENTS.md` / `.gitignore`. `teardown.sh` strips the block (or removes the file when its SHA-256 still matches the kit copy recorded in `.tlk/.talaka.files`), so manual edits are always preserved.
 
@@ -44,6 +44,7 @@ This keeps routing observable and interruptible: the coordinator holds the whole
 | mockups-creating | UX mockups                   |
 | design-generating | Design system extraction — tokens, fonts, assets, components, UI kits copied from real sources into the design system directory |
 | storybook-generating | Storybook from the codebase — CSF3 stories per real component variant, rendered with the app's own styles, built and render-checked for `/design-sync` into Claude Design |
+| screenshots-testing | Visual regression testing (Chromatic-style) — every story per viewport and theme in a pinned Playwright container, diffed against baselines in git, scoped to what changed, each diff accepted or rejected by the user |
 | architecture-planning   | Architecture & tests         |
 | bugs-diagnosing | Hypothesis design for hard bugs |
 | knowledge-curating    | Knowledge wiki — ingest / query / lint over `wiki/` (Karpathy's LLM-wiki pattern) |
@@ -546,6 +547,7 @@ requirements-eliciting creates the feature folder automatically when starting a 
 | Create UX mockups | `/mockups-creating` |
 | Build the design system from code / Figma / brand assets | `/design-generating` |
 | Generate a Storybook for `/design-sync` (Claude Design) | `/storybook-generating` |
+| Visual regression check / accept screenshot diffs | `/screenshots-testing` (`setup`, `check`, `accept <ids>`) |
 | Architecture & tests | `/architecture-planning` |
 | Run test gate or code QA | `@bagnik` |
 | Build | `@cmok` |
@@ -580,6 +582,9 @@ Each skill bundles its own script. Shared scripts live under `talaka/shared/<cat
 | `.claude/skills/codebase-mapping/new-map.sh <slug>` | codebase-mapping | Creates `.tlk/maps/YYYY-MM-DD-<slug>/` with `map.md`, `open-questions.md`, `handoff-log.md` skeletons |
 | `.claude/skills/storybook-generating/stories-coverage.sh [--missing] [dir…]` | storybook-generating | Lists candidate React components under the source roots (default `src`) as `covered` / `missing` a `*.stories.*`, then `COMPONENTS= COVERED= MISSING=` |
 | `.claude/skills/storybook-generating/check-index.sh [storybook-static]` | storybook-generating | Reads the built Storybook's `index.json`, counts stories per title, flags `thin` (one story, `Foundations/` exempt). Needs jq or python3 |
+| `.claude/skills/screenshots-testing/changed-stories.sh [--base <ref>]` | screenshots-testing | Stories a change can have altered (changed files plus their importers, followed transitively), as `index.json` `importPath`s; `ALL` when a global file changed or the base is unknown. Summary `CHANGED= STORIES=` on stderr |
+| `.claude/skills/screenshots-testing/diff-summary.sh [test-results/visual]` | screenshots-testing | Reads the last run's output images: `changed` (has `-diff.png`), `new` (no baseline), then `CHANGED= NEW=` |
+| `.claude/skills/screenshots-testing/in-container.sh [--print] [args…]` | screenshots-testing | Runs `playwright test -c playwright.visual.config.ts` in `mcr.microsoft.com/playwright:v<installed version>-noble` (docker or podman), forwarding `VISUAL_*` |
 | `.claude/skills/consistency-auditing/new-audit.sh <slug>` | consistency-auditing | Creates `.tlk/audits/YYYY-MM-DD-<slug>/` with `audit.md` (ranked, located findings + recommended fixes) and `handoff-log.md` |
 | `.claude/skills/patterns-adapting/new-adaptation.sh <slug>` | patterns-adapting | Creates `.tlk/features/YYYY-MM-DD-adapt-<slug>/` with `research-brief.md`, `adaptation.md`, `handoff-log.md` skeletons |
 | `.claude/skills/tasks-researching/new-research.sh <slug>` | tasks-researching | Creates `.tlk/features/YYYY-MM-DD-research-<slug>/` with `research-brief.md` (verified findings + single recommended approach) and `handoff-log.md` |
