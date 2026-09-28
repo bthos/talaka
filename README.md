@@ -548,6 +548,7 @@ requirements-eliciting creates the feature folder automatically when starting a 
 | Create UX mockups | `/mockups-creating` |
 | Build the design system from code / Figma / brand assets | `/design-generating` |
 | Generate a Storybook for `/design-sync` (Claude Design) | `/storybook-generating` |
+| … and make every story a test the suite runs | `/storybook-generating --with-tests` |
 | Architecture & tests | `/architecture-planning` |
 | Run test gate or code QA | `@bagnik` |
 | Build | `@cmok` |
