@@ -111,4 +111,63 @@ test_parses_timestamps_that_carry_milliseconds() {
   assert_eq "1860" "$out" "a millisecond timestamp still falls inside the window"
 }
 
+# One assistant usage row: input $2, output $3, stamped now.
+_usage_row() {
+  printf '{"type":"assistant","cwd":"%s","isSidechain":%s,"timestamp":"%s","message":{"model":"claude-opus-5","usage":{"input_tokens":%s,"output_tokens":%s}}}\n' \
+    "$1" "$4" "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" "$2" "$3"
+}
+
+test_matches_a_windows_transcript_from_a_git_bash_cwd() {
+  # Git Bash's pwd is /c/Users/me/proj; Claude Code records C:\Users\me\proj.
+  # Compared raw, nothing ever matched on Windows (issues #27, #31).
+  _need_jq || return
+  local tmp; tmp=$(make_tmp_project); cd "$tmp" || return
+  local dir="$tmp/fakehome/projects/C--Users-me-proj"
+  mkdir -p "$dir"
+  _usage_row 'C:\\Users\\me\\proj' 7 3 false > "$dir/s1.jsonl"
+
+  local out
+  out=$(CLAUDE_CONFIG_DIR="$tmp/fakehome" "$TOOL" --pricing "$PRICING" --cwd /c/Users/me/proj --tokens 2>/dev/null)
+  assert_eq "10" "$out" "the Windows-recorded cwd matches the Git Bash path"
+}
+
+test_session_usage_includes_subagent_transcripts() {
+  # Claude Code writes a subagent's turns to <session>/subagents/agent-*.jsonl.
+  _need_jq || return
+  local tmp; tmp=$(make_tmp_project); cd "$tmp" || return
+  local dir="$tmp/fakehome/projects/p"
+  mkdir -p "$dir/s1/subagents"
+  _usage_row "$(pwd)" 100 0 false > "$dir/s1.jsonl"
+  _usage_row "$(pwd)" 20 5 true  > "$dir/s1/subagents/agent-a.jsonl"
+
+  local out
+  out=$(CLAUDE_CONFIG_DIR="$tmp/fakehome" "$TOOL" --pricing "$PRICING" --tokens 2>/dev/null)
+  assert_eq "125" "$out" "main transcript plus its subagent file"
+}
+
+test_agent_counts_only_its_own_subagent_transcript() {
+  # A subagent's row must be that subagent's usage — not the whole session's,
+  # and not nothing (issue #27: 5/5 subagent rows were source=none).
+  _need_jq || return
+  local tmp; tmp=$(make_tmp_project); cd "$tmp" || return
+  local dir="$tmp/fakehome/projects/p"
+  mkdir -p "$dir/s1/subagents"
+  _usage_row "$(pwd)" 100 0 false > "$dir/s1.jsonl"
+  {
+    printf '{"type":"assistant","cwd":"%s","isSidechain":true,"message":{"content":[{"type":"tool_use","input":{"command":".tlk/autoresearch/tools/record-metrics.sh --mark-start --agent cmok 2>/dev/null || true"}}]}}\n' "$(pwd)"
+    _usage_row "$(pwd)" 20 5 true
+  } > "$dir/s1/subagents/agent-cmok.jsonl"
+  {
+    printf '{"type":"assistant","cwd":"%s","isSidechain":true,"message":{"content":[{"type":"tool_use","input":{"command":".tlk/autoresearch/tools/record-metrics.sh --mark-start --agent cmokash 2>/dev/null || true"}}]}}\n' "$(pwd)"
+    _usage_row "$(pwd)" 1 1 true
+  } > "$dir/s1/subagents/agent-other.jsonl"
+
+  local out
+  out=$(CLAUDE_CONFIG_DIR="$tmp/fakehome" "$TOOL" --pricing "$PRICING" --agent cmok --tokens 2>/dev/null)
+  assert_eq "25" "$out" "only the file holding cmok's --mark-start (not cmokash's)"
+
+  out=$(CLAUDE_CONFIG_DIR="$tmp/fakehome" "$TOOL" --pricing "$PRICING" --agent yaga --tokens 2>/dev/null)
+  assert_eq "127" "$out" "no subagent file for the agent: the whole session"
+}
+
 run_tests "$@"

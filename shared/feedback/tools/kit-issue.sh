@@ -13,6 +13,7 @@
 #                    [--command <cmd>] [--evidence <text>] [--evidence-file <path>]
 #                    [--by <worker>]
 #   kit-issue.sh list [--all]
+#   kit-issue.sh sync
 #   kit-issue.sh show <KI-id>
 #   kit-issue.sh submit <KI-id> [--confirm] [--allow-duplicate]
 #   kit-issue.sh link <KI-id> <issue-url>
@@ -23,6 +24,14 @@
 #
 # `add` with the title of a pending entry does not duplicate it — it bumps that
 # entry's Seen count, which is exactly what tells a maintainer how often it bites.
+# An entry whose title shares its key words with another local entry (pending,
+# filed or dismissed) or with a kit issue already on GitHub, open or closed, is
+# still recorded, with a warning naming the likely duplicate.
+#
+# `sync` fetches every kit issue (open and closed) into .tlk/kit-issues-remote.tsv
+# — the memory of what was already filed, shared by every session in this
+# project — links a pending entry whose title was already filed verbatim, and
+# lets `add` and `list` flag likely duplicates without a network call.
 #
 # `submit` without --confirm is a preview: it prints the issue body and any
 # similar issues already on GitHub, and files nothing. Pass --confirm only after
@@ -37,6 +46,7 @@ set -euo pipefail
 source "$(cd "$(dirname "$0")/../../lifecycle/tools" && pwd)/lib.sh"
 
 ISSUES_FILE="$ARTEFACTS/kit-issues.md"
+REMOTE_FILE="$ARTEFACTS/kit-issues-remote.tsv"   # number \t state \t title \t url
 ISSUES_REPO="${TALAKA_ISSUES_REPO:-bthos/talaka}"
 KINDS="slow hang fabrication wrong-location error docs-mismatch other"
 EVIDENCE_TAIL=60
@@ -179,6 +189,84 @@ _render_body() {
 }
 
 # ---------------------------------------------------------------------------
+# Likely duplicates
+#
+# GitHub's title search needs every word of a query to match, so searching for
+# a whole title only ever found the issue itself: KI-005 and KI-006 were filed
+# as #9 and #10, the same bug in other words (issue #29). Titles are compared
+# here by key words instead — file names, flags, nouns — and a candidate is
+# similar when it shares at least three, or two that make up half of the
+# shorter title. It is a warning for a person to read, not a verdict.
+# ---------------------------------------------------------------------------
+_SIMILAR_AWK='
+  function kw(s, out,   n, i, w, parts, seen) {
+    s = tolower(s)
+    sub(/^\[field report\][ ]*/, "", s)
+    gsub(/_/, "-", s)
+    n = split(s, parts, /[^a-z0-9.-]+/)
+    for (k in out) delete out[k]
+    c = 0
+    for (i = 1; i <= n; i++) {
+      w = parts[i]; sub(/^[.-]+/, "", w); sub(/[.-]+$/, "", w)
+      if (length(w) < 3 || (w in STOP) || (w in out)) continue
+      out[w] = 1; c++
+    }
+    return c
+  }
+  BEGIN {
+    ns = split("the and not for with when does doesn don from into than then that this " \
+               "has have are was were but all any its only same one per via instead also " \
+               "should never always after before field report issue kit", sw, " ")
+    for (i = 1; i <= ns; i++) STOP[sw[i]] = 1
+    na = kw(ENVIRON["KI_T"], A)
+  }
+  {
+    nb = kw($3, B)
+    if (na == 0 || nb == 0) next
+    shared = 0
+    for (w in A) if (w in B) shared++
+    small = (na < nb ? na : nb)
+    if (shared >= 3 || (shared >= 2 && shared * 2 >= small))
+      printf "#%s [%s] %s — %s\n", $1, $2, $3, $4
+  }
+'
+
+# Lines of $2 (tsv: number state title url) whose title is similar to $1.
+_similar_in() {  # title file
+  [ -s "$2" ] || return 0
+  KI_T="$1" awk -F '\t' "$_SIMILAR_AWK" "$2"
+}
+
+# Local entries other than $2, as tsv in the same shape: KI-id, status, title, issue.
+_local_tsv() {  # exclude-id
+  [ -f "$ISSUES_FILE" ] || return 0
+  KI_X="${1:-}" awk '
+    function flush() { if (id != "" && id != ENVIRON["KI_X"]) printf "%s\t%s\t%s\t%s\n", id, st, t, iss; id = "" }
+    /^## KI-[0-9]+: / { flush(); id = $2; sub(/:$/, "", id); t = $0; sub(/^## KI-[0-9]+: /, "", t); st = iss = "?"; next }
+    /^- \*\*Status:\*\* / { st = $3 }
+    /^- \*\*Issue:\*\* /  { iss = $0; sub(/^- \*\*Issue:\*\* /, "", iss) }
+    END { flush() }
+  ' "$ISSUES_FILE"
+}
+
+# Fetch every kit issue, open and closed, into $REMOTE_FILE. Returns 4 without gh
+# or network, leaving any earlier copy in place.
+_remote_fetch() {
+  command -v gh >/dev/null 2>&1 || return 4
+  local out tmp
+  if ! out=$(gh issue list --repo "$ISSUES_REPO" --state all --limit 500 \
+               --json number,title,state,url \
+               --jq '.[] | "\(.number)\t\(.state)\t\(.title)\t\(.url)"' 2>&1); then
+    _oneline "$out"; REPLY="gh could not reach github.com/$ISSUES_REPO: $REPLY"
+    return 4
+  fi
+  mkdir -p "$(dirname "$REMOTE_FILE")"
+  tmp="$REMOTE_FILE.tmp.$$"
+  printf '%s\n' "${out//$'\r'/}" | awk 'NF' > "$tmp"
+  mv "$tmp" "$REMOTE_FILE"
+}
+
+# ---------------------------------------------------------------------------
 # Commands
 # ---------------------------------------------------------------------------
 cmd_add() {
@@ -263,13 +351,42 @@ cmd_add() {
   } >> "$ISSUES_FILE"
 
   success "$id recorded in ${ISSUES_FILE#"$PROJECT_ROOT"/} — nothing sent anywhere"
+  _warn_similar "$id" "$title"
+}
+
+# Name likely duplicates of an entry: other local entries, then the kit's
+# issues as last fetched by `sync`/`submit`.
+_warn_similar() {  # id title
+  local id="$1" title="$2" loc rem line tmp
+  tmp=$(kit_mktemp tlk-ki) || return 0
+  _local_tsv "$id" > "$tmp"
+  loc=$(_similar_in "$title" "$tmp")
+  rm -f "$tmp"
+  rem=$(_similar_in "$title" "$REMOTE_FILE")
+  [ -n "$loc$rem" ] || return 0
+  warn "$id looks like something already reported:"
+  while IFS= read -r line; do [ -n "$line" ] && printf '    %s\n' "${line#\#}"; done <<< "$loc"
+  while IFS= read -r line; do [ -n "$line" ] && printf '    %s\n' "$line"; done <<< "$rem"
+  info "If it is the same problem: link $id <issue-url> (or dismiss it). Otherwise leave it pending."
+  [ -f "$REMOTE_FILE" ] || info "GitHub not checked yet — run: $SUBMODULE_DIR/shared/feedback/tools/kit-issue.sh sync"
 }
 
 cmd_list() {
   local all=false
   [ "${1:-}" = "--all" ] && all=true
   [ -f "$ISSUES_FILE" ] || { info "no kit issues recorded"; return 0; }
-  KI_ALL="$all" awk '
+  local line id st title dup
+  while IFS= read -r line; do
+    printf '%s\n' "$line"
+    # A pending entry that already has a match on GitHub is marked, so nobody
+    # files it twice.
+    id=${line%% *}; st=$(printf '%s' "$line" | awk '{print $2}')
+    [ "$st" = pending ] && [ -s "$REMOTE_FILE" ] || continue
+    title=$(_get_title "$id")
+    while IFS= read -r dup; do
+      [ -n "$dup" ] && printf '        ≈ %s\n' "$dup"
+    done <<< "$(_similar_in "$title" "$REMOTE_FILE")"
+  done < <(KI_ALL="$all" awk '
     function flush() {
       if (id != "" && (ENVIRON["KI_ALL"] == "true" || st == "pending"))
         printf "%s  %-9s %-14s %s  (seen %s×)\n", id, st, kind, t, seen
@@ -280,7 +397,30 @@ cmd_list() {
     /^- \*\*Kind:\*\* /   { kind = $3 }
     /^- \*\*Seen:\*\* /   { seen = $3 }
     END { flush() }
-  ' "$ISSUES_FILE"
+  ' "$ISSUES_FILE")
+  [ -f "$REMOTE_FILE" ] || info "GitHub not checked for duplicates yet — run: $SUBMODULE_DIR/shared/feedback/tools/kit-issue.sh sync"
+}
+
+cmd_sync() {
+  if ! _remote_fetch; then
+    if command -v gh >/dev/null 2>&1; then warn "$REPLY"; else warn "gh (GitHub CLI) is not installed — cannot check what was already filed."; fi
+    exit 4
+  fi
+  local n; n=$(awk 'END{print NR}' "$REMOTE_FILE")
+  success "$n kit issues (open and closed) cached in ${REMOTE_FILE#"$PROJECT_ROOT"/}"
+  [ -f "$ISSUES_FILE" ] || return 0
+
+  # A pending entry whose exact title is already on GitHub was filed — by
+  # another session, clone or teammate. Link it rather than file it again.
+  local id st title rest url
+  while IFS=$'\t' read -r id st title rest; do
+    [ "$st" = pending ] || continue
+    url=$(KI_T="[field report] $title" awk -F '\t' 'tolower($3) == tolower(ENVIRON["KI_T"]) { print $4; exit }' "$REMOTE_FILE")
+    [ -n "$url" ] || continue
+    _set_fields "$id" Status filed Issue "$url"
+    success "$id was already filed: $url — linked"
+  done < <(_local_tsv "")
+  cmd_list
 }
 
 cmd_show() {
@@ -330,16 +470,15 @@ cmd_submit() {
     exit 4
   fi
 
+  # Every issue, open and closed: most field reports are closed by the time the
+  # same problem is seen again, and an open-only search never matched them.
   local similar
-  if ! similar=$(gh issue list --repo "$ISSUES_REPO" --state all --limit 5 \
-                   --search "$title in:title" \
-                   --json number,title,state,url \
-                   --jq '.[] | "#\(.number) [\(.state)] \(.title) — \(.url)"' 2>&1); then
-    _oneline "$similar"
-    warn "gh could not reach github.com/$ISSUES_REPO: $REPLY"
+  if ! _remote_fetch; then
+    warn "$REPLY"
     info "Check \`gh auth status\`, or file it by hand: https://github.com/$ISSUES_REPO/issues/new"
     exit 4
   fi
+  similar=$(_similar_in "$title" "$REMOTE_FILE")
 
   if [ -n "$similar" ]; then
     warn "Similar issues already exist:"
@@ -395,10 +534,11 @@ sub="${1:-}"
 case "$sub" in
   add)       cmd_add "$@" ;;
   list)      cmd_list "$@" ;;
+  sync)      cmd_sync "$@" ;;
   show)      cmd_show "$@" ;;
   submit)    cmd_submit "$@" ;;
   link)      cmd_link "$@" ;;
   dismiss)   cmd_dismiss "$@" ;;
   -h|--help|help|"") usage ;;
-  *)         die "unknown command: $sub (add | list | show | submit | link | dismiss)" ;;
+  *)         die "unknown command: $sub (add | list | sync | show | submit | link | dismiss)" ;;
 esac

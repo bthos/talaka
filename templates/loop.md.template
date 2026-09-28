@@ -22,8 +22,20 @@ The feature pipeline (`.tlk/PIPELINE.md`) is for *build this thing*. This loop i
 
 A bare `/loop` carries no objective, so settle that first:
 
-- **Exactly one open goal** in `.tlk/goals/` (a `goal.md` with no `summary.md` beside it) → resume it.
-- **Several open** → list them in one line each and ask which.
+A goal is **closed** only when its `summary.md` says `Status: done`. A goal with no `summary.md`, or one whose `summary.md` says `Status: paused`, is **open** — work remains. (A `summary.md` from before the `Status:` line existed counts as closed.)
+
+```bash
+for d in .tlk/goals/*/; do
+  [ -f "$d/goal.md" ] || continue
+  s="$d/summary.md"
+  if [ -f "$s" ] && { grep -q '^Status: done' "$s" || ! grep -q '^Status:' "$s"; }; then continue; fi
+  echo "open: $d$(grep -s '^Reason:' "$s" | sed 's/^/ — /')"
+done
+```
+
+- **Exactly one open goal** in `.tlk/goals/` → resume it. A paused one resumes from the *Resume point* in its `summary.md`.
+- **Several open** → list them in one line each (paused ones with their pause reason) and ask which.
+- **Paused because the budget is spent** → ask before resuming it; an unattended wake leaves it alone.
 - **None** → ask the user for the objective, then run *Setup*.
 
 ## Setup (first iteration only)
@@ -117,6 +129,17 @@ Stop and report when **any** holds:
 
 On stop: one return entry, plus a `summary.md` in the goal folder — what changed, what is left, what to run next. Then end the `/loop` rather than scheduling another wake. Nothing else.
 
+`summary.md` opens with a status line, because *stopped* is not *finished*. A loop that stalls with work still open must stay resumable; a bare `/loop` treats any goal with a plain summary as closed and would never come back to it.
+
+```markdown
+Status: done | paused
+Reason: <which stop condition — e.g. "definition of done met", "two iterations without progress (pace)", "budget spent", "blocked: needs API key">
+Resume point: <the next concrete step — paused only>
+```
+
+- `Status: done` — only when the definition of done in `goal.md` is met. The goal is closed.
+- `Status: paused` — every other stop condition. The goal stays open; the next `/loop` resumes it (see *Which goal*) and, when it stops again, rewrites `summary.md` in place.
+
 ---
 
 ## Pace
@@ -171,7 +194,7 @@ Then hand `suggested_target` to `@veles` for one round. The price refresh is fir
 |---|---|
 | `.tlk/goals/<date>-<slug>/goal.md` | The goal and its definition of done |
 | `.tlk/goals/<date>-<slug>/handoff-log.md` | Every iteration, in pipeline entry format |
-| `.tlk/goals/<date>-<slug>/summary.md` | Written once, on stop |
+| `.tlk/goals/<date>-<slug>/summary.md` | Written on stop; `Status: done` closes the goal, `Status: paused` keeps it open |
 | `.tlk/goals/<date>-<slug>/metrics.jsonl` | Measured tokens/cost per iteration (`record-metrics.sh`) |
 
 All of `.tlk/` is git-ignored by the kit's managed block — a goal loop commits nothing of its own.
