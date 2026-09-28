@@ -87,7 +87,7 @@ Make a todo list from the steps below and work it.
 - Each component is one file with a named PascalCase export: `export function <Name>(props) {…}`. Import React only; style through the CSS custom properties — no CSS-in-JS, no npm packages. Siblings may import each other by relative path.
 - `<Name>.d.ts` holds the props interface — it is the component's props contract and adherence rules; a `.jsx` without one has neither. `<Name>.prompt.md`: line 1 a one-sentence what-and-when, then a small JSX usage example, then notable variants and props.
 - One card HTML per component directory (any name, e.g. `buttons.card.html`), line 1 `<!-- @dsCard group="Components" viewport="700x<height>" name="<Directory label>" -->`. It links `styles.css` by relative path and renders the **real components** through `_ds_preview.js` (see [Previewing](#previewing)) — never a hand-copied HTML imitation. Show key states and variants densely — primary/secondary/ghost, sizes, disabled, with icon — not one default render.
-- Never write a bundle, manifest, lint config, or barrel `index.js` for these — design tools that import the directory generate their own.
+- Never write a bundle, manifest, lint config, or barrel `index.js` for these — design tools that import the directory generate their own (see [Files a design tool adds](#files-a-design-tool-adds)).
 
 ## UI kits
 
@@ -126,6 +126,14 @@ Design tools that import this directory offer a "starting points" picker to seed
 - **Component:** add `@startingPoint section="<group>" subtitle="<one line>" viewport="<WxH>"` to the JSDoc on the props interface in `<Name>.d.ts`. Its thumbnail is that directory's card, so make sure the card renders sensibly at that viewport.
 - **Screen:** make line 1 of the HTML `<!-- @startingPoint section="<group>" subtitle="<one line>" viewport="<WxH>" -->`. `ui_kits/<x>/index.html` is the usual home, but any `.html` with the tag counts.
 - When the user asks to add, remove, or retitle a starting point, edit the tag. To change a thumbnail, edit the component directory's card (component) or the screen HTML itself.
+
+## Files a design tool adds
+
+Design tools that import `<ds>` write their own files beside yours, usually `_`-prefixed. This skill never writes or edits them, and none of them is build-ready as is.
+
+- **`_adherence.oxlintrc.json`** — the design tool's adherence spec (no raw hex, no raw px, only the system's fonts, only the documented component props). Despite the name, **oxlint cannot run it**: every rule is ESLint's `no-restricted-syntax` / `no-restricted-imports`, which oxlint does not implement (reported against oxlint 0.11.1 and 1.83.0 — `Rule 'no-restricted-syntax' not found`), and oxlint also rejects the file's `x-*` keys (`unknown field 'x-omelette'`).
+- **To enforce it in a build**, run those rules with ESLint: copy the file's `rules` (and `overrides` / `ignorePatterns`) into an ESLint config, dropping every `x-*` key. Do not wire the file into oxlint, and do not plan a task that assumes it.
+- When a build or architecture task asks for "the adherence lint", say this under **Caveats** so nobody plans around a config that cannot execute.
 
 ## Source-of-truth rules
 
