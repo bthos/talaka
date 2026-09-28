@@ -10,6 +10,22 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Added — `data-mocking` skill
+
+- **`/data-mocking`** sets up data mocks that fit the project instead of one tool for every stack.
+  A bundled `detect-stack.sh` reads the manifests and files: languages, UI, test runners, API
+  clients, protocols, API contracts, and the mock tools already present. The skill then maps each
+  boundary the code calls to one tool: MSW (with `@mswjs/data` for stateful fakes) for JS front
+  ends, MirageJS where it is already used, json-server for throwaway prototypes, Prism for
+  contract-first OpenAPI servers, WireMock for backend integration, MockServer when a recording
+  proxy is needed, mockd for gRPC / WebSocket / MQTT / SSE / SOAP in one binary, Mountebank for raw
+  TCP, or an in-process library (nock, respx, httptest, WebMock) for unit tests.
+- A tool already in the project wins its boundary; a candidate with no recent release is skipped.
+  Fixtures are shared across dev, tests and Storybook, typed from the contract, seeded, with named
+  `default` / `empty` / `error` / `slow` scenarios. Mocks sit behind an opt-in switch, and the
+  skill checks the production build carries none of them.
+- `/data-mocking --plan` recommends without installing; `--tool <name>` takes the user's choice.
+
 ### Added — `screenshots-testing` skill
 
 - **`/screenshots-testing`** is visual regression testing in the manner of Chromatic, built from

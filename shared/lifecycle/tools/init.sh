@@ -679,7 +679,7 @@ fi
 
 # ---------------------------------------------------------------------------
 # Output style: the kit is chatty by construction (a coordinator plus six
-# agents and sixteen skills, all narrating). "Concise" is the harness-level
+# agents and seventeen skills, all narrating). "Concise" is the harness-level
 # lever; the Голас block in every worker prompt is the prompt-level one.
 # Only ever set when unset — a style the user picked is kept.
 # ---------------------------------------------------------------------------
