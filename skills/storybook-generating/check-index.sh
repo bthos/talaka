@@ -37,6 +37,9 @@ else
   echo "ERROR: check-index.sh needs jq or python3" >&2; exit 3
 fi
 
+# jq.exe / python on Windows end lines with CRLF; the count must stay a bare integer.
+rows=${rows//$'\r'/}
+
 titles=0 stories=0 thin=0
 out=()
 while IFS=$'\t' read -r title n; do
