@@ -10,6 +10,19 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Added — `storybook-generating` runs story tests, and adds them on request
+
+- **Stories rot silently.** When a component's props change, its story breaks and the next
+  `/design-sync` imports a blank render. Run as tests, stories catch that at Bagnik's gate.
+- **Already wired** (`@storybook/addon-vitest`, `@storybook/test-runner`): the skill now runs it, and
+  every story it wrote must pass. It never adds a second runner beside it.
+- **Not wired:** it adds nothing. The return names "stories run by no test" as a caveat.
+- **`/storybook-generating --with-tests`** adds the runner that fits the stack: the Vitest addon on a
+  Vite Storybook, else the test runner. It proposes the new Test command rather than editing
+  `.tlk/PROJECT.md`, because that command is Bagnik's gate.
+- Test runners catch stories that throw or fail their `play`. They cannot see an unstyled render
+  or identical variants, so every story is still screenshotted.
+
 ### Fixed — `usage.env.tmp.<pid>` files no longer pile up in `.tlk/`
 
 - **The problem.** The statusline writes `.tlk/usage.env` through a temp file and a rename, so the

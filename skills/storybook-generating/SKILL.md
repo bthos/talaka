@@ -16,6 +16,7 @@ You **document what exists**. You do not redesign, refactor, or fix components.
 
 - `/storybook-generating` — the whole component library.
 - `/storybook-generating <path or component>` — one directory or component; the rest is left as is.
+- `/storybook-generating --with-tests` — also make every story a test the project's test suite runs (see [Story tests](#story-tests)). Combines with a path.
 - The user wants to run `/design-sync` and the project has no Storybook, or one that covers part of the library.
 - Components changed since the last run. Re-run it to add stories for new components and variants.
 
@@ -36,6 +37,7 @@ Make a todo list from the steps below and work it.
 2. **Find the existing Storybook.** Look for `.storybook/`, `storybook` in `package.json` scripts, `@storybook/*` devDependencies, and `*.stories.*` files.
    - **Present:** keep its config and version. Add to it, and change `main` / `preview` only where a step below needs it. Never delete or rewrite someone's stories. If one is wrong (it renders blank, or omits real variants), add stories beside it and flag it.
    - **Absent:** install with the project's package manager, non-interactively: `npx storybook@latest init --yes --no-dev` (pass `--type react` / `--builder vite` when detection guesses wrong). Delete the generated example `stories/` folder (Button, Header, Page); it is not the product. Name every devDependency you added in your return.
+   - **Story tests:** note whether a story test runner is already wired. See [Story tests](#story-tests) for what counts.
 3. **Inventory.** Run `.claude/skills/storybook-generating/stories-coverage.sh <src roots>`. Default root is `src`. Pass every library directory in a monorepo (`packages/ui/src`, `apps/web/components`, …). It prints each candidate component, `covered` or `missing`, and totals. Read each `missing` file and keep the real UI components: the exported ones that render markup. Drop contexts, hooks, and route files. Put **every** kept component on the todo list. There is no "core subset".
 4. **Preview wiring — before any story.** This is what makes stories render like the product. Read the app's entry point (`main.tsx`, `_app.tsx`, `app/layout.tsx`, `App.tsx`) and reproduce what it wraps the tree in, in `.storybook/preview.tsx`:
    - **Global CSS:** the file that defines tokens and resets (`index.css`, `globals.css`, `styles/theme.css`). Import that file itself, not a copy.
@@ -47,10 +49,11 @@ Make a todo list from the steps below and work it.
 5. **Foundation stories.** Write stories under `Foundations/` (`Colors`, `Typography`, `Spacing`, plus `Radii`, `Shadows`, `Icons` when the project has them). They must **read the real tokens at render time**: the CSS custom properties via `getComputedStyle`, or the theme object / Tailwind config imported from source. Never paste a copy of the values. Put them in `src/foundations.stories.tsx` or next to the token file.
 6. **Component stories.** See [Stories](#stories). Work group by group and log a progress entry after each group.
 7. **Build.** Run the project's `build-storybook` script (else `npx storybook build -o storybook-static`). Fix every error and every warning that names one of your stories. Treat a failed build as a blocker, not a caveat.
-8. **Check the index.** Run `.claude/skills/storybook-generating/check-index.sh storybook-static`. Every `thin` title needs another story that shows a real variant or state. If the component truly has only one appearance, list it under Caveats.
-9. **Look at every story.** See [Verify](#verify).
-10. **Coverage again.** Re-run `stories-coverage.sh`. `MISSING` must be `0`, or equal to the components you listed under Caveats with a reason.
-11. **Log and return.** See [Return to Coordinator](#return-to-coordinator).
+8. **Story tests.** See [Story tests](#story-tests): run the runner the project already has, add one only under `--with-tests`, otherwise skip.
+9. **Check the index.** Run `.claude/skills/storybook-generating/check-index.sh storybook-static`. Every `thin` title needs another story that shows a real variant or state. If the component truly has only one appearance, list it under Caveats.
+10. **Look at every story.** See [Verify](#verify).
+11. **Coverage again.** Re-run `stories-coverage.sh`. `MISSING` must be `0`, or equal to the components you listed under Caveats with a reason.
+12. **Log and return.** See [Return to Coordinator](#return-to-coordinator).
 
 ## Stories
 
@@ -73,6 +76,15 @@ Make a todo list from the steps below and work it.
 3. Fail a story that: renders blank or near-blank, looks unstyled (default serif font, no token colours), shows an error overlay, or logs a console error. Fail a component whose variant screenshots are identical. Fix the preview wiring or the story, rebuild, and look again.
 4. Compare a few components against the running app when you can start it. The story must match the product, not merely render.
 5. If you have no way to render pages, say so under Caveats. Do not report stories you did not see as verified.
+
+## Story tests
+
+A story that renders is already a smoke test, and a `play` function makes it an interaction test. Wired into the project's tests, they catch the day a component's props change and its story silently breaks — before `/design-sync` imports a blank render. Whether the project runs them is **its** decision (the test suite, CI time, and browser binaries it pulls in), not this skill's. So:
+
+1. **Detect.** A runner is present when any of these is: `@storybook/addon-vitest` (or its older name `@storybook/experimental-addon-test`) in devDependencies or in `.storybook/main` `addons`; a Vitest config or workspace with the `storybookTest` plugin; `@storybook/test-runner` in devDependencies or a `test-storybook` script. Also note the project's own test runner (Vitest, Jest, Playwright, Chromatic in CI).
+2. **Present → run it; never add a second one.** Vitest addon: `npx vitest --project=storybook --run` (use the project name its config gives). Test runner: serve `storybook-static` as in [Verify](#verify), then `npx test-storybook --url http://localhost:6006`. Every story you wrote must pass. A failure is a broken story or missing preview wiring — fix it like a failed build. The runner catches stories that throw or whose `play` fails; it cannot see an unstyled render or identical variants, so [Verify](#verify) still screenshots every story.
+3. **Absent, no `--with-tests` → leave the tooling alone.** Add no packages or config. In your return, under Caveats, say the stories are not run by any test and that `/storybook-generating --with-tests` (or `/architecture-planning`) can wire them in.
+4. **Absent, `--with-tests` → add one runner, the one that fits the stack.** Vite-based Storybook (`@storybook/react-vite`, and the project uses or accepts Vitest): `npx storybook add @storybook/addon-vitest`, which writes the Vitest project and installs the browser provider. Otherwise (webpack, Next.js on webpack, a Jest-only project): `@storybook/test-runner` plus a `test-storybook` script. Then run it as in 2. Add the command to `.tlk/PROJECT.md` only if the user asks — Bagnik's gate runs the **Test command**, so changing it changes the gate; propose the new command in your return instead. Name every devDependency added.
 
 ## Handing to /design-sync
 
@@ -100,9 +112,9 @@ When the Storybook builds and every story has been looked at:
 2. **Append your log entry** to `handoff-log.md` (the feature's, if one is active):
    ```
    ## HH:MM storybook-generating → Coordinator [storybook] done
-   Result: Components [covered / total from stories-coverage.sh]. Stories [n]. Thin [n]. Verified [n rendered / n stories]. Build: [command] exit [code].
+   Result: Components [covered / total from stories-coverage.sh]. Stories [n]. Thin [n]. Verified [n rendered / n stories]. Build: [command] exit [code]. Story tests: [runner — n pass / n | added: runner | none].
    Artifacts: .storybook/preview.tsx, [story globs]
-   Caveats: [devDependencies added, components not isolatable, thin by design, unverified renders — or "none"]
+   Caveats: [devDependencies added, components not isolatable, thin by design, unverified renders, stories run by no test — or "none"]
    Recommend: user runs /design-sync — or STOP if caveats need the user
    Why: [one line]
    ```
@@ -139,7 +151,9 @@ Record in-flight decisions as you make them: `talaka/memory/tools/session.sh dec
 
 ## Guardrails
 
-- Do NOT edit component source, tokens, or app config beyond the Storybook entries (`.storybook/`, stories, scripts, devDependencies, `.gitignore`)
+- Do NOT edit component source, tokens, or app config beyond the Storybook entries (`.storybook/`, stories, scripts, devDependencies, `.gitignore`, and under `--with-tests` the story-test config)
+- Do NOT add a story test runner without `--with-tests`, and never a second one beside the project's
+- Do NOT change the Test command in `.tlk/PROJECT.md` unasked; propose it
 - Do NOT invent variants, content, or components the code does not have
 - Do NOT hard-code token values into stories; read them from source
 - Do NOT call `DesignSync` or push to Claude Design; `/design-sync` is the user's step
