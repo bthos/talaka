@@ -58,8 +58,15 @@ if [ ! -f "$DEFERRED_FILE" ]; then
 EOF
 fi
 
-LAST_ID=$(grep -oP '(?<=^## DD-)\d+' "$DEFERRED_FILE" 2>/dev/null | sort -n | tail -1 || true)
-NEXT_ID=$(printf "%03d" $(( ${LAST_ID:-0} + 1 )))
+# Highest DD-NNN across every heading form ("## DD-012: …",
+# "## DD-013 (cross-reference): …"), plus one. Two traps (issue #28):
+#   - "013" in $(( )) is octal (= 11), so the next id collided with an
+#     existing one — and 008/009 were an arithmetic error. Force base 10.
+#   - grep -P is GNU-only; sed runs everywhere.
+LAST_ID=$(tr -d '\r' < "$DEFERRED_FILE" \
+  | sed -n 's/^##[[:space:]]*DD-\([0-9][0-9]*\).*/\1/p' \
+  | awk '{ n = $0 + 0; if (n > max) max = n } END { print max + 0 }')
+NEXT_ID=$(printf "%03d" $(( 10#${LAST_ID:-0} + 1 )))
 
 cat >> "$DEFERRED_FILE" <<EOF
 

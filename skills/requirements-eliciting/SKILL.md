@@ -42,10 +42,10 @@ When updating specs:
 
 ## Feature Path
 
-When starting a new feature, run:
+When starting a new feature, run from the project root:
 
 ```bash
-/skills/requirements-eliciting/new-feature.sh <feature-slug>
+.claude/skills/requirements-eliciting/new-feature.sh <feature-slug>
 ```
 
 This creates `.tlk/features/YYYY-MM-DD-<slug>/` with a `spec.md` skeleton and `handoff-log.md`. Use the printed `FEATURE_PATH` value in every handoff.

@@ -76,7 +76,7 @@ When the coordinator routes a Bagnik test-gate failure back to you:
 Before returning, run:
 
 ```bash
-/skills/architecture-planning/check-coverage.sh <feature-path>
+.claude/skills/architecture-planning/check-coverage.sh <feature-path>
 ```
 
 This runs the test command from `.tlk/PROJECT.md`, prints results, and appends a **progress** entry (`## HH:MM architecture-planning [arch + tests] progress`) with the exit code and the runner's summary lines to `handoff-log.md`. Use its output in your return.
