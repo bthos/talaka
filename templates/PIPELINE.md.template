@@ -100,6 +100,7 @@ Concretely, in every agent and skill prompt in this kit:
 | mockups-creating | UX mockups               |
 | design-generating | Design system extraction — copied from real sources, read by mockups-creating |
 | storybook-generating | Storybook from the codebase — stories per real variant, built and render-checked for the user's `/design-sync` |
+| screenshots-testing | Visual regression — screenshots diffed against baselines in git; the user accepts or rejects each diff |
 | architecture-planning    | Architecture & tests          |
 | bugs-diagnosing | Hypothesis design for hard bugs |
 | knowledge-curating     | Knowledge wiki — ingest / query / lint over `wiki/` |
@@ -115,7 +116,7 @@ Concretely, in every agent and skill prompt in this kit:
 
 | Kind | Names |
 |------|--------|
-| Skills | `/requirements-eliciting`, `/ux-designing`, `/architecture-planning`, `/mockups-creating`, `/design-generating`, `/storybook-generating`, `/bugs-diagnosing`, `/knowledge-curating`, `/cli-designing`, `/codebase-mapping`, `/consistency-auditing`, `/patterns-adapting`, `/tasks-researching`, `/prompts-building`, `/assumptions-challenging` |
+| Skills | `/requirements-eliciting`, `/ux-designing`, `/architecture-planning`, `/mockups-creating`, `/design-generating`, `/storybook-generating`, `/screenshots-testing`, `/bugs-diagnosing`, `/knowledge-curating`, `/cli-designing`, `/codebase-mapping`, `/consistency-auditing`, `/patterns-adapting`, `/tasks-researching`, `/prompts-building`, `/assumptions-challenging` |
 | Agents | `@bagnik`, `@cmok` (build), `@mokash`, `@veles`, `@yaga`, `@zlydni` |
 
 The build implementation after Bagnik passes is the `@cmok` agent. The mockup phase uses the `/mockups-creating` skill. They are distinct roles: the build agent keeps the mythology name `cmok`, while skills use purpose-based names.
@@ -261,6 +262,9 @@ The coordinator's decision function. Keyed on the last return entry.
 | Bagnik | code QA (Yaga-originated) | pass | `@yaga` (strip instrumentation) | — |
 | Yaga | strip | done | `@bagnik` (re-gate the stripped tree) | — |
 | consistency-auditing | audit | done | `@cmok` (apply fixes) | — |
+| screenshots-testing | visual | pass | continue where the pipeline was (normally `@bagnik` code QA) | — |
+| screenshots-testing | visual | changes | — | **STOP** — user accepts or rejects each diff, then `/screenshots-testing accept <ids>` |
+| screenshots-testing | visual | fail | `@cmok` (fix the rejected regressions) | — |
 | cli-designing / patterns-adapting / tasks-researching | design / brief | done | `/architecture-planning` | — |
 
 **Parallel docs (Mokash):** Mokash is the only worker the coordinator launches alongside another. Launch it with `background: true` in Claude Code; in IDEs without a background flag, launch it in the same turn with the same context. Mokash returns to the coordinator like everyone else and routes nowhere.

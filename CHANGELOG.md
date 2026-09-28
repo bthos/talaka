@@ -10,6 +10,27 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Added — `screenshots-testing` skill
+
+- **`/screenshots-testing`** is visual regression testing in the manner of Chromatic, built from
+  tools the project owns. A Playwright spec shoots every story in the built Storybook's `index.json`
+  (or pages listed in `tests/visual/pages.json`) once per mode: viewports, and themes passed as
+  Storybook `globals`. Baselines are PNGs committed to git, so they follow branches and show up in
+  the PR diff.
+- **Same pixels everywhere.** `in-container.sh` runs the suite in the official Playwright image
+  whose tag matches the installed `@playwright/test`, and the CI template uses the same image. The
+  spec disables animations and the caret, fixes the clock, seeds `Math.random`, waits for fonts and
+  images, and fails a story that shows Storybook's error overlay. No retries and no widened
+  thresholds: a flaky shot is fixed at its cause.
+- **Review, not auto-accept.** `diff-summary.sh` lists `changed` and `new` shots from the run's
+  output; the skill shows each expected / actual / diff and the user accepts or rejects it. Only
+  accepted story ids are updated. The config sets `updateSnapshots: 'none'`, so a new story's first
+  shot is not quietly written as its baseline.
+- **Only what changed.** `changed-stories.sh` (TurboSnap-like) follows a change through importers to
+  the stories it can reach, and answers `ALL` when a global file changed or the base is unknown. CI
+  always runs the full suite.
+- Coordinator routing: `pass` continues, `changes` stops for the user, `fail` goes to `@cmok`.
+
 ### Fixed — metrics rows measured for subagents and on Windows; stale tool copies refreshed (#27, #31, #34)
 
 - **The problem.** Three things made nearly every row `"source":"none"`. `run.sh --init` never
