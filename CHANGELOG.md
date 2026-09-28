@@ -10,6 +10,20 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Added — `storybook-generating` skill
+
+- **`/storybook-generating`** gives a React codebase a Storybook that the user's `/design-sync` can
+  import into Claude Design and sync back. It writes CSF3 stories next to each component, one per
+  variant and state the props actually support, with real product copy. The stories render through
+  the app's own global CSS, fonts, providers and theme, which it wires into `.storybook/preview`.
+  Foundation stories read the tokens at render time. The skill then builds the Storybook and looks at
+  every story, aiming at the three things `/design-sync` rejects: blank or unstyled renders,
+  components with a single story, and variants that render the same. It extends an existing
+  Storybook rather than replacing it, never edits component source, and leaves `/design-sync` to
+  the user.
+- Two bundled scripts: `stories-coverage.sh` lists components with and without stories;
+  `check-index.sh` reads the built `index.json` and flags components with a single story.
+
 ### Fixed — init no longer asks before refreshing its own managed blocks
 
 - **The problem.** Every re-run of `init.sh` / `update.sh` asked
