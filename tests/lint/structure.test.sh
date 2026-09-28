@@ -265,6 +265,20 @@ test_metrics_callers_mark_their_start_in_a_file() {
   done
 }
 
+test_skill_scripts_are_not_given_absolute_paths() {
+  # Issue #25: SKILL.md said /skills/requirements-eliciting/new-feature.sh — an
+  # absolute path that does not exist. Installed skills live under
+  # .claude/skills/<name>/, relative to the project root.
+  local hits
+  hits=$(grep -rnE --include='*.md' --include='*.template' \
+           '(^|[`( ])/skills/[A-Za-z0-9_-]+/' \
+           "$KIT_ROOT/agents" "$KIT_ROOT/skills" "$KIT_ROOT/templates" 2>/dev/null || true)
+  if [ -n "$hits" ]; then
+    fail "skill script referenced by an absolute /skills/ path — use .claude/skills/<name>/…:"
+    printf '        %s\n' "$hits" >&2
+  fi
+}
+
 test_pricing_table_is_not_hardcoded_in_scripts() {
   # Prices belong in pricing.json (fetched, dated, replaceable), never inlined
   # in a script where they go stale invisibly.
