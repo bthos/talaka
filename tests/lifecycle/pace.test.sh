@@ -121,4 +121,52 @@ test_rejects_unknown_args() {
   assert_eq "2" "$rc" "usage error"
 }
 
+# _write DIR NOW USED_5H — pace_write_snapshot into DIR/usage.env, fixed resets
+_write() {
+  # shellcheck source=../../statusline/tools/pace.sh
+  ( . "$PACE"; pace_write_snapshot "$1/usage.env" "$2" "$3" 1000 17 2000 -1 )
+}
+
+test_snapshot_skips_rewrite_when_numbers_unchanged() {
+  local d; d=$(make_tmp_project)
+  _write "$d" 5000 42
+  _write "$d" 5010 42
+  assert_file_contains "$d/usage.env" "captured_at=5000" "same numbers 10s later: not rewritten"
+  _write "$d" 5020 43
+  assert_file_contains "$d/usage.env" "captured_at=5020" "changed numbers: rewritten at once"
+  assert_file_contains "$d/usage.env" "used_5h=43"
+  _write "$d" 5050 43
+  assert_file_contains "$d/usage.env" "captured_at=5050" "same numbers 30s later: captured_at refreshed"
+}
+
+test_snapshot_write_leaves_no_temp_file() {
+  local d left; d=$(make_tmp_project)
+  _write "$d" 5000 42
+  left=$(find "$d" -maxdepth 1 -name 'usage.env.tmp.*')
+  assert_eq "" "$left" "the temp file is renamed into place"
+}
+
+test_snapshot_write_sweeps_old_temp_files_only() {
+  local d; d=$(make_tmp_project)
+  printf 'x' > "$d/usage.env.tmp.111"; touch -t 202001010000 "$d/usage.env.tmp.111"
+  printf 'x' > "$d/usage.env.tmp.222"
+  printf 'x' > "$d/other.tmp.333";     touch -t 202001010000 "$d/other.tmp.333"
+  _write "$d" 5000 42
+  assert_file_absent "$d/usage.env.tmp.111" "a temp file a killed render left is swept"
+  assert_file_exists "$d/usage.env.tmp.222" "a fresh one may be a live writer's: kept"
+  assert_file_exists "$d/other.tmp.333"     "only this snapshot's temp files are touched"
+}
+
+test_snapshot_temp_file_removed_on_term() {
+  local d rc=0 left; d=$(make_tmp_project)
+  # mv stands in for the moment Claude Code cancels the render: TERM arrives
+  # after the temp file is written and before it is renamed.
+  bash -c '. "$1"; mv() { kill -TERM $$; }; pace_write_snapshot "$2/usage.env" 5000 42 1000 17 2000 -1' \
+    _ "$PACE" "$d" || rc=$?
+  assert_eq "143" "$rc" "TERM still ends the render"
+  left=$(find "$d" -maxdepth 1 -name 'usage.env.tmp.*')
+  assert_eq "" "$left" "the trap removes the temp file"
+  assert_file_absent "$d/usage.env" "no half-finished snapshot"
+}
+
 run_tests "$@"

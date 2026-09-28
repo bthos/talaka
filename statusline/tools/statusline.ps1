@@ -176,13 +176,33 @@ $badge = switch ($mode) {
 
 # Hand the measurement to the coordinator (pace.sh --mode reads it back).
 if ((Test-Path $tlkDir) -and ($lim5h -ge 0 -or $lim7d -ge 0)) {
+    # Same rules as pace_write_snapshot in pace.sh: rewrite only when the numbers
+    # change or the snapshot is 30s old, and sweep temp files a killed render
+    # left behind (older than a minute, so a live writer's is never touched).
     $snap = Join-Path $tlkDir "usage.env"
     $tmp = "$snap.tmp.$PID"
-    $body = "captured_at=$now`nused_5h=$lim5h`nresets_5h=$reset5h`nused_7d=$lim7d`nresets_7d=$reset7d`nused_spend=$limSpend`n"
-    try {
-        [System.IO.File]::WriteAllText($tmp, $body)
-        Move-Item -Force $tmp $snap
-    } catch { Remove-Item -Force $tmp -ErrorAction SilentlyContinue }
+    $values = "used_5h=$lim5h`nresets_5h=$reset5h`nused_7d=$lim7d`nresets_7d=$reset7d`nused_spend=$limSpend`n"
+    $write = $true
+    if (Test-Path $snap) {
+        try {
+            $prev = 0; $old = ""
+            foreach ($line in [System.IO.File]::ReadAllLines($snap)) {
+                if ($line -match '^captured_at=(\d+)$') { $prev = [long]$Matches[1] } else { $old += "$line`n" }
+            }
+            $age = $now - $prev
+            if ($old -eq $values -and $age -ge 0 -and $age -lt 30) { $write = $false }
+        } catch { }
+    }
+    if ($write) {
+        $cutoff = (Get-Date).AddMinutes(-1)
+        Get-ChildItem -LiteralPath $tlkDir -Filter "usage.env.tmp.*" -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.LastWriteTime -lt $cutoff } |
+            Remove-Item -Force -ErrorAction SilentlyContinue
+        try {
+            [System.IO.File]::WriteAllText($tmp, "captured_at=$now`n$values")
+            Move-Item -Force $tmp $snap
+        } catch { Remove-Item -Force $tmp -ErrorAction SilentlyContinue }
+    }
 }
 
 # Same ▓/░ as the context bar; the fill rounds up to whole cells.

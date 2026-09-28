@@ -10,6 +10,18 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Fixed — `usage.env.tmp.<pid>` files no longer pile up in `.tlk/`
+
+- **The problem.** The statusline writes `.tlk/usage.env` through a temp file and a rename, so the
+  coordinator never reads a half-written number. Claude Code cancels a render that is still running
+  when the next one starts, and a render killed between the write and the rename left its
+  `usage.env.tmp.<pid>` behind. Each has a new pid, so nothing ever reused or removed them.
+- **Now** the snapshot is rewritten only when the numbers change, or every 30 s to keep
+  `captured_at` fresh (`PACE_SNAPSHOT_REFRESH`), so most renders write nothing. Each write first
+  sweeps this snapshot's temp files older than a minute, which also clears the ones already there.
+  A TERM / INT / HUP during the bash write removes its temp file. The PowerShell statusline does the
+  first two; a killed PowerShell process runs no handler.
+
 ### Fixed — init no longer asks before refreshing its own managed blocks
 
 - **The problem.** Every re-run of `init.sh` / `update.sh` asked
