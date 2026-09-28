@@ -3,7 +3,8 @@
 # .tlk/autoresearch/runs/cost.jsonl (so Veles has fleet-wide history).
 #
 # Installed from talaka/templates/autoresearch/tools/ by run.sh --init.
-# Edit this copy freely — the kit template is never overwritten after first install.
+# Edit this copy freely — run.sh --init refreshes it only while it is an unmodified
+# copy of what the kit shipped; once you edit it, it is kept as is.
 #
 # Usage:
 #   # on entry — persists the start time to a file, so it survives the shell
@@ -118,7 +119,7 @@ while [ $# -gt 0 ]; do
     --cost-per-token) cost_per_tok="$2"; shift 2 ;;
     --log-file=*) LOG_FILE="${1#--log-file=}"; shift ;;
     --log-file) LOG_FILE="${2:-}"; shift 2 ;;
-    -h|--help)        sed -n '2,55p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help)        sed -n '2,56p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "Unknown arg: $1" >&2; exit 2 ;;
   esac
 done
@@ -146,6 +147,10 @@ fi
 if ! $since_given && [ -f "$start_file" ]; then
   since=$(tr -d '[:space:]' < "$start_file")
   since_given=true
+elif ! $since_given && [ "$tokens" = "null" ]; then
+  # Agent prompts call --mark-start with 2>/dev/null, so a mark that was never
+  # written (a stale tool copy, another cwd) is otherwise invisible: say so here.
+  echo "record-metrics: no start mark at $start_file and no --since — tokens and wall_ms not measured. Run '--mark-start --agent $agent' on entry (from the project root)." >&2
 fi
 
 is_uint() { case "$1" in ''|*[!0-9]*) return 1 ;; *) return 0 ;; esac; }
@@ -238,7 +243,8 @@ cost_usd="null"
 collector="$(dirname "$0")/collect-usage.sh"
 
 if [ -n "$since" ] && [ -x "$collector" ]; then
-  if usage_json=$(ARTEFACTS_DIR="$ARTEFACTS" "$collector" --since "$since" --json 2>/dev/null); then
+  collect_err=$(mktemp 2>/dev/null || echo "$RUNS_DIR/.collect-err.$$")
+  if usage_json=$(ARTEFACTS_DIR="$ARTEFACTS" "$collector" --since "$since" --agent "$agent" --json 2>"$collect_err"); then
     measured_tokens=$(printf '%s' "$usage_json" | jq -r '.tokens_total // "null"' 2>/dev/null || echo null)
     measured_cost=$(printf '%s' "$usage_json"   | jq -r 'if .cost_usd == null then "null" else (.cost_usd|tostring) end' 2>/dev/null || echo null)
     if [ "$measured_tokens" != "null" ] && [ -n "$measured_tokens" ]; then
@@ -248,7 +254,11 @@ if [ -n "$since" ] && [ -x "$collector" ]; then
     fi
   else
     echo "record-metrics: could not measure usage (--since $since) — recording tokens as null, not a guess." >&2
+    # The collector's own reason (no jq, no transcript for this cwd, nothing in
+    # range) is what makes a "source":"none" row diagnosable.
+    grep -v 'price table not verified' "$collect_err" 2>/dev/null | tail -n 2 | sed 's/^/  /' >&2 || true
   fi
+  rm -f "$collect_err"
 fi
 
 if [ "$source_kind" != "measured" ] && [ "$tokens" != "null" ]; then

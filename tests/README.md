@@ -25,6 +25,7 @@ Exit status is non-zero if any file fails. Requires **bash ≥ 4** (macOS ships
 | `tests/memory/` | `memory/tools/` — `init`, `promote` (2-strike, id hashing, supersedes, L4), `rollover`, `search`. |
 | `tests/autoresearch/` | `build-eval-set`, `judge`, `generate` (generator side: prompt, cost, cache), `ratchet` (generate → judge scoring, cost term, accept/revert, invariant guard), `mutate-agent` guards, `decay-variants` (age-gated prune + audit log). |
 | `tests/skills/` | Skill-bundled scripts — `knowledge-curating` (`new-wiki.sh`), `cli-designing` (`new-cli.sh`): tree bootstrap, idempotency, output contract. |
+| `tests/deferred/` | `shared/deferred/tools/defer.sh` — DD-NNN numbering across heading forms. |
 | `tests/lint/` | Structural guards: frontmatter, no-plugin-dependency, block markers, `bash -n` syntax. |
 
 `memory/tools/test-search-parity.sh` (py-vs-bash search parity) is also picked

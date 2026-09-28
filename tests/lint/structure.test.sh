@@ -186,7 +186,7 @@ test_no_legacy_ide_sweep() {
 }
 
 test_every_worker_carries_the_output_discipline_block() {
-  # The kit runs a coordinator plus six agents and sixteen skills, all of them
+  # The kit runs a coordinator plus six agents and seventeen skills, all of them
   # narrating. Concise output is a shipped rule, not a preference: a worker that
   # inherits it only from PIPELINE.md loses it on a trimmed context.
   local f
@@ -263,6 +263,20 @@ test_metrics_callers_mark_their_start_in_a_file() {
     grep -q -- 'record-metrics.sh --mark-start --agent' "$f" \
       || fail "$rel: records metrics but never calls record-metrics.sh --mark-start on entry"
   done
+}
+
+test_skill_scripts_are_not_given_absolute_paths() {
+  # Issue #25: SKILL.md said /skills/requirements-eliciting/new-feature.sh — an
+  # absolute path that does not exist. Installed skills live under
+  # .claude/skills/<name>/, relative to the project root.
+  local hits
+  hits=$(grep -rnE --include='*.md' --include='*.template' \
+           '(^|[`( ])/skills/[A-Za-z0-9_-]+/' \
+           "$KIT_ROOT/agents" "$KIT_ROOT/skills" "$KIT_ROOT/templates" 2>/dev/null || true)
+  if [ -n "$hits" ]; then
+    fail "skill script referenced by an absolute /skills/ path — use .claude/skills/<name>/…:"
+    printf '        %s\n' "$hits" >&2
+  fi
 }
 
 test_pricing_table_is_not_hardcoded_in_scripts() {

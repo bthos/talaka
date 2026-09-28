@@ -75,20 +75,62 @@ if $INIT; then
     echo "  Kept existing: $PROGRAM"
   fi
 
-  # Install the metrics toolchain (same rule — never overwrite).
+  # Install the metrics toolchain.
   #   record-metrics.sh   writes a row per run
   #   collect-usage.sh    measures that row's tokens from the session transcript
   #   analyze-metrics.sh  reads the rows back so Veles can act on them
   #   pricing.json        turns measured tokens into a measured cost
   #   fetch-pricing.sh    refreshes pricing.json from the published price list
+  #
+  # A copy the project has edited is never overwritten. A copy nobody touched
+  # is refreshed: "never overwrite" used to mean a project installed before a
+  # tool gained a flag (record-metrics.sh --mark-start, issue #34) kept the old
+  # copy forever, while the agent prompts — which ARE refreshed — called the new
+  # flag and every metrics row silently came out null.
+  #
+  # "Untouched" means the copy's content (CRs stripped, as git would store it)
+  # is a blob this kit shipped: either the one recorded in .kit-blobs when it
+  # was installed, or any earlier version of the template in the kit's history.
+  _blob_of() { tr -d '\r' < "$1" | git hash-object --stdin 2>/dev/null || true; }
+  _BLOBS_FILE="$TOOLS_DIR/.kit-blobs"
+  _KIT_ROOT="$(cd "$PKG_DIR/.." && pwd)"
+  _shipped_blob() {  # _shipped_blob <tool> <blob> — did the kit ever ship it?
+    local t="$1" b="$2"
+    [ -n "$b" ] || return 1
+    [ -f "$_BLOBS_FILE" ] && grep -qx "$b $t" "$_BLOBS_FILE" && return 0
+    git -C "$_KIT_ROOT" log --format= --raw --no-abbrev \
+        -- "templates/autoresearch/tools/$t" 2>/dev/null \
+      | awk '{print $3; print $4}' | grep -qx "$b"
+  }
+  _record_blob() {   # _record_blob <tool> <blob>
+    local t="$1" b="$2" tmp
+    [ -n "$b" ] || return 0
+    tmp="$_BLOBS_FILE.tmp.$$"
+    { [ -f "$_BLOBS_FILE" ] && grep -v " $t\$" "$_BLOBS_FILE" || true; echo "$b $t"; } > "$tmp"
+    mv "$tmp" "$_BLOBS_FILE"
+  }
   for _t in record-metrics.sh collect-usage.sh analyze-metrics.sh fetch-pricing.sh pricing.json; do
+    _src="$TEMPLATES_DIR/tools/$_t"
     _dest="$TOOLS_DIR/$_t"
+    _new_blob=$(_blob_of "$_src")
     if [ ! -f "$_dest" ]; then
-      cp "$TEMPLATES_DIR/tools/$_t" "$_dest"
+      cp "$_src" "$_dest"
       case "$_t" in *.sh) chmod +x "$_dest" ;; esac
+      _record_blob "$_t" "$_new_blob"
       echo "  Installed: $_dest"
+      continue
+    fi
+    _cur_blob=$(_blob_of "$_dest")
+    if [ -n "$_cur_blob" ] && [ "$_cur_blob" = "$_new_blob" ]; then
+      _record_blob "$_t" "$_new_blob"
+      echo "  Up to date: $_dest"
+    elif _shipped_blob "$_t" "$_cur_blob"; then
+      cp "$_src" "$_dest"
+      case "$_t" in *.sh) chmod +x "$_dest" ;; esac
+      _record_blob "$_t" "$_new_blob"
+      echo "  Updated (unmodified copy of an older kit version): $_dest"
     else
-      echo "  Kept existing: $_dest"
+      echo "  Kept existing (locally modified): $_dest"
     fi
   done
 

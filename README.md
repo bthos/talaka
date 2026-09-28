@@ -1,6 +1,6 @@
 # Talaka
 
-A reusable AI development pipeline — 6 agents, 16 skills, and a coordinator-driven handoff protocol. Installs one Claude-shaped layout (`.claude/agents/`, `.claude/skills/`) with two entry-point files at the project root: **`CLAUDE.md`** (read natively by Claude Code) and **`AGENTS.md`** (the cross-IDE convention — read by any workspace-aware tool that follows the AGENTS.md spec). One install covers every IDE.
+A reusable AI development pipeline — 6 agents, 17 skills, and a coordinator-driven handoff protocol. Installs one Claude-shaped layout (`.claude/agents/`, `.claude/skills/`) with two entry-point files at the project root: **`CLAUDE.md`** (read natively by Claude Code) and **`AGENTS.md`** (the cross-IDE convention — read by any workspace-aware tool that follows the AGENTS.md spec). One install covers every IDE.
 
 The kit is **minimally invasive** and **per-developer** (it commits nothing of its own): every kit-touched path is either inside the git-ignored `.tlk/`, inside `.claude/`, the optional committed `wiki/`, or wrapped in a removable `<!-- talaka:start --> … <!-- talaka:end -->` block in `CLAUDE.md` / `AGENTS.md` / `.gitignore`. `teardown.sh` strips the block (or removes the file when its SHA-256 still matches the kit copy recorded in `.tlk/.talaka.files`), so manual edits are always preserved.
 
@@ -44,6 +44,7 @@ This keeps routing observable and interruptible: the coordinator holds the whole
 | mockups-creating | UX mockups                   |
 | design-generating | Design system extraction — tokens, fonts, assets, components, UI kits copied from real sources into the design system directory |
 | storybook-generating | Storybook from the codebase — CSF3 stories per real component variant, rendered with the app's own styles, built and render-checked for `/design-sync` into Claude Design |
+| screenshots-testing | Visual regression testing (Chromatic-style) — every story per viewport and theme in a pinned Playwright container, diffed against baselines in git, scoped to what changed, each diff accepted or rejected by the user |
 | data-mocking | Data mocks fitted to the stack — picks MSW, MirageJS, Prism, WireMock, MockServer, mockd, Mountebank or an in-process library per boundary; shared fixtures, named scenarios, opt-in switch |
 | architecture-planning   | Architecture & tests         |
 | bugs-diagnosing | Hypothesis design for hard bugs |
@@ -311,11 +312,13 @@ The composite metric Veles ratchets on is `accuracy − λ·cost`. That only mea
 
 | Tool | What it does |
 |------|--------------|
-| `collect-usage.sh` | Reads the per-message `usage` blocks out of the Claude Code session transcript — input, output, 5-minute cache writes, 1-hour cache writes and cache reads, per model. Exits 3 rather than return a number it could not measure. |
+| `collect-usage.sh` | Reads the per-message `usage` blocks out of the Claude Code session transcript — input, output, 5-minute cache writes, 1-hour cache writes and cache reads, per model. Includes the session's subagent transcripts (`<session>/subagents/*.jsonl`); given `--agent`, counts only the subagent that made that agent's `--mark-start` call. Matches the project on Windows whether the path reads `/c/…` or `C:\…`. Exits 3 rather than return a number it could not measure. |
 | `pricing.json` | Prices per model **and per token kind**. The two cache-write TTLs are priced differently (1.25× and 2× input), so folding them together understates a Claude Code session badly. Carries `_source_url`, `_fetched` and `_verified`. |
 | `fetch-pricing.sh` | Rewrites `pricing.json` from Anthropic's published price list. Run it before trusting a dollar figure; `--check` exits 4 when the table is stale. |
 | `record-metrics.sh --mark-start` → `record-metrics.sh` | The first call, on entry, writes the start time to `.tlk/autoresearch/runs/.start-<agent>`; the second reads it as `--since`, derives `--wall-ms`, writes the row and tags it `"source":"measured"`. Without a start the row is `"estimated"` (a caller's assertion) or `"none"` — and only `measured` rows feed the composite. |
 | `analyze-metrics.sh` | Reads the rows back. Ranks agents and skills by measured cost against the accuracy it bought, names the one with composite headroom, and prints how old the price table is. Veles runs this before picking a target. |
+
+These tools are copied into `.tlk/autoresearch/tools/`. `run.sh --init` (which `init.sh` re-runs on every kit update) refreshes a copy that is still exactly what an earlier kit shipped, and keeps one the project has edited.
 
 Every agent and skill prompt marks its start this way — never with a `start=$(date +%s)` shell variable, which does not survive between tool calls — and none of them estimates its own token use. An agent's guess about itself is not evidence, and a ratchet fed guesses optimises for whichever worker guessed highest.
 
@@ -504,7 +507,7 @@ The skill is design-only and plugs into the normal pipeline: it bootstraps `.tlk
 
 The feature pipeline answers *build this thing*. The goal loop answers everything else the kit can do and rarely gets asked to — and that gap is the point: mapping, drift audits, assumption challenges, pre-planning research and the Veles ratchet are the techniques that sit unused because no one thinks to invoke them by name.
 
-The entry point is Claude Code's bundled **`/loop`**. Given no prompt — `/loop` (self-paced) or `/loop 30m` (fixed interval) — it runs **`.claude/loop.md`** on every iteration; `/loop <prompt>` ignores the file. `init.sh` installs only that protocol file and defines no `/loop` or `/goal` command of its own, so the built-ins are never shadowed. (`/goal <condition>` is a separate built-in: it keeps a session working until a condition holds and does not read `loop.md`.) The loop first settles which goal to work: it resumes the one open goal under `.tlk/goals/`, asks which one when there are several, and asks for an objective when there are none (*improve this codebase — nothing above P2 left in the audit*, *find the architecture gaps, stop at a plan*, *ratchet the agents — one Veles round, then report*). One goal in, many iterations out; each iteration is *assess → pick ONE technique → invoke it → read the return entry → log → decide*. Artifacts land in `.tlk/goals/<date>-<slug>/` (`goal.md`, `handoff-log.md`, `summary.md`, `metrics.jsonl`), which the managed `.gitignore` block already covers.
+The entry point is Claude Code's bundled **`/loop`**. Given no prompt — `/loop` (self-paced) or `/loop 30m` (fixed interval) — it runs **`.claude/loop.md`** on every iteration; `/loop <prompt>` ignores the file. `init.sh` installs only that protocol file and defines no `/loop` or `/goal` command of its own, so the built-ins are never shadowed. (`/goal <condition>` is a separate built-in: it keeps a session working until a condition holds and does not read `loop.md`.) The loop first settles which goal to work: it resumes the one open goal under `.tlk/goals/` — one with no `summary.md`, or whose `summary.md` says `Status: paused` (a stall, a spent budget or a blocker stops the loop without finishing the goal; only `Status: done` closes it) — asks which one when there are several, and asks for an objective when there are none (*improve this codebase — nothing above P2 left in the audit*, *find the architecture gaps, stop at a plan*, *ratchet the agents — one Veles round, then report*). One goal in, many iterations out; each iteration is *assess → pick ONE technique → invoke it → read the return entry → log → decide*. Artifacts land in `.tlk/goals/<date>-<slug>/` (`goal.md`, `handoff-log.md`, `summary.md`, `metrics.jsonl`), which the managed `.gitignore` block already covers.
 
 It obeys the same routing rule as the pipeline — the coordinator invokes, workers return — and it cannot write code except through `@cmok` → `@bagnik` → `@zlydni`. Stop conditions are explicit: definition of done met, budget spent, two iterations with nothing new, or the same finding failing twice.
 
@@ -521,7 +524,7 @@ talaka/shared/feedback/tools/kit-issue.sh add --kind slow --title "log.sh takes 
 
 Entries land in `.tlk/kit-issues.md` (git-ignored). Repeats bump a `Seen:` count instead of duplicating. `slow` and `hang` reports are refused without a measured `--evidence`. Paths under the project root and `$HOME` are redacted.
 
-Nothing leaves the machine on its own. When a pipeline stops or ends, the coordinator lists pending entries and asks you once whether to file them. `kit-issue.sh submit KI-001` previews the exact issue body and any similar existing issues. Only `submit KI-001 --confirm`, after you approve, runs `gh issue create` on `github.com/bthos/talaka` (override with `TALAKA_ISSUES_REPO`). `dismiss` and `link` cover "not a kit problem" and "filed by hand / commented on an existing issue". The `kit.sh` menu lists them under *Kit issues*.
+Nothing leaves the machine on its own. When a pipeline stops or ends, the coordinator lists pending entries and asks you once whether to file them. `kit-issue.sh sync` fetches every kit issue, open and closed, so a report already filed from another session or clone is linked rather than filed again, and `add`/`list` flag likely duplicates by key words. `kit-issue.sh submit KI-001` previews the exact issue body and any similar existing issues. Only `submit KI-001 --confirm`, after you approve, runs `gh issue create` on `github.com/bthos/talaka` (override with `TALAKA_ISSUES_REPO`). `dismiss` and `link` cover "not a kit problem" and "filed by hand / commented on an existing issue". The `kit.sh` menu lists them under *Kit issues*.
 
 ## Feature artifacts
 
@@ -548,6 +551,7 @@ requirements-eliciting creates the feature folder automatically when starting a 
 | Build the design system from code / Figma / brand assets | `/design-generating` |
 | Generate a Storybook for `/design-sync` (Claude Design) | `/storybook-generating` |
 | … and make every story a test the suite runs | `/storybook-generating --with-tests` |
+| Visual regression check / accept screenshot diffs | `/screenshots-testing` (`setup`, `check`, `accept <ids>`) |
 | Set up data mocks fitted to the stack (MSW, WireMock, Prism, mockd, …) | `/data-mocking` |
 | … recommend the tool only, install nothing | `/data-mocking --plan` |
 | Architecture & tests | `/architecture-planning` |
@@ -584,6 +588,9 @@ Each skill bundles its own script. Shared scripts live under `talaka/shared/<cat
 | `.claude/skills/codebase-mapping/new-map.sh <slug>` | codebase-mapping | Creates `.tlk/maps/YYYY-MM-DD-<slug>/` with `map.md`, `open-questions.md`, `handoff-log.md` skeletons |
 | `.claude/skills/storybook-generating/stories-coverage.sh [--missing] [dir…]` | storybook-generating | Lists candidate React components under the source roots (default `src`) as `covered` / `missing` a `*.stories.*`, then `COMPONENTS= COVERED= MISSING=` |
 | `.claude/skills/storybook-generating/check-index.sh [storybook-static]` | storybook-generating | Reads the built Storybook's `index.json`, counts stories per title, flags `thin` (one story, `Foundations/` exempt). Needs jq or python3 |
+| `.claude/skills/screenshots-testing/changed-stories.sh [--base <ref>]` | screenshots-testing | Stories a change can have altered (changed files plus their importers, followed transitively), as `index.json` `importPath`s; `ALL` when a global file changed or the base is unknown. Summary `CHANGED= STORIES=` on stderr |
+| `.claude/skills/screenshots-testing/diff-summary.sh [test-results/visual]` | screenshots-testing | Reads the last run's output images: `changed` (has `-diff.png`), `new` (no baseline), then `CHANGED= NEW=` |
+| `.claude/skills/screenshots-testing/in-container.sh [--print] [args…]` | screenshots-testing | Runs `playwright test -c playwright.visual.config.ts` in `mcr.microsoft.com/playwright:v<installed version>-noble` (docker or podman), forwarding `VISUAL_*` |
 | `.claude/skills/data-mocking/detect-stack.sh [dir]` | data-mocking | Prints `key=value` facts that decide the mock tool: languages, package manager, UI, frameworks, test runners, API clients, protocols, contracts (OpenAPI / GraphQL / proto / AsyncAPI / WSDL), mock tools already present, Docker |
 | `.claude/skills/consistency-auditing/new-audit.sh <slug>` | consistency-auditing | Creates `.tlk/audits/YYYY-MM-DD-<slug>/` with `audit.md` (ranked, located findings + recommended fixes) and `handoff-log.md` |
 | `.claude/skills/patterns-adapting/new-adaptation.sh <slug>` | patterns-adapting | Creates `.tlk/features/YYYY-MM-DD-adapt-<slug>/` with `research-brief.md`, `adaptation.md`, `handoff-log.md` skeletons |

@@ -12,7 +12,8 @@
 #
 # Usage:
 #   collect-usage.sh [--since <epoch-seconds>] [--session <id>] [--cwd <path>]
-#                    [--pricing <file>] [--sidechain-only] [--json|--tokens|--cost]
+#                    [--agent <name>] [--pricing <file>] [--sidechain-only]
+#                    [--json|--tokens|--cost]
 #
 #   --since            Only count messages at or after this epoch second.
 #                      record-metrics.sh passes the start mark agents write
@@ -20,6 +21,11 @@
 #   --session          Session id (transcript basename). Default: newest
 #                      transcript for --cwd.
 #   --cwd              Project root the session ran in. Default: $PWD.
+#   --agent            Agent whose run this is. When one of the session's
+#                      subagent transcripts (<session>/subagents/*.jsonl) holds
+#                      that agent's `record-metrics.sh --mark-start --agent
+#                      <name>` call, only that subagent's usage is counted.
+#                      record-metrics.sh passes it.
 #   --sidechain-only   Count only subagent turns (isSidechain=true). Use when a
 #                      subagent wants its own usage rather than the session's.
 #   --pricing          Price table. Default: <artefacts>/autoresearch/pricing.json,
@@ -46,6 +52,7 @@ SESSION=""
 TARGET_CWD="$PROJECT_ROOT"
 PRICING=""
 SIDECHAIN_ONLY=false
+AGENT=""
 MODE="json"
 
 while [ $# -gt 0 ]; do
@@ -53,12 +60,13 @@ while [ $# -gt 0 ]; do
     --since)          SINCE="$2"; shift 2 ;;
     --session)        SESSION="$2"; shift 2 ;;
     --cwd)            TARGET_CWD="$2"; shift 2 ;;
+    --agent)          AGENT="$2"; shift 2 ;;
     --pricing)        PRICING="$2"; shift 2 ;;
     --sidechain-only) SIDECHAIN_ONLY=true; shift ;;
     --json)           MODE="json"; shift ;;
     --tokens)         MODE="tokens"; shift ;;
     --cost)           MODE="cost"; shift ;;
-    -h|--help)        sed -n '2,38p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help)        sed -n '2,42p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "collect-usage: unknown arg: $1" >&2; exit 2 ;;
   esac
 done
@@ -80,8 +88,26 @@ fi
 CLAUDE_PROJECTS="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects"
 [ -d "$CLAUDE_PROJECTS" ] || { echo "collect-usage: no $CLAUDE_PROJECTS" >&2; exit 3; }
 
-# Normalise the cwd for comparison: forward slashes, no trailing slash.
-_norm_path() { printf '%s' "$1" | tr '\\' '/' | sed 's:/*$::'; }
+# Normalise a path for comparison: forward slashes, no trailing slash, and one
+# spelling for a Windows drive. Git Bash's `pwd` says /c/Users/me/proj while
+# Claude Code records C:\Users\me\proj; compared raw, no transcript ever
+# matched on Windows and every row came out "source":"none" (issues #27, #31).
+_norm_path() {
+  local p
+  p=$(printf '%s' "$1" | tr '\\' '/' | sed 's:/*$::')
+  case "$p" in
+    /cygdrive/[A-Za-z]/*|/cygdrive/[A-Za-z]) p="${p#/cygdrive}" ;;
+  esac
+  case "$p" in
+    /[A-Za-z]/*|/[A-Za-z]) p="${p:1:1}:${p:2}" ;;
+  esac
+  # Windows paths are case-insensitive: fold a drive path to lower case.
+  case "$p" in
+    [A-Za-z]:*) p=$(printf '%s' "$p" | tr '[:upper:]' '[:lower:]') ;;
+  esac
+  [ -n "$p" ] || p="/"
+  printf '%s' "$p"
+}
 WANT_CWD="$(_norm_path "$TARGET_CWD")"
 
 _file_cwd() {
@@ -97,7 +123,13 @@ if [ -n "$SESSION" ]; then
   TRANSCRIPT=$(find "$CLAUDE_PROJECTS" -name "$SESSION.jsonl" -type f 2>/dev/null | head -n1)
   [ -n "$TRANSCRIPT" ] || { echo "collect-usage: no transcript for session $SESSION" >&2; exit 3; }
 else
-  slug=$(printf '%s' "$WANT_CWD" | sed 's/[:\/]/-/g')
+  # Claude Code's directory name: every non-alphanumeric character becomes
+  # "-", from the native path (C:\Users\me -> C--Users-me). Only a first guess.
+  slug_src="$TARGET_CWD"
+  case "$TARGET_CWD" in
+    /[A-Za-z]/*) slug_src="$(printf '%s' "${TARGET_CWD:1:1}" | tr '[:lower:]' '[:upper:]'):${TARGET_CWD:2}" ;;
+  esac
+  slug=$(printf '%s' "$slug_src" | sed 's/[^A-Za-z0-9]/-/g')
   while IFS= read -r f; do
     [ -f "$f" ] || continue
     if [ "$(_norm_path "$(_file_cwd "$f")")" = "$WANT_CWD" ]; then TRANSCRIPT="$f"; break; fi
@@ -106,6 +138,39 @@ else
       ls -1t "$CLAUDE_PROJECTS"/*/*.jsonl 2>/dev/null | head -n 50 || true; }
   )
   [ -n "$TRANSCRIPT" ] || { echo "collect-usage: no transcript found for $WANT_CWD" >&2; exit 3; }
+fi
+
+# ---------------------------------------------------------------------------
+# Which files to read.
+#
+# Claude Code writes a subagent's turns to their own file,
+# <session>/subagents/agent-<id>.jsonl, not into the session transcript. An
+# agent dispatched as a subagent (the normal case for cmok, bagnik, zlydni…)
+# therefore had no usage in the file read here, and every row it recorded came
+# out "source":"none" (issue #27).
+#
+#   --agent <name>  the subagent file holding that agent's --mark-start call,
+#                   newest first, across this project's sessions. That file is
+#                   the run; nothing else is counted. Not found → the agent
+#                   ran in the main thread: fall through to the session.
+#   otherwise       the session transcript plus its subagent files.
+# ---------------------------------------------------------------------------
+FILES=()
+if [ -n "$AGENT" ]; then
+  _agent_re=$(printf '%s' "$AGENT" | sed 's/[.]/\\./g')
+  _mark_re="\"command\":\"[^\"]*record-metrics\\.sh --mark-start --agent ${_agent_re}([^A-Za-z0-9_.-]|\$)"
+  _proj_dir=$(dirname "$TRANSCRIPT")
+  while IFS= read -r f; do
+    [ -f "$f" ] || continue
+    if grep -Eq -- "$_mark_re" "$f" 2>/dev/null; then FILES=( "$f" ); break; fi
+  done < <(ls -1t "$_proj_dir"/*/subagents/*.jsonl 2>/dev/null | head -n 30 || true)
+fi
+if [ ${#FILES[@]} -eq 0 ]; then
+  FILES=( "$TRANSCRIPT" )
+  _sub_dir="${TRANSCRIPT%.jsonl}/subagents"
+  if [ -d "$_sub_dir" ]; then
+    for f in "$_sub_dir"/*.jsonl; do [ -f "$f" ] && FILES+=( "$f" ); done
+  fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -228,11 +293,11 @@ result=$(jq -s \
       untyped_cache_writes: ($by_model | to_entries | map(.value.cache_write_untyped) | add // 0),
       unpriced_models: ($pricing | if . == null then [] else
           ($by_model | keys) - ($pricing.models | keys) end) }
-' "$TRANSCRIPT")
+' "${FILES[@]}")
 
 n=$(printf '%s' "$result" | jq -r '.messages')
 if [ "$n" -eq 0 ]; then
-  echo "collect-usage: no usage rows in range (since=$SINCE_ARG) in $TRANSCRIPT" >&2
+  echo "collect-usage: no usage rows in range (since=$SINCE_ARG) in ${FILES[*]}" >&2
   exit 3
 fi
 
@@ -250,6 +315,6 @@ fi
 case "$MODE" in
   tokens) printf '%s' "$result" | jq -r '.tokens_total' ;;
   cost)   printf '%s' "$result" | jq -r 'if .cost_usd == null then "null" else (.cost_usd | tostring) end' ;;
-  json)   printf '%s' "$result" | jq --arg f "$TRANSCRIPT" --argjson since "$SINCE_ARG" \
-            '. + {transcript: $f, since: $since}' ;;
+  json)   printf '%s' "$result" | jq --arg f "${FILES[0]}" --argjson nfiles "${#FILES[@]}" --argjson since "$SINCE_ARG" \
+            '. + {transcript: $f, transcript_files: $nfiles, since: $since}' ;;
 esac

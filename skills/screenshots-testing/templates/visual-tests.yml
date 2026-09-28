@@ -1,0 +1,36 @@
+# Visual regression check (screenshots-testing skill).
+# Fails the PR when any screenshot differs from its committed baseline. The
+# report with expected / actual / diff is uploaded as the `visual-report`
+# artifact. Accepting a change = committing the updated baselines to the PR.
+#
+# Fill in: __PW_VERSION__ (exact @playwright/test version), __INSTALL__ and
+# __BUILD__ (e.g. `npm ci` and `npm run build-storybook`).
+name: visual
+
+on:
+  pull_request:
+
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+    # Same image as in-container.sh, so CI and laptops render identically.
+    container:
+      image: mcr.microsoft.com/playwright:v__PW_VERSION__-noble
+      options: --ipc=host
+    env:
+      CI: 'true'
+      HOME: /root
+    steps:
+      - uses: actions/checkout@v4
+      - run: __INSTALL__
+      - run: __BUILD__
+      # The full suite: CI is the safety net for anything local scoping missed.
+      - run: npx playwright test -c playwright.visual.config.ts
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: visual-report
+          path: |
+            visual-report/
+            test-results/visual/
+          retention-days: 14
