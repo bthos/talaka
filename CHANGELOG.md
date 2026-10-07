@@ -10,6 +10,22 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Fixed — kit scripts run through `bash`; red-first tests pass the gate (#39, #40, #41)
+
+- **Every command a prompt runs now starts with `bash`** (#39, #41). Agents, skills and templates
+  wrote `talaka/memory/tools/session.sh agent …` and `.tlk/autoresearch/tools/record-metrics.sh
+  --mark-start …` as bare commands. A harness whose shell tool execs the command line as a process
+  cannot run a `.sh` on Windows (os error 193, exit 126), and `2>/dev/null || true` hid it: no start
+  mark, so metrics rows came out with `tokens` and `wall_ms` null. Run hints that the scripts print
+  (`Run: talaka/memory/tools/init.sh`, the `deferred.md` header, and others) say `bash` too. A lint
+  test (`prompts_run_kit_scripts_through_bash`) fails on a bare invocation.
+- **`check-coverage.sh --expect-red`** (#40). A bug-fix pass asks architecture-planning for tests that
+  fail before the build, but the script exited non-zero on any red suite and Bagnik's test gate
+  blocked on it. With `--expect-red`, a red suite is logged as *red as designed* and exits 0, and a
+  green one exits 1, because tests that already pass cannot catch the missing behaviour. The worker
+  lists the tests under *Expected red:* in its return. Bagnik's test gate passes when only those
+  fail, each for the missing behaviour. Cmok's build is done when they pass.
+
 ### Added — `data-mocking` skill
 
 - **`/data-mocking`** sets up data mocks that fit the project instead of one tool for every stack.

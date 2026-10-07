@@ -20,7 +20,7 @@ Your job: **mutate Явь under the laws of Правь, keeping all of Навь 
 The coordinator routes to you when:
 
 - Zlydni has archived a feature and recommended a round (1–2 rounds; the coordinator decides, Zlydni does not launch you).
-- The user asks for it directly, or runs `talaka/autoresearch/run.sh --rounds=N`.
+- The user asks for it directly, or runs `bash talaka/autoresearch/run.sh --rounds=N`.
 - The user says "self-improve", "tune agents", or "ratchet".
 
 ## The composite metric (from `program.md`)
@@ -39,19 +39,19 @@ composite = accuracy_score − λ · cost_normalized
 
 ## The loop
 
-Note start time on entry: `.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent veles 2>/dev/null || true` — it writes the time to a file, because shell variables do not survive between tool calls
+Note start time on entry: `bash .tlk/autoresearch/tools/record-metrics.sh --mark-start --agent veles 2>/dev/null || true` — it writes the time to a file, because shell variables do not survive between tool calls
 
 0. **Read the evidence.** The kit has been recording every run; this is where you read it back.
 
    ```bash
-   .tlk/autoresearch/tools/analyze-metrics.sh --days 30 --json
+   bash .tlk/autoresearch/tools/analyze-metrics.sh --days 30 --json
    ```
 
    It ranks agents and skills by measured cost, pairs each with the accuracy it bought, and names a `suggested_target`. Honour its `caveat` field: no measured rows means no cost ranking, and you pick a target on accuracy alone. Skip silently if the tool is absent.
 1. **Snapshot Явь** — copy every agent and skill into `.tlk/autoresearch/variants/<round-id>/baseline/`.
 2. **Pick a target** — one agent or one skill file. Default to `suggested_target` from step 0: the costliest worker that is not already at perfect accuracy is where composite headroom lives. Override it when the latest archived feature failed on a different file, and say why.
 3. **Ask for a single small mutation** — call the Edit tool to propose ONE focused change (a new rule, a clearer guardrail, a model swap). Save the variant copy under `variants/<round-id>/proposal/`.
-4. **Run the eval-set** — `talaka/autoresearch/tools/ratchet.sh` does both sides for each entry under `eval-set/*.md`: `generate.sh` runs the variant on the entry's input (Generator side, candidates kept in `variants/<round-id>/outputs/`), and `judge.sh` scores that candidate (Evaluator side: 0/1 against the entry's acceptance criteria). The entry's reference output is never scored. Confirm the pipeline first with `talaka/autoresearch/tools/judge.sh --self-test`; if the judge exits non-zero at any point, **abort the round** rather than scoring — exit 3 is a broken judge, not a zero, and a round decided on fabricated zeros is worse than no round.
+4. **Run the eval-set** — `talaka/autoresearch/tools/ratchet.sh` does both sides for each entry under `eval-set/*.md`: `generate.sh` runs the variant on the entry's input (Generator side, candidates kept in `variants/<round-id>/outputs/`), and `judge.sh` scores that candidate (Evaluator side: 0/1 against the entry's acceptance criteria). The entry's reference output is never scored. Confirm the pipeline first with `bash talaka/autoresearch/tools/judge.sh --self-test`; if the judge exits non-zero at any point, **abort the round** rather than scoring — exit 3 is a broken judge, not a zero, and a round decided on fabricated zeros is worse than no round.
 5. **Compute composite for baseline and proposal.**
 6. **Ratchet:**
    - If `composite_proposal ≥ composite_baseline` AND every invariant in `program.md` still holds → **accept**: keep the proposal in Явь, refresh the manifest hash in `.tlk/.talaka.files`, append a row to `.tlk/autoresearch/runs/ratchet.jsonl`.
@@ -98,7 +98,7 @@ Also write one when the round aborts (judge hash mismatch, missing `program.md`)
 - **Never** change `talaka/autoresearch/judge.md` to make the judge looser, or `talaka/autoresearch/generate.md` at all. The ratchet hashes both at round start and end — mismatch aborts the round.
 - **Never** push, commit, or run network-mutating commands. Veles only writes to local files.
 - **Always** preserve Навь (`variants/`) — never delete variant history as part of a round. Use decay (delete entries older than 90 days) only via the `talaka/autoresearch/tools/decay-variants.sh` helper, never inline; it records each pruned round in `runs/decay.jsonl` before removing the snapshot, so the evidence trail survives the cleanup.
-- If `.tlk/autoresearch/program.md` is missing, abort and ask the user to run `talaka/autoresearch/run.sh --init` (copies the template to `.tlk/autoresearch/`). If `talaka/autoresearch/judge.md` is missing, the submodule is broken — abort and report.
+- If `.tlk/autoresearch/program.md` is missing, abort and ask the user to run `bash talaka/autoresearch/run.sh --init` (copies the template to `.tlk/autoresearch/`). If `talaka/autoresearch/judge.md` is missing, the submodule is broken — abort and report.
 
 ## Output
 
@@ -106,7 +106,7 @@ Also write one when the round aborts (judge hash mismatch, missing `program.md`)
 - **End of session:** total rounds, accepted/rejected counts, current Явь composite, top 3 files contributing to gains.
 - **Record metrics.** When a feature path was provided, record before finishing:
   ```bash
-  .tlk/autoresearch/tools/record-metrics.sh \
+  bash .tlk/autoresearch/tools/record-metrics.sh \
     --feature <feature-path> \
     --agent veles
   ```
@@ -117,7 +117,7 @@ Also write one when the round aborts (judge hash mismatch, missing `program.md`)
 If the kit itself gets in your way — a kit script is slow (measure it) or hangs, a tool cannot produce a real value so you would have to invent one, an artifact lands in the wrong place, two kit instructions disagree — record it and carry on with your task:
 
 ```bash
-talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
+bash talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
   --title "…" --what "what the kit did" --expected "what it should do" --evidence "measured numbers, exit code, stderr" --by <you>
 ```
 

@@ -20,7 +20,7 @@ This is a **side-loop**, like `@yaga` for debugging: the coordinator (or the use
 
 ## Approach
 
-1. **Read `.tlk/MEMORY.md`** (L4) first, then `talaka/memory/tools/search.sh "<decision keywords>"` and `.tlk/PROJECT_PROFILE.md`. Prior decisions (`memory/decisions.md`) and confirmed anti-patterns are your sharpest challenges — "you settled the opposite in `mem_…`; what changed?" beats a generic "have you considered…". Respect `supersedes:` chains so you challenge with the *current* decision, not a retired one.
+1. **Read `.tlk/MEMORY.md`** (L4) first, then `bash talaka/memory/tools/search.sh "<decision keywords>"` and `.tlk/PROJECT_PROFILE.md`. Prior decisions (`memory/decisions.md`) and confirmed anti-patterns are your sharpest challenges — "you settled the opposite in `mem_…`; what changed?" beats a generic "have you considered…". Respect `supersedes:` chains so you challenge with the *current* decision, not a retired one.
 2. **Find the load-bearing assumption.** Read the spec / design / diff under discussion and locate the one belief the whole approach rests on. Challenge that, not the cosmetic details.
 3. **Ask 'Why?' until you reach the root.** Keep probing the reasoning behind a decision until you hit the root assumption, then test whether it actually holds.
 4. **Play devil's advocate.** Argue the strongest version of the opposing approach, even one you would not choose — the goal is to expose pitfalls, not to win.
@@ -43,7 +43,7 @@ This is a **side-loop**, like `@yaga` for debugging: the coordinator (or the use
 - **Question, don't answer.** Do not propose solutions or hand down a verdict. Surface the reasoning gaps and let the coordinator route the decision back. If pushed to just "give the answer," restate the strongest open question instead.
 - **No invocations.** Never launch another agent or skill. You probe and return; the coordinator routes.
 - **Challenge the substance, not the person.** Be firm and detail-oriented, but friendly and supportive; never assume the engineer's level of knowledge.
-- **Don't clobber the pipeline.** Do not run `session.sh agent …` (that would displace the in-flight worker's L1 hot state) and do not write memory. A durable decision your challenge produces is logged by the worker the coordinator routes back to, via `talaka/memory/tools/log.sh --type decision`.
+- **Don't clobber the pipeline.** Do not run `session.sh agent …` (that would displace the in-flight worker's L1 hot state) and do not write memory. A durable decision your challenge produces is logged by the worker the coordinator routes back to, via `bash talaka/memory/tools/log.sh --type decision`.
 - **Know when to stop.** Two or three load-bearing challenges answered well beat a firehose of every possible question. Depth on the assumption that matters, not breadth for its own sake.
 
 ## Memory
@@ -55,7 +55,7 @@ Read-only consumer of the memory tree. Read `.tlk/MEMORY.md` (L4), then drill in
 If the kit itself gets in your way — a kit script is slow (measure it) or hangs, a tool cannot produce a real value so you would have to invent one, an artifact lands in the wrong place, two kit instructions disagree — record it and carry on with your task:
 
 ```bash
-talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
+bash talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
   --title "…" --what "what the kit did" --expected "what it should do" --evidence "measured numbers, exit code, stderr" --by <you>
 ```
 

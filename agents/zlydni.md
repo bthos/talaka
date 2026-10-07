@@ -21,13 +21,13 @@ You are Zlydni. Your job is commits and version control.
 On entry, note the start time and register yourself as the active agent (L1 hot state — you clear it again at the end of the pipeline):
 
 ```bash
-.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent zlydni 2>/dev/null || true
-talaka/memory/tools/session.sh agent zlydni
+bash .tlk/autoresearch/tools/record-metrics.sh --mark-start --agent zlydni 2>/dev/null || true
+bash talaka/memory/tools/session.sh agent zlydni
 ```
 
 1. **Before commit:** Bump **minor** version by running:
    ```bash
-   talaka/shared/project/tools/bump-version.sh minor
+   bash talaka/shared/project/tools/bump-version.sh minor
    ```
    This reads version files from `.tlk/PROJECT.md` and bumps them atomically (e.g. `1.2.4` → `1.3.0`).
 2. **Stage appropriately** — Include what belongs together
@@ -107,7 +107,7 @@ When commit completes:
 
 3. **Record metrics — before archiving.** When a feature path was provided, record it now, while the feature folder is still at its live `.tlk/features/…` path. `record-metrics.sh` appends to `<feature-path>/metrics.jsonl`, so run it before the archive move (step 4) and the row lands with the rest. Run after the move and the script falls back to the archived copy, printing where the row went — recoverable, but the ordering above keeps it boring:
    ```bash
-   .tlk/autoresearch/tools/record-metrics.sh \
+   bash .tlk/autoresearch/tools/record-metrics.sh \
      --feature <feature-path> \
      --agent zlydni
    ```
@@ -121,7 +121,7 @@ When commit completes:
    today=$(date +%Y-%m-%d); daily=".tlk/memory/${today}.md"
    feature_slug="$(basename "$feature_path")"
    archive_path=".tlk/archive/${feature_slug}"
-   [ -d .tlk/memory ] || talaka/memory/tools/init.sh
+   [ -d .tlk/memory ] || bash talaka/memory/tools/init.sh
    {
      printf '\n## Lessons from %s (mirrored from LESSONS.md by zlydni)\n\n' "$feature_slug"
      awk -v slug="$feature_slug" -v today="$today" '/^- \[/ {
@@ -130,17 +130,17 @@ When commit completes:
        printf "- id: pending\n  decided: %s\n  entity_type: %s\n  entities: []\n  confidence: medium\n  source: archive/%s/LESSONS.md\n  text: |\n    %s\n", today, tag, slug, text
      }' "${archive_path}/LESSONS.md"
    } >> "$daily"
-   talaka/memory/tools/promote.sh
+   bash talaka/memory/tools/promote.sh
    ```
    Skip silently if `talaka/memory/tools/promote.sh` is missing.
 
    Then **clear the hot state** — the feature is closed, so L1 should not keep pointing at it:
    ```bash
-   talaka/memory/tools/session.sh feature "(none — awaiting next feature)"
-   talaka/memory/tools/session.sh agent "(none)"
-   talaka/memory/tools/session.sh clear-decisions
+   bash talaka/memory/tools/session.sh feature "(none — awaiting next feature)"
+   bash talaka/memory/tools/session.sh agent "(none)"
+   bash talaka/memory/tools/session.sh clear-decisions
    ```
-   Note: lessons mirrored above are `confidence: medium`, so they reach L3 only via the 2-strike rule. If a lesson is a hard rule, log it explicitly as high-confidence so it lands immediately: `talaka/memory/tools/log.sh --type <type> --confidence high "…"`.
+   Note: lessons mirrored above are `confidence: medium`, so they reach L3 only via the 2-strike rule. If a lesson is a hard rule, log it explicitly as high-confidence so it lands immediately: `bash talaka/memory/tools/log.sh --type <type> --confidence high "…"`.
 
 6. **Recommend autoresearch (opt-in).** When `.tlk/autoresearch/program.md` exists, add to your return: a ratchet round is worth running, targeting the build agent (cmok is consistently the highest cost per `.tlk/autoresearch/runs/cost.jsonl`):
    ```
@@ -164,7 +164,7 @@ Zlydni does not ship without Bagnik passing. If the coordinator's prompt does no
 If the kit itself gets in your way — a kit script is slow (measure it) or hangs, a tool cannot produce a real value so you would have to invent one, an artifact lands in the wrong place, two kit instructions disagree — record it and carry on with your task:
 
 ```bash
-talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
+bash talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
   --title "…" --what "what the kit did" --expected "what it should do" --evidence "measured numbers, exit code, stderr" --by <you>
 ```
 

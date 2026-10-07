@@ -25,13 +25,13 @@ You mock **boundaries the project does not own**: third-party APIs, other teams'
 On entry, note the start time and register yourself as the active agent (L1 hot state):
 
 ```bash
-.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent data-mocking 2>/dev/null || true
-talaka/memory/tools/session.sh agent data-mocking
+bash .tlk/autoresearch/tools/record-metrics.sh --mark-start --agent data-mocking 2>/dev/null || true
+bash talaka/memory/tools/session.sh agent data-mocking
 ```
 
 Make a todo list from the steps below and work it.
 
-1. **Detect.** Run `.claude/skills/data-mocking/detect-stack.sh` (pass a package directory in a monorepo). It prints `languages`, `package_manager`, `ui`, `frameworks`, `tests`, `storybook`, `clients`, `contracts`, `protocols`, `existing`, `docker`. It greps manifests, so confirm each line that drives your choice by reading the file behind it.
+1. **Detect.** Run `bash .claude/skills/data-mocking/detect-stack.sh` (pass a package directory in a monorepo). It prints `languages`, `package_manager`, `ui`, `frameworks`, `tests`, `storybook`, `clients`, `contracts`, `protocols`, `existing`, `docker`. It greps manifests, so confirm each line that drives your choice by reading the file behind it.
 2. **Find the boundaries.** List every outbound call the code makes: the API client modules, base-URL config (`API_URL`, `baseURL`, `NEXT_PUBLIC_*`, settings files), GraphQL endpoints, gRPC stubs, sockets, brokers. For each, note: **who calls** (browser, Node server, backend service), **protocol**, **source of truth** (a contract file, typed client, or only the call sites), and **who consumes the mock** (dev server, unit tests, Storybook, E2E, another team).
 3. **Choose** one tool per boundary. See [Choose](#choose). Under `--plan`, log the choice with its evidence and return here.
 4. **Check the tool is alive** before adding it: the latest release date from its registry (`npm view <pkg> time.modified`, PyPI, Maven Central, GitHub releases). A tool with no release in about two years is not a new dependency; pick the next fit and say why.
@@ -114,7 +114,7 @@ When the mocks work, or `--plan` has its answer:
 
 1. **Record metrics** (when working inside a feature folder; otherwise skip):
    ```bash
-   .tlk/autoresearch/tools/record-metrics.sh \
+   bash .tlk/autoresearch/tools/record-metrics.sh \
      --feature <feature-path> \
      --agent data-mocking
    ```
@@ -147,18 +147,18 @@ If `.tlk/PROJECT_PROFILE.md` exists, read it first. It names the stack, test run
 ## Memory
 
 1. **Read** `.tlk/MEMORY.md` (L4) before exploring.
-2. **Search** `talaka/memory/tools/search.sh "<mocks | msw | wiremock | fixtures | <api name>>"` for prior choices and workarounds.
+2. **Search** `bash talaka/memory/tools/search.sh "<mocks | msw | wiremock | fixtures | <api name>>"` for prior choices and workarounds.
 3. Apply `high` patterns, treat `medium` as advisory, ignore `low`.
 
 ### Mandatory write checklist
 
-Log via `talaka/memory/tools/log.sh --type <t> [--confidence high] "…"` when any of these fire:
+Log via `bash talaka/memory/tools/log.sh --type <t> [--confidence high] "…"` when any of these fire:
 
 - [ ] **Tool chosen per boundary**, with the evidence and the runner-up: `entity_type: decision`
 - [ ] **Wiring that took more than one try** (service worker scope, test setup order, proxy/TLS): `entity_type: pattern`
 - [ ] **Boundary left unmocked** and why: `entity_type: decision`
 
-Record in-flight decisions as you make them: `talaka/memory/tools/session.sh decision "Chose X over Y because …"`.
+Record in-flight decisions as you make them: `bash talaka/memory/tools/session.sh decision "Chose X over Y because …"`.
 
 ## Guardrails
 
@@ -175,7 +175,7 @@ Record in-flight decisions as you make them: `talaka/memory/tools/session.sh dec
 If the kit itself gets in your way — a kit script is slow (measure it) or hangs, a tool cannot produce a real value so you would have to invent one, an artifact lands in the wrong place, two kit instructions disagree — record it and carry on with your task:
 
 ```bash
-talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
+bash talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
   --title "…" --what "what the kit did" --expected "what it should do" --evidence "measured numbers, exit code, stderr" --by <you>
 ```
 

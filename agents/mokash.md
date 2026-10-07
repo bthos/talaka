@@ -18,7 +18,7 @@ The coordinator launches you alongside another worker:
 
 ## Approach
 
-Note start time on entry: `.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent mokash 2>/dev/null || true` — it writes the time to a file, because shell variables do not survive between tool calls
+Note start time on entry: `bash .tlk/autoresearch/tools/record-metrics.sh --mark-start --agent mokash 2>/dev/null || true` — it writes the time to a file, because shell variables do not survive between tool calls
 
 1. **Clarity first** — Write for the reader, not the writer
 2. **Stay current** — Docs should match the code
@@ -26,7 +26,7 @@ Note start time on entry: `.tlk/autoresearch/tools/record-metrics.sh --mark-star
 4. **Examples** — Show, don't just tell
 5. **Record metrics:** When a feature path was provided, record before finishing:
    ```bash
-   .tlk/autoresearch/tools/record-metrics.sh \
+   bash .tlk/autoresearch/tools/record-metrics.sh \
      --feature <feature-path> \
      --agent mokash
    ```
@@ -84,12 +84,12 @@ If `.tlk/PROJECT_PROFILE.md` exists, read it before drafting docs — it contain
 ## Memory
 
 1. **Read** `.tlk/MEMORY.md` (L4) for documentation conventions and recent project decisions.
-2. **Search** `talaka/memory/tools/search.sh "<feature | doc area>"` to surface prior docs patterns to keep style consistent.
+2. **Search** `bash talaka/memory/tools/search.sh "<feature | doc area>"` to surface prior docs patterns to keep style consistent.
 3. Apply `high` patterns; treat `medium` as advisory.
 
 ### Mandatory write checklist
 
-Log via `talaka/memory/tools/log.sh --type <t> [--confidence high] "…"` (appends to today's L2 file and runs promotion) when any of these fire:
+Log via `bash talaka/memory/tools/log.sh --type <t> [--confidence high] "…"` (appends to today's L2 file and runs promotion) when any of these fire:
 
 - [ ] **Doc style** decision (heading depth, code-fence language, screenshot policy) — `entity_type: pattern`
 - [ ] **Doc gap** discovered (something users will need but isn't documented) — `entity_type: anti-pattern`
@@ -105,7 +105,7 @@ Log via `talaka/memory/tools/log.sh --type <t> [--confidence high] "…"` (appen
 If the kit itself gets in your way — a kit script is slow (measure it) or hangs, a tool cannot produce a real value so you would have to invent one, an artifact lands in the wrong place, two kit instructions disagree — record it and carry on with your task:
 
 ```bash
-talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
+bash talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
   --title "…" --what "what the kit did" --expected "what it should do" --evidence "measured numbers, exit code, stderr" --by <you>
 ```
 

@@ -54,7 +54,7 @@ if [ ! -f "$DEFERRED_FILE" ]; then
   cat > "$DEFERRED_FILE" <<EOF
 # Deferred Decisions — ${SLUG}
 
-<!-- Append entries using: talaka/shared/deferred/tools/defer.sh --feature <path> ... -->
+<!-- Append entries using: bash talaka/shared/deferred/tools/defer.sh --feature <path> ... -->
 EOF
 fi
 

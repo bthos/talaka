@@ -65,7 +65,7 @@ done
 [ -n "$round_id" ] && [ -n "$target" ] \
   || { echo "--round-id and --target are required" >&2; exit 2; }
 [ -f "$PROGRAM" ] \
-  || { echo "program.md missing at $PROGRAM — run: talaka/autoresearch/run.sh --init" >&2; exit 2; }
+  || { echo "program.md missing at $PROGRAM — run: bash talaka/autoresearch/run.sh --init" >&2; exit 2; }
 [ -f "$JUDGE_TPL" ] \
   || { echo "judge.md missing at $JUDGE_TPL — submodule broken" >&2; exit 2; }
 [ -f "$GEN_TPL" ] \

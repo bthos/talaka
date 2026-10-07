@@ -279,6 +279,37 @@ test_skill_scripts_are_not_given_absolute_paths() {
   fi
 }
 
+test_prompts_run_kit_scripts_through_bash() {
+  # Issues #39, #41: a harness whose shell tool execs the command line as a
+  # process (not through bash) cannot run a .sh on Windows — os error 193, exit
+  # 126. `bash <script>.sh` works everywhere, so every command a prompt tells a
+  # worker to run names bash: command lines in fenced blocks, commands after
+  # `||` / `&&` / `;`, inline `<path>.sh <args>` spans, and "run `<path>.sh`".
+  local hits
+  hits=$(find "$KIT_ROOT/agents" "$KIT_ROOT/skills" "$KIT_ROOT/templates" \
+           -type f \( -name '*.md' -o -name '*.template' \) -print0 \
+         | xargs -0 awk '
+             FNR == 1 { fence = 0 }
+             /^[[:space:]]*(```|~~~)/ { fence = !fence; next }
+             {
+               s = "[^[:space:]`]*/[^[:space:]`]*\\.sh([[:space:]]|$)"
+               if (fence) {
+                 if ($0 ~ ("^[[:space:]]*" s) || $0 ~ ("(\\|\\||&&|;)[[:space:]]+" s))
+                   print FILENAME ":" FNR ": " $0
+               } else {
+                 line = $0
+                 gsub(/`bash /, "", line)
+                 if (line ~ "`[^[:space:]`]*/[^[:space:]`]*\\.sh " \
+                     || line ~ "[Rr]un `[^[:space:]`]*/[^[:space:]`]*\\.sh`")
+                   print FILENAME ":" FNR ": " $0
+               }
+             }') || { fail "scan failed (awk error above)"; return; }
+  if [ -n "$hits" ]; then
+    fail "prompt runs a kit script without bash — write: bash <path>.sh …"
+    printf '        %s\n' "${hits//"$KIT_ROOT"\//}" >&2
+  fi
+}
+
 test_pricing_table_is_not_hardcoded_in_scripts() {
   # Prices belong in pricing.json (fetched, dated, replaceable), never inlined
   # in a script where they go stale invisibly.

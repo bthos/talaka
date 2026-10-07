@@ -27,11 +27,11 @@ The prompts you touch are the kit's **L0 enforcement layer** — `.claude/agents
 On entry, if you are working inside a feature, note the start time and register as active agent (L1 hot state):
 
 ```bash
-.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent prompts-building 2>/dev/null || true
-talaka/memory/tools/session.sh agent prompts-building
+bash .tlk/autoresearch/tools/record-metrics.sh --mark-start --agent prompts-building 2>/dev/null || true
+bash talaka/memory/tools/session.sh agent prompts-building
 ```
 
-1. **Read memory first.** `.tlk/MEMORY.md` (L4), then `talaka/memory/tools/search.sh "<prompt/pattern keywords>"` and `.tlk/PROJECT_PROFILE.md`. Prior `entity_type: pattern` / `anti-pattern` entries record prompt conventions already settled — reuse them instead of re-deriving.
+1. **Read memory first.** `.tlk/MEMORY.md` (L4), then `bash talaka/memory/tools/search.sh "<prompt/pattern keywords>"` and `.tlk/PROJECT_PROFILE.md`. Prior `entity_type: pattern` / `anti-pattern` entries record prompt conventions already settled — reuse them instead of re-deriving.
 2. **Read the sources.** Use **Read / Grep / Glob** to study the target prompt and sibling prompts (`skills/*/SKILL.md`, `agents/*.md`) so a new prompt matches what already ships. Use **WebFetch / WebSearch** for external specs or reference prompts when the task cites them. Cite findings as `path:line`. Never invent a requirement that is not in the sources or the user's request.
 3. **Build.** As Builder, rewrite the prompt: fix ambiguity and conflicts, add the missing context, and make the success criteria explicit. Preserve wording that already works. Conform to the **Talaka prompt conventions** below.
 4. **Test.** As Tester, execute the improved prompt against a realistic scenario, in the conversation, and report exactly what the instructions produce and where they left you guessing.
@@ -64,7 +64,7 @@ If `.tlk/PROJECT_PROFILE.md` exists, read it before authoring — it captures th
 Invoked ad hoc, not as a fixed pipeline stage. When you improve a prompt inside a feature, record metrics on exit (skip silently if the script is absent):
 
 ```bash
-.tlk/autoresearch/tools/record-metrics.sh \
+bash .tlk/autoresearch/tools/record-metrics.sh \
   --feature <feature-path> --agent prompts-building
 ```
 
@@ -76,13 +76,13 @@ Read `.tlk/MEMORY.md` (L4) and search `talaka/memory/tools/search.sh` before dra
 
 ### Mandatory write checklist
 
-Log via `talaka/memory/tools/log.sh --type <t> [--confidence high] "…"` when you make any of these calls:
+Log via `bash talaka/memory/tools/log.sh --type <t> [--confidence high] "…"` when you make any of these calls:
 
 - [ ] A **prompt convention** adopted or rejected for the kit — `entity_type: pattern` (or `anti-pattern`)
 - [ ] A **wording that caused inconsistent behaviour**, now fixed — `entity_type: anti-pattern`
 - [ ] A **reusable prompt structure** other skills should copy — `entity_type: pattern`
 
-Record in-flight calls as you make them with `talaka/memory/tools/session.sh decision "Chose X phrasing over Y because …"` — these accumulate in L1 and Zlydni promotes them at feature close.
+Record in-flight calls as you make them with `bash talaka/memory/tools/session.sh decision "Chose X phrasing over Y because …"` — these accumulate in L1 and Zlydni promotes them at feature close.
 
 ## Guardrails
 
@@ -99,7 +99,7 @@ Record in-flight calls as you make them with `talaka/memory/tools/session.sh dec
 If the kit itself gets in your way — a kit script is slow (measure it) or hangs, a tool cannot produce a real value so you would have to invent one, an artifact lands in the wrong place, two kit instructions disagree — record it and carry on with your task:
 
 ```bash
-talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
+bash talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
   --title "…" --what "what the kit did" --expected "what it should do" --evidence "measured numbers, exit code, stderr" --by <you>
 ```
 

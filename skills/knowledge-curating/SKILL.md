@@ -32,7 +32,7 @@ The wiki is **committed to git** — it is the durable product, not scratch. It 
 If `wiki/SCHEMA.md` does not exist:
 
 ```bash
-.claude/skills/knowledge-curating/new-wiki.sh
+bash .claude/skills/knowledge-curating/new-wiki.sh
 ```
 
 Creates `wiki/{SCHEMA.md,index.md,log.md,pages/,sources/}` from templates. Idempotent — existing files are kept.
@@ -82,14 +82,14 @@ The wiki and the kit's memory tree are siblings, not rivals — different conten
 - **Wiki** (`wiki/`) — knowledge distilled from *sources*: papers, docs, articles, transcripts.
 - **Memory** (`.tlk/memory/`) — facts about *this project and how to work on it*: conventions, decisions, anti-patterns.
 
-Read `.tlk/MEMORY.md` (L4) before structural wiki decisions. If during ingest you learn something durable about the project itself (not about a source), write it to memory: `talaka/memory/tools/log.sh --type <type> "<fact>"`.
+Read `.tlk/MEMORY.md` (L4) before structural wiki decisions. If during ingest you learn something durable about the project itself (not about a source), write it to memory: `bash talaka/memory/tools/log.sh --type <type> "<fact>"`.
 
 ## Kit issues — report, don't paper over
 
 If the kit itself gets in your way — a kit script is slow (measure it) or hangs, a tool cannot produce a real value so you would have to invent one, an artifact lands in the wrong place, two kit instructions disagree — record it and carry on with your task:
 
 ```bash
-talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
+bash talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
   --title "…" --what "what the kit did" --expected "what it should do" --evidence "measured numbers, exit code, stderr" --by <you>
 ```
 

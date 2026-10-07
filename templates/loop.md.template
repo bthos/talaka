@@ -104,7 +104,7 @@ Done when no finding above the severity named in `goal.md` remains.
 `/codebase-mapping` → `/assumptions-challenging` against the map → `/tasks-researching` on the weakest seam → `/architecture-planning`. Stop at the plan; ask before building.
 
 **"Make the kit cheaper / the agents better."**
-`.tlk/autoresearch/tools/analyze-metrics.sh --report` first — it ranks every agent and skill by *measured* cost and names the one with composite headroom. Then `@veles` with a round budget against that target. This is the nightly mode below.
+`bash .tlk/autoresearch/tools/analyze-metrics.sh --report` first — it ranks every agent and skill by *measured* cost and names the one with composite headroom. Then `@veles` with a round budget against that target. This is the nightly mode below.
 
 **"Onboard me."**
 `/codebase-mapping` → `/knowledge-curating ingest` the map and the key docs → answer the user's questions from the wiki with citations.
@@ -147,8 +147,8 @@ Resume point: <the next concrete step — paused only>
 Every iteration starts by reading the usage-limit pace — `.tlk/PIPELINE.md` → *Pace* has the modes and what each allows:
 
 ```bash
-talaka/statusline/tools/pace.sh           # mode=… window=… measured=… reason="…"
-talaka/statusline/tools/pace.sh --delay   # seconds until the next wake, for this mode
+bash talaka/statusline/tools/pace.sh           # mode=… window=… measured=… reason="…"
+bash talaka/statusline/tools/pace.sh --delay   # seconds until the next wake, for this mode
 ```
 
 - `stop` is a stop condition like the ones above: log the exact resume point and do not start the iteration's technique.
@@ -180,8 +180,8 @@ Rules for an unattended run:
 A nightly maintenance wake worth scheduling, in order:
 
 ```bash
-.tlk/autoresearch/tools/fetch-pricing.sh --check || .tlk/autoresearch/tools/fetch-pricing.sh
-.tlk/autoresearch/tools/analyze-metrics.sh --days 7 --report
+bash .tlk/autoresearch/tools/fetch-pricing.sh --check || bash .tlk/autoresearch/tools/fetch-pricing.sh
+bash .tlk/autoresearch/tools/analyze-metrics.sh --days 7 --report
 ```
 
 Then hand `suggested_target` to `@veles` for one round. The price refresh is first because every cost number below it depends on the table being current — a ranking built on last quarter's prices sends Veles after the wrong prompt.

@@ -19,7 +19,7 @@ This is the workflow that turns inspiration into a feature. It is **design-only*
 ## Bootstrap
 
 ```bash
-.claude/skills/patterns-adapting/new-adaptation.sh <slug>
+bash .claude/skills/patterns-adapting/new-adaptation.sh <slug>
 ```
 
 The slug names the pattern (`llm-wiki`, `printing-press`, `debug-mode`). Creates `.tlk/features/YYYY-MM-DD-adapt-<slug>/` with `research-brief.md`, `adaptation.md`, and `handoff-log.md`. The adaptation is a feature like any other — same folder conventions, same handoff log, same archive path.
@@ -27,8 +27,8 @@ The slug names the pattern (`llm-wiki`, `printing-press`, `debug-mode`). Creates
 You originate the feature, so set the L1 hot state once the folder exists:
 
 ```bash
-talaka/memory/tools/session.sh feature adapt-<slug>
-talaka/memory/tools/session.sh agent patterns-adapting
+bash talaka/memory/tools/session.sh feature adapt-<slug>
+bash talaka/memory/tools/session.sh agent patterns-adapting
 ```
 
 ## Phase 0 — Resolve the source
@@ -81,14 +81,14 @@ From there the coordinator runs the normal route: architecture-planning → `@ba
 
 ## Memory
 
-Read `.tlk/MEMORY.md` (L4) first — a prior adaptation may have settled where patterns of this kind live or which conventions they follow; don't relitigate them. When the design lands a durable decision (the carrier form, an excluded dependency, the attribution approach), record it in L1 as you go: `talaka/memory/tools/session.sh decision "Chose X over Y because …"` — these accumulate in the hot state and Zlydni promotes them to L2 when the feature is committed. Capture the source + insight with `talaka/memory/tools/log.sh --type decision "<source> → <core insight>"` so the pattern's provenance is preserved.
+Read `.tlk/MEMORY.md` (L4) first — a prior adaptation may have settled where patterns of this kind live or which conventions they follow; don't relitigate them. When the design lands a durable decision (the carrier form, an excluded dependency, the attribution approach), record it in L1 as you go: `bash talaka/memory/tools/session.sh decision "Chose X over Y because …"` — these accumulate in the hot state and Zlydni promotes them to L2 when the feature is committed. Capture the source + insight with `bash talaka/memory/tools/log.sh --type decision "<source> → <core insight>"` so the pattern's provenance is preserved.
 
 ## Kit issues — report, don't paper over
 
 If the kit itself gets in your way — a kit script is slow (measure it) or hangs, a tool cannot produce a real value so you would have to invent one, an artifact lands in the wrong place, two kit instructions disagree — record it and carry on with your task:
 
 ```bash
-talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
+bash talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
   --title "…" --what "what the kit did" --expected "what it should do" --evidence "measured numbers, exit code, stderr" --by <you>
 ```
 

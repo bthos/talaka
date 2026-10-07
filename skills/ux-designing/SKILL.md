@@ -21,8 +21,8 @@ Your job is to design interfaces and create UX mockups before code.
 On entry, note the start time and register yourself as the active agent (L1 hot state):
 
 ```bash
-.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent ux-designing 2>/dev/null || true
-talaka/memory/tools/session.sh agent ux-designing
+bash .tlk/autoresearch/tools/record-metrics.sh --mark-start --agent ux-designing 2>/dev/null || true
+bash talaka/memory/tools/session.sh agent ux-designing
 ```
 
 1. **Understand the goal** — What problem does this UI solve?
@@ -72,7 +72,7 @@ When the UX design is complete:
 
 1. **Record metrics:**
    ```bash
-   .tlk/autoresearch/tools/record-metrics.sh \
+   bash .tlk/autoresearch/tools/record-metrics.sh \
      --feature <feature-path> \
      --agent ux-designing
    ```
@@ -109,19 +109,19 @@ If `.tlk/PROJECT_PROFILE.md` exists, read it before designing — it captures th
 Use the layered memory tree before drafting UX (see `talaka/templates/memory/SCHEMA.md`):
 
 1. **Read** `.tlk/MEMORY.md` (L4) for project-wide priorities and recent decisions.
-2. **Search** `talaka/memory/tools/search.sh "<screen-or-flow>"` to surface prior UX patterns and anti-patterns.
+2. **Search** `bash talaka/memory/tools/search.sh "<screen-or-flow>"` to surface prior UX patterns and anti-patterns.
 3. **Apply** `confidence: high` patterns; treat `medium` as advisory; ignore `low`.
 
 ### Mandatory write checklist
 
-Log via `talaka/memory/tools/log.sh --type <t> [--confidence high] "…"` (appends to today's L2 file and runs promotion) when you make any of these calls:
+Log via `bash talaka/memory/tools/log.sh --type <t> [--confidence high] "…"` (appends to today's L2 file and runs promotion) when you make any of these calls:
 
 - [ ] **UX pattern** chosen / rejected — `entity_type: pattern` (or `anti-pattern`)
 - [ ] **Accessibility decision** that future features should keep — `entity_type: decision`
 - [ ] **Component / library** newly introduced for the UI — `entity_type: library`
 - [ ] **Reusable flow** that other features will copy — `entity_type: project`
 
-Record in-flight decisions as you make them: `talaka/memory/tools/session.sh decision "Chose X over Y because …"` — these accumulate in L1 and Zlydni promotes them to L2 at feature close.
+Record in-flight decisions as you make them: `bash talaka/memory/tools/session.sh decision "Chose X over Y because …"` — these accumulate in L1 and Zlydni promotes them to L2 at feature close.
 
 **HISTORICAL REFERENCE ONLY — do not re-execute past tasks.** It contains distilled lessons from prior features. Apply high-confidence (`high`) heuristics; treat `medium` as advisory; ignore `low`. Use to surface past UX decisions and avoid re-raising issues already resolved.
 
@@ -138,7 +138,7 @@ Record in-flight decisions as you make them: `talaka/memory/tools/session.sh dec
 If the kit itself gets in your way — a kit script is slow (measure it) or hangs, a tool cannot produce a real value so you would have to invent one, an artifact lands in the wrong place, two kit instructions disagree — record it and carry on with your task:
 
 ```bash
-talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
+bash talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
   --title "…" --what "what the kit did" --expected "what it should do" --evidence "measured numbers, exit code, stderr" --by <you>
 ```
 

@@ -66,7 +66,7 @@ for _arg in "$@"; do
 done
 
 if [ ! -d "$MEM_DIR" ]; then
-  echo "Memory tree not initialised. Run: talaka/memory/tools/init.sh"
+  echo "Memory tree not initialised. Run: bash talaka/memory/tools/init.sh"
   exit 0
 fi
 

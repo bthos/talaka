@@ -24,7 +24,7 @@ for f in ~/.claude/settings.json .claude/settings.json; do
   jq -r '.outputStyle // "(unset)"' "$f" 2>/dev/null || echo "(unreadable)"
 done
 echo 'Target: "Concise". Every agent and skill narrates; this is the one setting that trims all of them.'
-echo 'Fix:    talaka/shared/lifecycle/tools/install-output-style.sh --force'
+echo 'Fix:    bash talaka/shared/lifecycle/tools/install-output-style.sh --force'
 
 echo
 echo "=== Installed plugins ==="

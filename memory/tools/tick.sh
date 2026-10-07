@@ -34,7 +34,7 @@ DRY=""
 [ "${1:-}" = "--dry-run" ] && DRY="--dry-run"
 
 if [ ! -d "$ARTEFACTS/memory" ]; then
-  echo "Memory tree not initialised — run: talaka/memory/tools/init.sh" >&2
+  echo "Memory tree not initialised — run: bash talaka/memory/tools/init.sh" >&2
   exit 0
 fi
 

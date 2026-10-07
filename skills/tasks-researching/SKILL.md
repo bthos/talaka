@@ -20,7 +20,7 @@ This is the talaka-native adaptation of the Microsoft edge-ai *task-researcher* 
 ## Bootstrap
 
 ```bash
-.claude/skills/tasks-researching/new-research.sh <slug>
+bash .claude/skills/tasks-researching/new-research.sh <slug>
 ```
 
 The slug is topic-shaped (`matrix-scrape-pagination`, `offline-html-embed`, `weight-progression-algo`). Creates `.tlk/features/YYYY-MM-DD-research-<slug>/` with `research-brief.md` and `handoff-log.md`. If you were given `--feature <path>`, skip the bootstrap and write `research-brief.md` into that existing feature folder.
@@ -28,13 +28,13 @@ The slug is topic-shaped (`matrix-scrape-pagination`, `offline-html-embed`, `wei
 Set the L1 hot state once the folder exists:
 
 ```bash
-talaka/memory/tools/session.sh agent tasks-researching
-talaka/memory/tools/session.sh feature research-<slug>   # only if you originated the folder
+bash talaka/memory/tools/session.sh agent tasks-researching
+bash talaka/memory/tools/session.sh feature research-<slug>   # only if you originated the folder
 ```
 
 ## Approach
 
-1. **Read `.tlk/MEMORY.md` (L4) first**, then `talaka/memory/tools/search.sh "<topic keywords>"` and `.tlk/PROJECT_PROFILE.md`. The answer may already be settled — a prior decision, a map, a wiki page. Do not re-research what memory already records.
+1. **Read `.tlk/MEMORY.md` (L4) first**, then `bash talaka/memory/tools/search.sh "<topic keywords>"` and `.tlk/PROJECT_PROFILE.md`. The answer may already be settled — a prior decision, a map, a wiki page. Do not re-research what memory already records.
 2. **Internal research.** Use Grep / Glob / Read to find how this project already does the relevant thing — conventions, data shapes (`data/*.json` + `data/schema/`), existing scripts in `scripts/`. Cite every finding as `path:line`.
 3. **External research.** Use WebFetch / WebSearch for official docs, specs, and authoritative repos. Prefer primary sources. Capture the URL and the concrete finding, not a vague summary.
 4. **Verify, don't assume.** Every claim in the brief must trace to something you actually read or ran. If you didn't confirm it, it doesn't go in as fact — it goes to the open questions.
@@ -70,13 +70,13 @@ Why: the approach is settled; planning can start from a verified brief.
 Note the start time on entry, before you read anything — the recording call measures what this run actually spent from it. It is written to a file, because shell variables do not survive between tool calls:
 
 ```bash
-.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent tasks-researching 2>/dev/null || true
+bash .tlk/autoresearch/tools/record-metrics.sh --mark-start --agent tasks-researching 2>/dev/null || true
 ```
 
 Record metrics before returning (skip silently if the script is absent):
 
 ```bash
-.tlk/autoresearch/tools/record-metrics.sh \
+bash .tlk/autoresearch/tools/record-metrics.sh \
   --feature <feature-path> \
   --agent tasks-researching
 ```
@@ -95,17 +95,17 @@ Record metrics before returning (skip silently if the script is absent):
 Read `.tlk/MEMORY.md` (L4) first; drill into `memory/system.md` and `memory/decisions.md` for prior technical decisions (respect `supersedes:` chains). When the research settles a durable technical fact the build will rely on — the chosen library, an API constraint, a data-shape decision — log it:
 
 ```bash
-talaka/memory/tools/log.sh --type decision "<the settled fact and why>"
+bash talaka/memory/tools/log.sh --type decision "<the settled fact and why>"
 ```
 
-Record in-flight calls as you make them with `talaka/memory/tools/session.sh decision "Chose X over Y because …"` — these accumulate in L1 and Zlydni promotes them at feature close. If the project has an active `wiki/`, a substantial synthesis is a candidate to ingest via `/knowledge-curating` so it compounds instead of being re-derived.
+Record in-flight calls as you make them with `bash talaka/memory/tools/session.sh decision "Chose X over Y because …"` — these accumulate in L1 and Zlydni promotes them at feature close. If the project has an active `wiki/`, a substantial synthesis is a candidate to ingest via `/knowledge-curating` so it compounds instead of being re-derived.
 
 ## Kit issues — report, don't paper over
 
 If the kit itself gets in your way — a kit script is slow (measure it) or hangs, a tool cannot produce a real value so you would have to invent one, an artifact lands in the wrong place, two kit instructions disagree — record it and carry on with your task:
 
 ```bash
-talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
+bash talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
   --title "…" --what "what the kit did" --expected "what it should do" --evidence "measured numbers, exit code, stderr" --by <you>
 ```
 

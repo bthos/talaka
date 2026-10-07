@@ -65,7 +65,7 @@ Veles stops a session when **any** of the following hold:
 
 Every round appends to `runs/`:
 
-- **`runs/cost.jsonl`** — one row per evaluated run: `{ts, run_id, feature, agent, variant, tokens, wall_ms, cost_usd, accuracy, source}`. `source` is `measured` | `estimated` | `none`; only `measured` feeds the composite. Read it back with `tools/analyze-metrics.sh --report`.
+- **`runs/cost.jsonl`** — one row per evaluated run: `{ts, run_id, feature, agent, variant, tokens, wall_ms, cost_usd, accuracy, source}`. `source` is `measured` | `estimated` | `none`; only `measured` feeds the composite. Read it back with `bash tools/analyze-metrics.sh --report`.
 - **`runs/ratchet.jsonl`** — one row per accepted mutation: `{ts, round, file, baseline_composite, proposal_composite, delta, baseline_accuracy, proposal_accuracy, baseline_cost_usd, proposal_cost_usd, cost, rationale}`. `cost` says whether the cost term was measured and what normalised it; `*_cost_usd` is `null` when unmeasured.
 - **`runs/rejected.jsonl`** — one row per rejected mutation, same fields, with `reason` instead of `delta`/`rationale`.
 - **`variants/<round>/outputs/<variant>/<entry>.md`** — the candidate each variant generated, so a decision can be read back.
