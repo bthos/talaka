@@ -73,7 +73,8 @@ test_dry_run_writes_nothing() {
 # --- promote throttling (issue #8) ----------------------------------------
 # promote.sh is ~40 processes — 10–25s per write on Git Bash. log.sh runs it at
 # most once per $TALAKA_MEMORY_PROMOTE_INTERVAL seconds, tracked by promote.sh's
-# own stamp, whatever the confidence; a high entry is curated to L3 inline.
+# own stamp, whatever the confidence; a high entry still reaches L3 at once,
+# through `promote.sh --single-shot` (step 2a for today's file only).
 
 _stamp() { printf '%s/memory/.last-promote' "$1"; }
 
@@ -139,14 +140,14 @@ test_high_write_after_a_recent_promote_skips_promote_sh() {
   _log "$art" --type pattern --promote "Seed the tree." >/dev/null 2>&1
   echo 12345 > "$art/MEMORY.md"          # sentinel: a promote run would overwrite it
   local out; out=$(_log "$art" --type decision --confidence high "Fast decision." 2>&1)
-  assert_contains "$out" "Curated to L3" "high entry curated inline"
+  assert_contains "$out" "Curated to L3" "high entry curated by promote.sh --single-shot"
   assert_eq "12345" "$(cat "$art/MEMORY.md")" "promote.sh did not run (L4 waits for the next run)"
   assert_file_contains "$art/memory/decisions.md" "Fast decision."
 }
 
-# The inline curation must write exactly what promote.sh step 2a would — same
-# id, same block — or promote.sh curates the same fact twice.
-test_inline_curation_matches_promote_sh() {
+# The fast path (--single-shot) must write exactly what a full promote.sh run
+# would — same id, same block — or a later run curates the same fact twice.
+test_fast_curation_matches_a_full_promote_run() {
   local fast ref text
   text=$'Adopt OAuth device flow because the browser redirect fails over SSH sessions, and the team agreed on it.\n\n  Кірыліца too.'
   fast=$(_art); ref=$(_art)
@@ -157,10 +158,10 @@ test_inline_curation_matches_promote_sh() {
   ARTEFACTS_DIR="$ref" bash "$KIT_ROOT/memory/tools/promote.sh" >/dev/null 2>&1
   local a b
   a=$(cat "$fast/memory/decisions.md"); b=$(cat "$ref/memory/decisions.md")
-  assert_eq "${b//$ref/ART}" "${a//$fast/ART}" "inline L3 entry identical to promote.sh's"
+  assert_eq "${b//$ref/ART}" "${a//$fast/ART}" "fast-path L3 entry identical to a full run's"
 }
 
-test_promote_after_inline_curation_does_not_duplicate() {
+test_promote_after_fast_curation_does_not_duplicate() {
   local art; art=$(_art)
   _log "$art" --type pattern --promote "Seed the tree." >/dev/null 2>&1
   _log "$art" --type decision --confidence high "Only once." >/dev/null 2>&1
@@ -169,7 +170,7 @@ test_promote_after_inline_curation_does_not_duplicate() {
   assert_eq "1" "$(grep -c '^- id:' "$art/memory/decisions.md")" "one L3 entry for one fact"
 }
 
-test_no_promote_skips_inline_curation_too() {
+test_no_promote_skips_fast_curation_too() {
   local art; art=$(_art)
   _log "$art" --type pattern --promote "Seed the tree." >/dev/null 2>&1
   _log "$art" --type decision --confidence high --no-promote "Not yet." >/dev/null 2>&1

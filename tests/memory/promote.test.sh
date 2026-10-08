@@ -88,6 +88,45 @@ test_high_confidence_not_duplicated_across_runs() {
   assert_eq "1" "$n" "idempotent — high-confidence promoted once"
 }
 
+# --single-shot FILE: step 2a for one daily file, nothing else. log.sh calls it
+# after a high-confidence write, so its scope is its cost (issue #8).
+test_single_shot_curates_only_its_file_and_nothing_else() {
+  local art; art=$(_fresh_art)
+  echo sentinel > "$art/MEMORY.md"
+  _daily_high "$art" 2026-05-01 decision "Today's high fact."
+  _daily_high "$art" 2026-04-30 tool "Yesterday's high fact."
+  _daily "$art" 2026-04-29 pattern "Seen twice."
+  _daily "$art" 2026-04-28 pattern "Seen twice."
+  local out; out=$(_run "$art" --single-shot "$art/memory/2026-05-01.md" 2>&1)
+  assert_contains "$out" "Curated to L3 (mem_"
+  assert_file_contains "$art/memory/decisions.md" "Today's high fact." "its file's high entry reaches L3"
+  assert_file_not_contains "$art/memory/system.md" "Yesterday's high fact." "other daily files untouched"
+  assert_file_not_contains "$art/memory/preferences.md" "Seen twice." "no 2-strike pass"
+  assert_eq "sentinel" "$(cat "$art/MEMORY.md")" "no L4 regeneration"
+  assert_file_absent "$art/memory/.last-promote" "no run stamp — the next full run is not skipped"
+  assert_file_contains "$art/memory/2026-05-01.md" "id: pending" "no id hashing"
+}
+
+test_single_shot_matches_a_full_run_and_does_not_duplicate() {
+  local a b; a=$(_fresh_art); b=$(_fresh_art)
+  _daily_high "$a" 2026-05-01 decision "Same entry, two paths."
+  _daily_high "$b" 2026-05-01 decision "Same entry, two paths."
+  _run "$a" --single-shot "$a/memory/2026-05-01.md" >/dev/null 2>&1
+  _run "$b" >/dev/null 2>&1
+  local x y
+  x=$(cat "$a/memory/decisions.md"); y=$(cat "$b/memory/decisions.md")
+  assert_eq "${y//$b/ART}" "${x//$a/ART}" "single-shot writes the full run's L3 entry"
+  _run "$a" >/dev/null 2>&1
+  _run "$a" --single-shot "$a/memory/2026-05-01.md" >/dev/null 2>&1
+  assert_eq "1" "$(grep -c '^- id:' "$a/memory/decisions.md")" "one L3 entry for one fact"
+}
+
+test_single_shot_refuses_a_missing_file() {
+  local art; art=$(_fresh_art) rc=0
+  _run "$art" --single-shot "$art/memory/nope.md" >/dev/null 2>&1 || rc=$?
+  assert_eq "2" "$rc"
+}
+
 test_entity_type_routes_decision_to_decisions() {
   local art; art=$(_fresh_art)
   _daily "$art" 2026-05-01 decision "Adopt trunk-based development."

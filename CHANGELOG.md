@@ -12,12 +12,13 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ### Fixed — memory writes and `defer.sh` no longer take 10–25 s on Git Bash (#8)
 
-- **`log.sh --confidence high` curates to L3 inline** instead of running `promote.sh` (~30
-  processes) on every write. It writes exactly the entry `promote.sh` step 2a would, same id and
-  block, so a later run sees it is already there. `promote.sh` itself now runs at most once per
-  `TALAKA_MEMORY_PROMOTE_INTERVAL` whatever the confidence; only the L4 index (`MEMORY.md`) waits for
-  that run. A high-confidence write went from ~30 forks to ~9. A test fails if the inline entry
-  drifts from `promote.sh`'s.
+- **`log.sh --confidence high` no longer runs a full `promote.sh`** (~30 processes) on every write.
+  It runs `promote.sh --single-shot <today's file>`: step 2a (high-confidence → L3) for that one
+  file and nothing else, no id hashing, 2-strike pass, supersedes, L4 index or run stamp. The L3
+  entry comes from the same code as every other, so a later full run sees it is already there.
+  A full `promote.sh` now runs at most once per `TALAKA_MEMORY_PROMOTE_INTERVAL` whatever the
+  confidence; only the L4 index (`MEMORY.md`) waits for it. A high-confidence write went from ~30
+  forks to ~11. `append_l3` indents with a loop instead of `| sed`, one fork fewer per L3 entry.
 - **`lib.sh` resolves its paths without forking**, so every kit tool that sources it starts
   faster: `cd` there and back in the sourcing shell instead of `$(cd … && pwd)`, `dirname` and
   `basename`. The caller's cwd and `OLDPWD` are kept, and `CDPATH` is ignored.

@@ -4,7 +4,7 @@
 # fresh and stale L1/L2 gets compacted without anyone remembering to run them.
 #
 # Note: log.sh runs promote.sh at most once per TALAKA_MEMORY_PROMOTE_INTERVAL
-# (a high-confidence entry still reaches L3 at once — log.sh curates it inline),
+# (a high-confidence entry still reaches L3 at once, via promote.sh --single-shot),
 # so tick.sh also catches up 2-strike promotions and the L4 index; its other job
 # is the time-based rollover (24h SESSION clear, 7-day L2 compaction).
 #

@@ -11,11 +11,10 @@
 # 10–25s on Git Bash where every fork can cost up to a second (issue #8) — so
 # it runs at most once per $TALAKA_MEMORY_PROMOTE_INTERVAL seconds (default
 # 900), whatever the confidence:
-#   - a --confidence high entry is curated to L3 by log.sh itself, inline, in a
-#     handful of processes (the single-shot contract: L3 right now). It writes
-#     exactly the entry promote.sh's step 2a would, with the same id, so a later
-#     promote.sh run sees it is already there. Only the L4 index (MEMORY.md)
-#     waits for the next promote.sh run.
+#   - a --confidence high entry is curated to L3 right away (the single-shot
+#     contract) by `promote.sh --single-shot <today's file>`: step 2a for that one
+#     file and nothing else, a handful of processes instead of a full run. Only
+#     the L4 index (MEMORY.md) waits for the next full promote.sh run.
 #   - a medium/low entry can only be promoted by the 2-strike rule, so a later
 #     run loses nothing; tick.sh, the Stop hook and workers' own promote.sh
 #     calls pick it up.
@@ -70,7 +69,7 @@ while [ $# -gt 0 ]; do
     --no-promote)  NO_PROMOTE=true; shift ;;
     --promote)     FORCE_PROMOTE=true; shift ;;
     --dry-run)     DRY_RUN=true; shift ;;
-    -h|--help)     sed -n '2,46p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help)     sed -n '2,45p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     --)            shift; break ;;
     -*)            echo "Unknown option: $1" >&2; exit 2 ;;
     *)             TEXT="${TEXT:+$TEXT }$1"; shift ;;
@@ -114,7 +113,6 @@ printf -v TODAY '%(%Y-%m-%d)T' -1
 printf -v NOW '%(%s)T' -1
 DAILY="$MEM_DIR/$TODAY.md"
 
-# Fold the text once; render_entry and the L3 curation below both reuse it.
 FOLDED=$(fold -s -w 100 <<< "$TEXT")   # here-string, not printf |: one fork fewer
 
 render_entry() {
@@ -140,10 +138,6 @@ mkdir -p "$MEM_DIR"
 if [ ! -f "$DAILY" ]; then
   printf '# Daily memory — %s (L2)\n\n_Append-only log. Rolled into L3 by `memory/tools/promote.sh`._\n\n## Observations\n' "$TODAY" > "$DAILY"
 fi
-# Line count before the append, for the L3 entry's source (file:start-end).
-mapfile -t _daily_lines < "$DAILY"
-DAILY_LEN=${#_daily_lines[@]}
-unset _daily_lines
 render_entry >> "$DAILY"
 echo "Logged ($TYPE, $CONFIDENCE) → $DAILY"
 
@@ -164,65 +158,13 @@ else
   [ $(( NOW - last )) -ge "$INTERVAL" ] && run_promote=true
 fi
 
-# --- Single-shot curation, inline (issue #8) --------------------------------
-# What promote.sh step 2a does for this one entry, without the ~40 processes it
-# costs to walk the whole tree. Keep in step with promote.sh: list_entries (how
-# the payload is read back), norm_key, l3_target_for_type and append_l3 — the
-# id must match, or promote.sh would curate the same fact a second time.
-curate_high() {
-  local line payload="" s target sha id start end refolded
-  # The payload as promote.sh's list_entries reads it back from the daily file:
-  # each folded line, leading whitespace stripped, joined with one space.
-  while IFS= read -r line; do
-    line="${line#"${line%%[![:space:]]*}"}"
-    if [ -z "$payload" ]; then payload="$line"; else payload="$payload $line"; fi
-  done <<< "$FOLDED"
-  # promote.sh norm_key: lowercased, whitespace collapsed.
-  s="${payload,,}"
-  s="${s//$'\t'/ }"
-  s="${s//$'\r'/ }"
-  s="${s//$'\n'/ }"
-  while [[ $s == *"  "* ]]; do s="${s//  / }"; done
-  case "$TYPE" in
-    pattern|anti-pattern|file)  target="$MEM_DIR/preferences.md" ;;
-    tool|library)               target="$MEM_DIR/system.md" ;;
-    project)                    target="$MEM_DIR/projects.md" ;;
-    decision)                   target="$MEM_DIR/decisions.md" ;;
-    *)                          target="$MEM_DIR/preferences.md" ;;
-  esac
-  if command -v sha1sum >/dev/null 2>&1; then
-    sha=$(printf '%s' "$s" | sha1sum)
-  else
-    sha=$(printf '%s' "$s" | shasum)
-  fi
-  id="mem_${sha:0:8}"
-  # Same key → same id, so an id already in L3 means the fact already is.
-  if [ -f "$target" ] && grep -qxF -- "- id: $id" "$target"; then
-    echo "Already in L3 ($id) → $target"
-    return 0
-  fi
-  refolded=$(fold -s -w 100 <<< "$payload")
-  start=$(( DAILY_LEN + 2 ))   # render_entry opens with a blank line
-  end=$(( start + 6 ))   # id … `text: |` is 7 lines
-  while IFS= read -r line; do end=$(( end + 1 )); done <<< "$FOLDED"
-  {
-    echo ""
-    echo "- id: $id"
-    echo "  decided: $TODAY"
-    echo "  entity_type: $TYPE"
-    echo "  entities: []"
-    echo "  confidence: high"
-    echo "  source: $DAILY:$start-$end (single-shot, high-confidence)"
-    echo "  text: |"
-    while IFS= read -r line; do printf '    %s\n' "$line"; done <<< "$refolded"
-  } >> "$target"
-  echo "Curated to L3 ($id) → $target"
-}
-
 if $run_promote && [ -x "$SELF_DIR/promote.sh" ]; then
   ARTEFACTS_DIR="$ARTEFACTS" "$SELF_DIR/promote.sh" >/dev/null 2>&1 || true
   echo "Promotion run complete (L3/L4 refreshed)."
 elif ! $NO_PROMOTE; then
-  [ "$CONFIDENCE" = "high" ] && curate_high
+  # Single-shot contract: a high entry reaches L3 now; promote.sh writes it.
+  if [ "$CONFIDENCE" = "high" ] && [ -x "$SELF_DIR/promote.sh" ]; then
+    ARTEFACTS_DIR="$ARTEFACTS" bash "$SELF_DIR/promote.sh" --single-shot "$DAILY" || true
+  fi
   echo "Promotion deferred (ran <${INTERVAL}s ago; the L4 index refreshes on the next run). Force with --promote."
 fi
