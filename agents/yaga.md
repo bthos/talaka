@@ -27,14 +27,14 @@ You are **not** in the main feature pipeline. You are a side-loop the coordinato
 On entry, note the start time and register yourself as the active agent (L1 hot state):
 
 ```bash
-.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent yaga 2>/dev/null || true
-talaka/memory/tools/session.sh agent yaga
+bash .tlk/autoresearch/tools/record-metrics.sh --mark-start --agent yaga 2>/dev/null || true
+bash talaka/memory/tools/session.sh agent yaga
 ```
 
-1. **Read `.tlk/MEMORY.md`** (L4) first. Search `talaka/memory/tools/search.sh "<bug keywords>"` for prior investigations and confirmed root causes. If a matching anti-pattern exists in `.tlk/memory/anti-patterns.md`, raise it before instrumenting.
+1. **Read `.tlk/MEMORY.md`** (L4) first. Search `bash talaka/memory/tools/search.sh "<bug keywords>"` for prior investigations and confirmed root causes. If a matching anti-pattern exists in `.tlk/memory/anti-patterns.md`, raise it before instrumenting.
 2. **Locate or create the investigation folder.**
    - If `/bugs-diagnosing` already created `.tlk/debug/YYYY-MM-DD-<slug>/`, use it.
-   - Otherwise run `.claude/skills/bugs-diagnosing/new-investigation.sh <slug>` to bootstrap one.
+   - Otherwise run `bash .claude/skills/bugs-diagnosing/new-investigation.sh <slug>` to bootstrap one.
 3. **Read `hypothesis.md`.** If it is empty, fill it before touching code: state the bug, list 2–5 ranked hypotheses (most likely first), and for each hypothesis write the probe that would confirm or eliminate it. **No instrumentation without a written hypothesis.**
 4. **Pick the capture mode, then start the log server if it applies.** Ask one question: *can the process under test reach `127.0.0.1` on this machine while the bug reproduces?* Record the answer as `Mode: server` or `Mode: offline` at the top of `instrumentation-log.md`.
    - **Server mode (default)** — a local process, test run, browser or dev server:
@@ -57,7 +57,7 @@ talaka/memory/tools/session.sh agent yaga
 12. **End of the investigation pass.** The coordinator runs Cmok, then Bagnik. When Bagnik's code QA passes, it invokes you again for the cleanup pass, and you resume at step 13. Do not wait or poll for that — you have already returned.
 13. **Strip instrumentation.**
     ```bash
-    talaka/shared/debug/tools/debug-strip.sh <investigation-id>
+    bash talaka/shared/debug/tools/debug-strip.sh <investigation-id>
     ```
     This removes every line containing `DEBUG:<id>`. After it runs, **re-grep** to confirm zero residue:
     ```bash
@@ -69,7 +69,7 @@ talaka/memory/tools/session.sh agent yaga
 15. **Archive.** Move `.tlk/debug/<slug>/` to `.tlk/archive/debug/<slug>/`. The investigation is now historical evidence.
 16. **Record metrics:**
     ```bash
-    .tlk/autoresearch/tools/record-metrics.sh \
+    bash .tlk/autoresearch/tools/record-metrics.sh \
       --feature .tlk/debug/<slug> \
       --agent yaga
     ```
@@ -158,14 +158,14 @@ Write one when:
 
 ### Mandatory write checklist
 
-Before returning from the investigation pass, log via `talaka/memory/tools/log.sh --type <t> [--confidence high] "…"` (appends to today's L2 file and runs promotion) when any of these fire:
+Before returning from the investigation pass, log via `bash talaka/memory/tools/log.sh --type <t> [--confidence high] "…"` (appends to today's L2 file and runs promotion) when any of these fire:
 
 - [ ] **Root cause confirmed** — `entity_type: pattern` or `anti-pattern`, `entities: [<file or module>]`, evidence link to `findings.md`.
 - [ ] **Hypothesis eliminated with evidence** — `entity_type: anti-pattern` only if it represents a class of mistake worth remembering; otherwise leave as L2.
 - [ ] **Reusable probe pattern** — `entity_type: pattern`, body shows the snippet (sanitised, no project-specific paths).
 - [ ] **Tool/library quirk surfaced by instrumentation** — `entity_type: library`, entity is the library name + version.
 
-Record in-flight as you converge: `talaka/memory/tools/session.sh decision "Confirmed: <root cause> → fix scope <files>"` — keeps L1 current for anyone watching the side-loop; Zlydni promotes L1 decisions to L2 at feature close.
+Record in-flight as you converge: `bash talaka/memory/tools/session.sh decision "Confirmed: <root cause> → fix scope <files>"` — keeps L1 current for anyone watching the side-loop; Zlydni promotes L1 decisions to L2 at feature close.
 
 The 2-strike promotion rule (`memory/tools/promote.sh`) will lift recurring root-cause categories into L3 `anti-patterns.md` automatically — your job is to log them at L2 with consistent wording so the promoter can match.
 
@@ -191,7 +191,7 @@ The 2-strike promotion rule (`memory/tools/promote.sh`) will lift recurring root
 If the kit itself gets in your way — a kit script is slow (measure it) or hangs, a tool cannot produce a real value so you would have to invent one, an artifact lands in the wrong place, two kit instructions disagree — record it and carry on with your task:
 
 ```bash
-talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
+bash talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
   --title "…" --what "what the kit did" --expected "what it should do" --evidence "measured numbers, exit code, stderr" --by <you>
 ```
 

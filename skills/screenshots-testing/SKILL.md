@@ -35,8 +35,8 @@ Not for: behaviour (clicks, forms, data): that is the unit and e2e suite. Not fo
 On entry, note the start time and register yourself as the active agent (L1 hot state):
 
 ```bash
-.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent screenshots-testing 2>/dev/null || true
-talaka/memory/tools/session.sh agent screenshots-testing
+bash .tlk/autoresearch/tools/record-metrics.sh --mark-start --agent screenshots-testing 2>/dev/null || true
+bash talaka/memory/tools/session.sh agent screenshots-testing
 ```
 
 Make a todo list from the steps of the mode you are in and work it. Scripts live in `.claude/skills/screenshots-testing/` (call it `$S` below).
@@ -53,9 +53,9 @@ Make a todo list from the steps of the mode you are in and work it. Scripts live
    - `$S/templates/visual.spec.ts` → `tests/visual/visual.spec.ts` (or the project's e2e folder; keep `testDir` in step with it).
    - Set the **modes** (projects) from the product, not a default list: the viewports its CSS breakpoints target, a dark project only if the app has a dark theme (and the Storybook toolbar global that sets it, often named `theme`), a locale project only for a right-to-left or long-text locale it ships. Every mode multiplies the shots; name why each exists in a comment.
    - Add `test-results/` and `visual-report/` to `.gitignore`. Add `"test:visual": "playwright test -c playwright.visual.config.ts"` to `package.json` scripts.
-4. **Container check.** Run `$S/in-container.sh --print`. It names the image it will use. If no `docker` / `podman` is available, say so under Caveats and continue on the host, but **do not commit host baselines** as the team's truth: fonts and anti-aliasing differ per OS and every other machine will fail. Record them only when the user agrees that this machine is the reference (and CI runs the same OS).
+4. **Container check.** Run `bash $S/in-container.sh --print`. It names the image it will use. If no `docker` / `podman` is available, say so under Caveats and continue on the host, but **do not commit host baselines** as the team's truth: fonts and anti-aliasing differ per OS and every other machine will fail. Record them only when the user agrees that this machine is the reference (and CI runs the same OS).
 5. **Build the target.** `build-storybook` (or the app build). A failed build is a blocker.
-6. **First baselines.** `$S/in-container.sh --update-snapshots`. Then run it again **without** the flag. The second run must be green. Anything that fails is **non-deterministic**, not a regression. Fix it; see [Flake](#flake).
+6. **First baselines.** `bash $S/in-container.sh --update-snapshots`. Then run it again **without** the flag. The second run must be green. Anything that fails is **non-deterministic**, not a regression. Fix it; see [Flake](#flake).
 7. **Look at the baselines.** Open a sample from each group and every mode. Blank, unstyled, or error-overlay shots are not baselines; they lock a bug in. Fix the story or the wiring (or hand to `/storybook-generating`), re-shoot.
 8. **CI.** Copy `$S/templates/visual-tests.yml` to `.github/workflows/` when the project uses GitHub Actions. Fill in the Playwright version, install and build commands. Other CI: same steps, same image.
 9. **Log and return.** Baselines are added to git by `@zlydni` with the rest of the change.
@@ -73,7 +73,7 @@ Make a todo list from the steps of the mode you are in and work it. Scripts live
 
 Only for ids the user named in this conversation, or "all reviewed" after you showed them every one.
 
-1. `$S/in-container.sh --update-snapshots -g '\[(<id>|<id>)\]'`. Test titles end in `[<story id>]`; the brackets keep `button--primary` from also matching `button--primary-large`. Every mode of an accepted story is updated.
+1. `bash $S/in-container.sh --update-snapshots -g '\[(<id>|<id>)\]'`. Test titles end in `[<story id>]`; the brackets keep `button--primary` from also matching `button--primary-large`. Every mode of an accepted story is updated.
 2. Re-run the same scope without the flag. It must be green.
 3. Rejected diffs are regressions. Leave their baselines alone and return `fail` with the list, for `@cmok` to fix.
 
@@ -98,7 +98,7 @@ Never add `retries` to the visual config. A retry that passes hides the flake an
 
 1. **Record metrics** (when working inside a feature folder; otherwise skip):
    ```bash
-   .tlk/autoresearch/tools/record-metrics.sh \
+   bash .tlk/autoresearch/tools/record-metrics.sh \
      --feature <feature-path> \
      --agent screenshots-testing
    ```
@@ -132,18 +132,18 @@ If `.tlk/PROJECT_PROFILE.md` exists, read it first. It names the stack, UI frame
 ## Memory
 
 1. **Read** `.tlk/MEMORY.md` (L4) before exploring.
-2. **Search** `talaka/memory/tools/search.sh "<visual | screenshot | flake | baseline>"` for prior masks, flaky stories and mode choices.
+2. **Search** `bash talaka/memory/tools/search.sh "<visual | screenshot | flake | baseline>"` for prior masks, flaky stories and mode choices.
 3. Apply `high` patterns, treat `medium` as advisory, ignore `low`.
 
 ### Mandatory write checklist
 
-Log via `talaka/memory/tools/log.sh --type <t> [--confidence high] "…"` when any of these fire:
+Log via `bash talaka/memory/tools/log.sh --type <t> [--confidence high] "…"` when any of these fire:
 
 - [ ] **Flake fixed** (its cause and the fix): `entity_type: pattern`
 - [ ] **Story tagged `no-visual` or region masked**, and why: `entity_type: decision`
 - [ ] **Modes chosen** (viewports, themes, locales) and the reason for each: `entity_type: decision`
 
-Record in-flight decisions as you make them: `talaka/memory/tools/session.sh decision "Chose X over Y because …"`.
+Record in-flight decisions as you make them: `bash talaka/memory/tools/session.sh decision "Chose X over Y because …"`.
 
 ## Guardrails
 
@@ -158,7 +158,7 @@ Record in-flight decisions as you make them: `talaka/memory/tools/session.sh dec
 If the kit itself gets in your way — a kit script is slow (measure it) or hangs, a tool cannot produce a real value so you would have to invent one, an artifact lands in the wrong place, two kit instructions disagree — record it and carry on with your task:
 
 ```bash
-talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
+bash talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
   --title "…" --what "what the kit did" --expected "what it should do" --evidence "measured numbers, exit code, stderr" --by <you>
 ```
 

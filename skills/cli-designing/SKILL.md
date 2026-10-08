@@ -19,7 +19,7 @@ This skill is **design-only**, like the kit's other skills: it produces the rese
 ## Bootstrap
 
 ```bash
-.claude/skills/cli-designing/new-cli.sh <api-slug>
+bash .claude/skills/cli-designing/new-cli.sh <api-slug>
 ```
 
 Creates `.tlk/features/YYYY-MM-DD-cli-<api-slug>/` with `research-brief.md`, `design.md`, `scorecard.md`, and `handoff-log.md` templates. The CLI is a feature like any other — same folder conventions, same handoff log, same archive path.
@@ -27,8 +27,8 @@ Creates `.tlk/features/YYYY-MM-DD-cli-<api-slug>/` with `research-brief.md`, `de
 You originate the feature, so set the L1 hot state once the folder exists:
 
 ```bash
-talaka/memory/tools/session.sh feature cli-<api-slug>
-talaka/memory/tools/session.sh agent cli-designing
+bash talaka/memory/tools/session.sh feature cli-<api-slug>
+bash talaka/memory/tools/session.sh agent cli-designing
 ```
 
 ## Phase 0 — Resolve the input
@@ -100,16 +100,16 @@ From there the coordinator runs the normal route: architecture-planning → `@ba
 
 ## Memory
 
-Read `.tlk/MEMORY.md` (L4) first — prior CLI features may have settled stack, auth-storage, or distribution decisions; don't relitigate them. When the design lands a durable decision (store schema, exit-code extension, language choice), log it: `talaka/memory/tools/log.sh --type decision "<the decision>"`.
+Read `.tlk/MEMORY.md` (L4) first — prior CLI features may have settled stack, auth-storage, or distribution decisions; don't relitigate them. When the design lands a durable decision (store schema, exit-code extension, language choice), log it: `bash talaka/memory/tools/log.sh --type decision "<the decision>"`.
 
-Record design decisions in L1 as you make them: `talaka/memory/tools/session.sh decision "Chose X over Y because …"` — these accumulate in the hot state and Zlydni promotes them to L2 when the CLI feature is committed.
+Record design decisions in L1 as you make them: `bash talaka/memory/tools/session.sh decision "Chose X over Y because …"` — these accumulate in the hot state and Zlydni promotes them to L2 when the CLI feature is committed.
 
 ## Kit issues — report, don't paper over
 
 If the kit itself gets in your way — a kit script is slow (measure it) or hangs, a tool cannot produce a real value so you would have to invent one, an artifact lands in the wrong place, two kit instructions disagree — record it and carry on with your task:
 
 ```bash
-talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
+bash talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
   --title "…" --what "what the kit did" --expected "what it should do" --evidence "measured numbers, exit code, stderr" --by <you>
 ```
 

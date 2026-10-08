@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 # Runs the project test command and extracts a coverage summary.
-# Usage: /skills/architecture-planning/check-coverage.sh [feature-path]
+# Usage: bash .claude/skills/architecture-planning/check-coverage.sh [--expect-red] [feature-path]
 # Run from project root.
+#
+# --expect-red: the tests were written to fail before the build (red-first — a
+# bug-fix pass, or any invocation that asks for tests that fail until Cmok
+# builds). A red suite is then the expected result: it is logged as "red as
+# designed" and exits 0. A green suite exits 1 instead — tests that already pass
+# cannot tell the missing behaviour from the built one (issue #40).
 #
 # With a feature path it appends a *progress* entry to handoff-log.md — the
 # PIPELINE.md format for "a verification produced results" (issue #12). It never
@@ -13,7 +19,15 @@
 
 set -euo pipefail
 
-FEATURE_PATH="${1:-}"
+EXPECT_RED=0
+FEATURE_PATH=""
+for arg in "$@"; do
+  case "$arg" in
+    --expect-red) EXPECT_RED=1 ;;
+    -*) echo "Error: unknown option $arg" >&2; exit 2 ;;
+    *)  FEATURE_PATH="$arg" ;;
+  esac
+done
 PROJECT_MD="${PROJECT_MD:-.tlk/PROJECT.md}"
 
 if [ ! -f "$PROJECT_MD" ]; then
@@ -47,7 +61,11 @@ if [ -n "$FEATURE_PATH" ] && [ -d "$FEATURE_PATH" ]; then
   {
     echo ""
     echo "## $TIMESTAMP architecture-planning [arch + tests] progress"
-    if [ "$EXIT_CODE" -eq 0 ]; then
+    if [ "$EXPECT_RED" -eq 1 ] && [ "$EXIT_CODE" -ne 0 ]; then
+      echo "Result: test command ran, exit $EXIT_CODE — suite red as designed (--expect-red)."
+    elif [ "$EXPECT_RED" -eq 1 ]; then
+      echo "Result: test command ran, exit 0 — suite green, but the tests were meant to fail before the build (--expect-red)."
+    elif [ "$EXIT_CODE" -eq 0 ]; then
       echo "Result: test command ran, exit 0 — suite green."
     else
       echo "Result: test command ran, exit $EXIT_CODE — suite red."
@@ -56,7 +74,11 @@ if [ -n "$FEATURE_PATH" ] && [ -d "$FEATURE_PATH" ]; then
       echo "$SUMMARY" | sed 's/^/  /'
     fi
     echo "Artifacts: $FEATURE_PATH/tech-plan.md"
-    if [ "$EXIT_CODE" -eq 0 ]; then
+    if [ "$EXPECT_RED" -eq 1 ] && [ "$EXIT_CODE" -ne 0 ]; then
+      echo "Next: confirm each red test fails for the missing behaviour, then write the return entry with the Expected red: list."
+    elif [ "$EXPECT_RED" -eq 1 ]; then
+      echo "Next: make the new tests fail on the current code, then re-run check-coverage.sh --expect-red."
+    elif [ "$EXIT_CODE" -eq 0 ]; then
       echo "Next: write the return entry to the Coordinator (arch + tests, done)."
     else
       echo "Next: fix the failures and re-run check-coverage.sh before returning."
@@ -65,9 +87,22 @@ if [ -n "$FEATURE_PATH" ] && [ -d "$FEATURE_PATH" ]; then
   echo "Appended a progress entry to $LOG — the return entry is still yours to write."
 fi
 
-if [ $EXIT_CODE -ne 0 ]; then
+if [ "$EXPECT_RED" -eq 1 ]; then
+  echo ""
+  if [ "$EXIT_CODE" -ne 0 ]; then
+    echo "Red as designed (exit $EXIT_CODE). Check every failure before returning: each red test must fail because the"
+    echo "behaviour it pins is not built yet — an assertion on the missing result, or an import of the module still to"
+    echo "be written. A typo, a broken fixture, or a pre-existing test going red is a real failure: fix it and re-run."
+    echo "List the red tests under Expected red: in your return (Recommend: @bagnik, test gate)."
+  else
+    echo "Suite green, but --expect-red says these tests should fail before the build. Tests that already pass do not"
+    echo "catch the missing behaviour — make them fail on the current code, then re-run."
+    exit 1
+  fi
+elif [ $EXIT_CODE -ne 0 ]; then
   echo ""
   echo "Tests failed (exit $EXIT_CODE). Fix them before returning — do not recommend the test gate on a red suite."
+  echo "Only if your invocation asked for tests that fail before the build: re-run with --expect-red."
   exit $EXIT_CODE
 else
   echo ""

@@ -18,7 +18,7 @@ Your job is to keep specs accurate and requirements clear.
 
 ## Approach
 
-Note start time on entry: `.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent requirements-eliciting 2>/dev/null || true` — it writes the time to a file, because shell variables do not survive between tool calls
+Note start time on entry: `bash .tlk/autoresearch/tools/record-metrics.sh --mark-start --agent requirements-eliciting 2>/dev/null || true` — it writes the time to a file, because shell variables do not survive between tool calls
 
 1. **Ask clarifying questions** — Surface assumptions and edge cases
 2. **Capture decisions** — Write down what was decided, not just discussed
@@ -45,7 +45,7 @@ When updating specs:
 When starting a new feature, run from the project root:
 
 ```bash
-.claude/skills/requirements-eliciting/new-feature.sh <feature-slug>
+bash .claude/skills/requirements-eliciting/new-feature.sh <feature-slug>
 ```
 
 This creates `.tlk/features/YYYY-MM-DD-<slug>/` with a `spec.md` skeleton and `handoff-log.md`. Use the printed `FEATURE_PATH` value in every handoff.
@@ -63,7 +63,7 @@ When the spec is ready:
 
 1. **Record metrics:**
    ```bash
-   .tlk/autoresearch/tools/record-metrics.sh \
+   bash .tlk/autoresearch/tools/record-metrics.sh \
      --feature <feature-path> \
      --agent requirements-eliciting
    ```
@@ -109,7 +109,7 @@ The project has a layered memory tree (see `talaka/templates/memory/SCHEMA.md`):
 
 1. **Read first:** `.tlk/MEMORY.md` (L4 — root index, ~2 KB).
 2. **Drill down** into `.tlk/memory/{preferences,system,projects,decisions}.md` (L3) only when you need detail.
-3. **When uncertain**, run `talaka/memory/tools/search.sh "<query>"` for ranked top-k chunks across every layer.
+3. **When uncertain**, run `bash talaka/memory/tools/search.sh "<query>"` for ranked top-k chunks across every layer.
 4. **`high`-confidence entries are rules**, `medium` is advisory, `low` is reference only. Never re-execute past tasks; use memory to ask sharper questions and avoid re-raising resolved issues.
 
 ### On entry — set the session state (L1)
@@ -117,8 +117,8 @@ The project has a layered memory tree (see `talaka/templates/memory/SCHEMA.md`):
 You start the feature, so you set the hot state:
 
 ```bash
-talaka/memory/tools/session.sh feature <feature-slug>
-talaka/memory/tools/session.sh agent requirements-eliciting
+bash talaka/memory/tools/session.sh feature <feature-slug>
+bash talaka/memory/tools/session.sh agent requirements-eliciting
 ```
 
 ### Mandatory write checklist
@@ -126,15 +126,15 @@ talaka/memory/tools/session.sh agent requirements-eliciting
 Don't hand-edit YAML — call `log.sh` (it appends to today's L2 file **and** runs the promotion machine). Fire one for each trigger that occurred this session:
 
 ```bash
-talaka/memory/tools/log.sh --type pattern      "New convention: <…>"
-talaka/memory/tools/log.sh --type tool         "Proposed dependency: <…>"
-talaka/memory/tools/log.sh --type decision --confidence high "Decision: <…>"
-talaka/memory/tools/log.sh --type anti-pattern "Failure mode to avoid: <…>"
-talaka/memory/tools/log.sh --type project      "Reusable project fact: <…>"
+bash talaka/memory/tools/log.sh --type pattern      "New convention: <…>"
+bash talaka/memory/tools/log.sh --type tool         "Proposed dependency: <…>"
+bash talaka/memory/tools/log.sh --type decision --confidence high "Decision: <…>"
+bash talaka/memory/tools/log.sh --type anti-pattern "Failure mode to avoid: <…>"
+bash talaka/memory/tools/log.sh --type project      "Reusable project fact: <…>"
 ```
 
 - `--confidence high` lands the fact in L3 immediately (treat as a rule); omit it for advisory facts that should wait for the 2-strike rule.
-- Record in-flight decisions as you go: `talaka/memory/tools/session.sh decision "Chose X over Y because …"`.
+- Record in-flight decisions as you go: `bash talaka/memory/tools/session.sh decision "Chose X over Y because …"`.
 - To supersede a prior decision, log it then add `supersedes: mem_<id>` to the new L3 entry (the resolver tags the old one rather than deleting it).
 
 ## Collecting Deferred Decisions
@@ -142,7 +142,7 @@ talaka/memory/tools/log.sh --type project      "Reusable project fact: <…>"
 When starting work on a feature (or periodically), run:
 
 ```bash
-talaka/shared/deferred/tools/collect-deferred.sh
+bash talaka/shared/deferred/tools/collect-deferred.sh
 ```
 
 This surfaces all open deferred decisions across features and marks them as `collected`. Review each and either:
@@ -152,7 +152,7 @@ This surfaces all open deferred decisions across features and marks them as `col
 To defer a decision during spec work:
 
 ```bash
-talaka/shared/deferred/tools/defer.sh --feature <feature-path> \
+bash talaka/shared/deferred/tools/defer.sh --feature <feature-path> \
   --title "<short title>" \
   --deferred-by requirements-eliciting \
   --trigger "<condition to revisit>" \
@@ -170,7 +170,7 @@ talaka/shared/deferred/tools/defer.sh --feature <feature-path> \
 If the kit itself gets in your way — a kit script is slow (measure it) or hangs, a tool cannot produce a real value so you would have to invent one, an artifact lands in the wrong place, two kit instructions disagree — record it and carry on with your task:
 
 ```bash
-talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
+bash talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
   --title "…" --what "what the kit did" --expected "what it should do" --evidence "measured numbers, exit code, stderr" --by <you>
 ```
 

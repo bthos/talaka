@@ -9,12 +9,12 @@
 To set up talaka in a project, run from the **project root** (the directory that contains `talaka/`):
 
 ```bash
-talaka/shared/lifecycle/tools/init.sh --non-interactive
+bash talaka/shared/lifecycle/tools/init.sh --non-interactive
 ```
 
 Non-interactive flags: `-n`, `--non-interactive`, `--yes`, or `-y`. The script prints a **`[AGENT ACTION REQUIRED]`** block instead of spawning a nested CLI to edit `.tlk/PROJECT.md`.
 
-**After the script exits, fill in `.tlk/PROJECT.md` yourself:** inspect the project files (`package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `Makefile`, version files, etc.) and replace every `<placeholder>` with the correct value. Then run `talaka/shared/project/tools/validate-config.sh` to confirm all placeholders are resolved.
+**After the script exits, fill in `.tlk/PROJECT.md` yourself:** inspect the project files (`package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `Makefile`, version files, etc.) and replace every `<placeholder>` with the correct value. Then run `bash talaka/shared/project/tools/validate-config.sh` to confirm all placeholders are resolved.
 
 **Layout — minimally invasive (the goal):**
 
@@ -140,7 +140,7 @@ Two roles, and they never swap:
 ### The coordinator loop
 
 1. **Read the log.** `handoff-log.md` in the active feature folder is the event track — the full chain of custody. The last **return entry** (the one with `→ Coordinator`) says where the pipeline stands; `progress` entries under it are in-flight detail, not routing signals.
-2. **Check pace.** Run `talaka/statusline/tools/pace.sh` and read its `mode=` (see *Pace* below). It bounds what step 4 may launch.
+2. **Check pace.** Run `bash talaka/statusline/tools/pace.sh` and read its `mode=` (see *Pace* below). It bounds what step 4 may launch.
 3. **Decide.** Apply the Routing Table below to `(last worker, context, status)`. The worker's `Recommend:` line is an input, not a verdict — override it when the log says otherwise (see *Loop breaking*).
 4. **Invoke exactly one step.** One agent, or one parallel pair where the table says so (only Mokash runs in parallel — plus independent read-only steps in `speed-up` mode).
 5. **Wait for the return.** The worker finishes, having appended its log entry.
@@ -153,7 +153,7 @@ The coordinator does not do the workers' jobs. It routes, relays context, and st
 Long pipelines outrun the usage limits: they under-use a large headroom, then get cut off mid-step when the window runs dry. Before every routing decision the coordinator reads the pace:
 
 ```bash
-talaka/statusline/tools/pace.sh
+bash talaka/statusline/tools/pace.sh
 # mode=slow-down window=7d measured=yes reason="7d 38% used, 21% of window elapsed, resets in 5d"
 ```
 
@@ -336,9 +336,9 @@ What the coordinator must include when launching each worker:
 **→ mockups-creating:** UX path. States matrix per screen. Key decisions. Feature path.
 **→ Mokash:** Feature path. Spec/UX/tech-plan paths. "What was built" (post-build). Doc scope: README | API | user guide | all.
 **→ architecture-planning:** Feature path. Spec + UX paths. For a fix loop: failing test names, error output, affected files.
-**→ Bagnik (test gate):** Feature path. Arch path. Test paths. Coverage summary. Known gaps. AC-to-test map path. **State the context explicitly — "test gate".**
+**→ Bagnik (test gate):** Feature path. Arch path. Test paths. Coverage summary. Known gaps. AC-to-test map path. Expected red, when architecture-planning wrote red-first tests. **State the context explicitly — "test gate".**
 **→ Bagnik (code QA):** Feature path. "What was built". Changed files. New storage/API surface. Tech plan path. Divergences. Which tests Cmok ran (its focused set) so Bagnik knows what is unverified. **State the context explicitly — "code QA".**
-**→ Cmok (build):** Feature path. Spec, UX, tech plan paths. Bagnik's test-gate result. Say so explicitly if you want a full-suite run instead of Cmok's focused set — otherwise it runs focused tests only.
+**→ Cmok (build):** Feature path. Spec, UX, tech plan paths. Bagnik's test-gate result, with its Expected red tests. Say so explicitly if you want a full-suite run instead of Cmok's focused set — otherwise it runs focused tests only.
 **→ Cmok (fix):** Feature path. Failed check. Error output. Affected files. Suggested fix. Prior fix attempts. The exact failing test names — Cmok re-runs those plus its focused set, not the whole suite.
 **→ Zlydni:** Feature path. Changed files. Confirmation that Bagnik's code QA passed.
 **→ Yaga:** Bug description. Investigation dir (if `/bugs-diagnosing` created one). Failing repro/test command. Affected files.
@@ -347,14 +347,14 @@ What the coordinator must include when launching each worker:
 
 ### Quality Gates
 
-- **Bagnik test gate** — Block if tests fail. Coordinator does not route to build.
+- **Bagnik test gate** — Block if tests fail. Coordinator does not route to build. Red-first tests (a bug-fix pass, or any invocation asking for tests that fail before the build) are the one exception: architecture-planning runs `check-coverage.sh --expect-red` and lists them under *Expected red*, and the gate passes when only those fail, each for the missing behaviour.
 - **Bagnik code QA** — Block if QA fails. Coordinator does not route to Zlydni.
 - **Bagnik security & PII** — Block if security issues or personal data leaks found.
 - **Nothing ships without passing Bagnik.** Bagnik does not negotiate, and the coordinator does not route around it.
 
 ### Handoff Log
 
-Each feature folder contains a `handoff-log.md` created by **`.claude/skills/requirements-eliciting/new-feature.sh <feature-slug>`** (run from project root; `.claude/skills/` is populated by `init.sh`). It is the coordinator's event track: every worker appends progress entries as it works and exactly one return entry before returning, using the formats in **Log entries** above.
+Each feature folder contains a `handoff-log.md` created by **`bash .claude/skills/requirements-eliciting/new-feature.sh <feature-slug>`** (run from project root; `.claude/skills/` is populated by `init.sh`). It is the coordinator's event track: every worker appends progress entries as it works and exactly one return entry before returning, using the formats in **Log entries** above.
 
 The coordinator reads this log before every routing decision. It is the only place the full history survives — each worker sees just its own invocation, so without the log there is no chain of custody across Bagnik–Cmok fix loop iterations. `talaka/shared/project/tools/feature-status.sh` shows the last entry per active feature, which during a long run is the worker's latest `progress` line.
 
@@ -398,14 +398,14 @@ Same rules as the pipeline, no exceptions: the coordinator invokes, workers log 
 When autoresearch is initialised, every worker records a row before returning:
 
 ```bash
-.tlk/autoresearch/tools/record-metrics.sh \
+bash .tlk/autoresearch/tools/record-metrics.sh \
   --feature <feature-path> --agent <name>
 ```
 
 having marked the start on entry, before anything else:
 
 ```bash
-.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent <name> 2>/dev/null || true
+bash .tlk/autoresearch/tools/record-metrics.sh --mark-start --agent <name> 2>/dev/null || true
 ```
 
 The mark is a file (`.tlk/autoresearch/runs/.start-<name>`), not a shell variable: shell state does not survive between tool calls, so a start time captured into a variable in one call is empty in the next. The recording call reads the mark as `--since` and derives `--wall-ms` from it; an implausible `--since` or `--wall-ms` is recorded as null with a warning, never as a number.
@@ -435,7 +435,7 @@ You are the only one watching this kit run in a real project. Its maintainers se
 **Record it and keep going** — one command, local only, nothing leaves the machine:
 
 ```bash
-talaka/shared/feedback/tools/kit-issue.sh add --kind slow \
+bash talaka/shared/feedback/tools/kit-issue.sh add --kind slow \
   --title "log.sh takes ~40s per write on Git Bash" \
   --command "talaka/memory/tools/log.sh --type tool \"…\"" \
   --what "each call blocked 39–41s; three workers skipped memory writes because of it" \
@@ -451,7 +451,7 @@ It appends to `.tlk/kit-issues.md`. The same title again bumps that entry's `See
 - **Describe the kit, not the project.** No source code, secrets, customer data or internal hostnames in any field. The tool redacts paths under the project root and `$HOME`; everything else is on you.
 - **Workers** name the `KI-` id in the `Result:` line of their return entry (and in `Blockers:` if it stopped them).
 
-**Coordinator — offer to file.** When the pipeline reaches a STOP or END, or the user's task is done, run `talaka/shared/feedback/tools/kit-issue.sh sync` (fetches every kit issue, open and closed, links any pending entry already filed verbatim, and lists the rest with `≈ #N` against likely duplicates; without `gh`, run `list`). If anything is pending, say it in one line — `2 kit issues recorded (KI-001 log.sh slow, KI-002 stray metrics dir). File them on GitHub?` — and ask once per session, not on every turn.
+**Coordinator — offer to file.** When the pipeline reaches a STOP or END, or the user's task is done, run `bash talaka/shared/feedback/tools/kit-issue.sh sync` (fetches every kit issue, open and closed, links any pending entry already filed verbatim, and lists the rest with `≈ #N` against likely duplicates; without `gh`, run `list`). If anything is pending, say it in one line — `2 kit issues recorded (KI-001 log.sh slow, KI-002 stray metrics dir). File them on GitHub?` — and ask once per session, not on every turn.
 
 - **Yes** → `kit-issue.sh submit KI-001`. That is a preview: it prints the exact issue body and any similar issues, open or closed. Show it to the user. Only after they approve it: `kit-issue.sh submit KI-001 --confirm`. If a similar issue exists, offer to comment on it instead (the preview prints the command), then `kit-issue.sh link KI-001 <url>`.
 - **No, not a kit problem** → `kit-issue.sh dismiss KI-001 --reason "…"`.
@@ -485,7 +485,7 @@ The kit uses a five-layer memory tree (see `talaka/templates/memory/SCHEMA.md`).
 | L2 daily | `.tlk/memory/YYYY-MM-DD.md` | when relevant | append-only per checklist |
 | L3 long-term | `.tlk/memory/{preferences,system,projects,decisions}.md` | drilldowns from L4 | only via `memory/tools/promote.sh` |
 | L4 root summary | `.tlk/MEMORY.md` | **first**, always | regenerated by `memory/tools/promote.sh` |
-| L5 semantic recall | `talaka/memory/tools/search.sh "<q>"` | when uncertain | n/a |
+| L5 semantic recall | `bash talaka/memory/tools/search.sh "<q>"` | when uncertain | n/a |
 
 ### Memory write protocol — use the helpers, don't hand-edit
 
@@ -493,14 +493,14 @@ Memory only fills if agents actually write it. Do not paste YAML by hand — cal
 
 ```bash
 # On entry — record who/what is active (L1):
-talaka/memory/tools/session.sh agent <your-name>
-talaka/memory/tools/session.sh feature <slug>     # requirements-eliciting, when starting a feature
+bash talaka/memory/tools/session.sh agent <your-name>
+bash talaka/memory/tools/session.sh feature <slug>     # requirements-eliciting, when starting a feature
 
 # As you make an in-flight decision (L1):
-talaka/memory/tools/session.sh decision "Chose X over Y because …"
+bash talaka/memory/tools/session.sh decision "Chose X over Y because …"
 
 # When you learn something durable (L2 → auto-promotes):
-talaka/memory/tools/log.sh --type <person|project|file|tool|library|pattern|anti-pattern|decision> \
+bash talaka/memory/tools/log.sh --type <person|project|file|tool|library|pattern|anti-pattern|decision> \
   [--confidence high] [--entities "a,b"] "the fact in one sentence"
 ```
 
@@ -523,7 +523,7 @@ Boundary with memory: the **wiki** holds knowledge distilled from *sources* (pap
 
 ## CLI factory (cli-designing)
 
-`/cli-designing <api-name|spec|url>` designs an agent-native CLI (CLI Printing Press pattern) and feeds it into the normal pipeline. It bootstraps `.tlk/features/YYYY-MM-DD-cli-<slug>/` (`.claude/skills/cli-designing/new-cli.sh <slug>`) with three artifacts that carry the methodology to downstream agents:
+`/cli-designing <api-name|spec|url>` designs an agent-native CLI (CLI Printing Press pattern) and feeds it into the normal pipeline. It bootstraps `.tlk/features/YYYY-MM-DD-cli-<slug>/` (`bash .claude/skills/cli-designing/new-cli.sh <slug>`) with three artifacts that carry the methodology to downstream agents:
 
 - `research-brief.md` — spec provenance, the **Non-Obvious Insight**, ecosystem absorption (competitor table stakes = Priority 1), domain archetype, high-gravity resources.
 - `design.md` — ~10–15 deep commands (depth over breadth), local persistence (`sync`/`search`/`sql`), and the **agent-native contract**: typed exit codes `0/2/3/4/5/7`, `--json`/`--compact`/`--dry-run`/`--stdin`, auto-JSON when piped, bounded output with continuation hints.

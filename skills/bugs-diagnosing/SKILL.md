@@ -16,12 +16,12 @@ This skill frames the riddle before the search begins. You read the bug, read th
 
 ## Approach
 
-1. **Read `.tlk/MEMORY.md`** (L4). Search `talaka/memory/tools/search.sh "<bug keywords>"`. If a confirmed anti-pattern or prior investigation matches, raise it to the user before generating new hypotheses — the answer may already exist.
+1. **Read `.tlk/MEMORY.md`** (L4). Search `bash talaka/memory/tools/search.sh "<bug keywords>"`. If a confirmed anti-pattern or prior investigation matches, raise it to the user before generating new hypotheses — the answer may already exist.
 2. **Read the bug.** Get the user's report, error messages, and reproduction steps. Ask clarifying questions only when something material is missing (exact error text, version, environment, repro frequency).
 3. **Read the code.** Locate the modules involved. Read the call sites, the data flow, and the recent git history (`git log -p --follow` on the suspect files — recent changes are the highest-probability cause of new bugs).
 4. **Bootstrap the investigation folder.**
    ```bash
-   .claude/skills/bugs-diagnosing/new-investigation.sh <slug>
+   bash .claude/skills/bugs-diagnosing/new-investigation.sh <slug>
    ```
    The slug should be short and bug-shaped (`login-stuck-spinner`, `pdf-export-blank-page`). The script creates `.tlk/debug/YYYY-MM-DD-<slug>/` with `hypothesis.md`, `instrumentation-log.md`, `findings.md`, and `handoff-log.md` templates.
 5. **Fill `hypothesis.md`.** Use the template that was created. The hypothesis section is the contract — `@yaga` will refuse to instrument without it.
@@ -79,7 +79,7 @@ Read L4 first (`.tlk/MEMORY.md`). Drill into `memory/anti-patterns.md` if it exi
 If the kit itself gets in your way — a kit script is slow (measure it) or hangs, a tool cannot produce a real value so you would have to invent one, an artifact lands in the wrong place, two kit instructions disagree — record it and carry on with your task:
 
 ```bash
-talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
+bash talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
   --title "…" --what "what the kit did" --expected "what it should do" --evidence "measured numbers, exit code, stderr" --by <you>
 ```
 

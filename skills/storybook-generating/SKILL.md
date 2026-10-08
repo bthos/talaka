@@ -27,8 +27,8 @@ Not for: a design system with no code (brand guidelines, Figma only). Use `/desi
 On entry, note the start time and register yourself as the active agent (L1 hot state):
 
 ```bash
-.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent storybook-generating 2>/dev/null || true
-talaka/memory/tools/session.sh agent storybook-generating
+bash .tlk/autoresearch/tools/record-metrics.sh --mark-start --agent storybook-generating 2>/dev/null || true
+bash talaka/memory/tools/session.sh agent storybook-generating
 ```
 
 Make a todo list from the steps below and work it.
@@ -38,7 +38,7 @@ Make a todo list from the steps below and work it.
    - **Present:** keep its config and version. Add to it, and change `main` / `preview` only where a step below needs it. Never delete or rewrite someone's stories. If one is wrong (it renders blank, or omits real variants), add stories beside it and flag it.
    - **Absent:** install with the project's package manager, non-interactively: `npx storybook@latest init --yes --no-dev` (pass `--type react` / `--builder vite` when detection guesses wrong). Delete the generated example `stories/` folder (Button, Header, Page); it is not the product. Name every devDependency you added in your return.
    - **Story tests:** note whether a story test runner is already wired. See [Story tests](#story-tests) for what counts.
-3. **Inventory.** Run `.claude/skills/storybook-generating/stories-coverage.sh <src roots>`. Default root is `src`. Pass every library directory in a monorepo (`packages/ui/src`, `apps/web/components`, …). It prints each candidate component, `covered` or `missing`, and totals. Read each `missing` file and keep the real UI components: the exported ones that render markup. Drop contexts, hooks, and route files. Put **every** kept component on the todo list. There is no "core subset".
+3. **Inventory.** Run `bash .claude/skills/storybook-generating/stories-coverage.sh <src roots>`. Default root is `src`. Pass every library directory in a monorepo (`packages/ui/src`, `apps/web/components`, …). It prints each candidate component, `covered` or `missing`, and totals. Read each `missing` file and keep the real UI components: the exported ones that render markup. Drop contexts, hooks, and route files. Put **every** kept component on the todo list. There is no "core subset".
 4. **Preview wiring — before any story.** This is what makes stories render like the product. Read the app's entry point (`main.tsx`, `_app.tsx`, `app/layout.tsx`, `App.tsx`) and reproduce what it wraps the tree in, in `.storybook/preview.tsx`:
    - **Global CSS:** the file that defines tokens and resets (`index.css`, `globals.css`, `styles/theme.css`). Import that file itself, not a copy.
    - **Fonts:** the same `@font-face` / `<link>` the app loads. Web fonts go through `.storybook/preview-head.html`; `next/font` goes through a decorator.
@@ -50,7 +50,7 @@ Make a todo list from the steps below and work it.
 6. **Component stories.** See [Stories](#stories). Work group by group and log a progress entry after each group.
 7. **Build.** Run the project's `build-storybook` script (else `npx storybook build -o storybook-static`). Fix every error and every warning that names one of your stories. Treat a failed build as a blocker, not a caveat.
 8. **Story tests.** See [Story tests](#story-tests): run the runner the project already has, add one only under `--with-tests`, otherwise skip.
-9. **Check the index.** Run `.claude/skills/storybook-generating/check-index.sh storybook-static`. Every `thin` title needs another story that shows a real variant or state. If the component truly has only one appearance, list it under Caveats.
+9. **Check the index.** Run `bash .claude/skills/storybook-generating/check-index.sh storybook-static`. Every `thin` title needs another story that shows a real variant or state. If the component truly has only one appearance, list it under Caveats.
 10. **Look at every story.** See [Verify](#verify).
 11. **Coverage again.** Re-run `stories-coverage.sh`. `MISSING` must be `0`, or equal to the components you listed under Caveats with a reason.
 12. **Log and return.** See [Return to Coordinator](#return-to-coordinator).
@@ -103,7 +103,7 @@ When the Storybook builds and every story has been looked at:
 
 1. **Record metrics** (when working inside a feature folder; otherwise skip):
    ```bash
-   .tlk/autoresearch/tools/record-metrics.sh \
+   bash .tlk/autoresearch/tools/record-metrics.sh \
      --feature <feature-path> \
      --agent storybook-generating
    ```
@@ -136,18 +136,18 @@ If `.tlk/PROJECT_PROFILE.md` exists, read it first. It names the stack, UI frame
 ## Memory
 
 1. **Read** `.tlk/MEMORY.md` (L4) before exploring.
-2. **Search** `talaka/memory/tools/search.sh "<storybook | design-sync | components>"` for prior decisions (preview wiring, isolation workarounds).
+2. **Search** `bash talaka/memory/tools/search.sh "<storybook | design-sync | components>"` for prior decisions (preview wiring, isolation workarounds).
 3. Apply `high` patterns, treat `medium` as advisory, ignore `low`.
 
 ### Mandatory write checklist
 
-Log via `talaka/memory/tools/log.sh --type <t> [--confidence high] "…"` when any of these fire:
+Log via `bash talaka/memory/tools/log.sh --type <t> [--confidence high] "…"` when any of these fire:
 
 - [ ] **Preview wiring** that took more than one try (providers, fonts, Tailwind content globs): `entity_type: pattern`
 - [ ] **Isolation workaround** for a component that fetches or reads global state: `entity_type: decision`
 - [ ] **Component left without stories** and why: `entity_type: decision`
 
-Record in-flight decisions as you make them: `talaka/memory/tools/session.sh decision "Chose X over Y because …"`.
+Record in-flight decisions as you make them: `bash talaka/memory/tools/session.sh decision "Chose X over Y because …"`.
 
 ## Guardrails
 
@@ -164,7 +164,7 @@ Record in-flight decisions as you make them: `talaka/memory/tools/session.sh dec
 If the kit itself gets in your way — a kit script is slow (measure it) or hangs, a tool cannot produce a real value so you would have to invent one, an artifact lands in the wrong place, two kit instructions disagree — record it and carry on with your task:
 
 ```bash
-talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
+bash talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
   --title "…" --what "what the kit did" --expected "what it should do" --evidence "measured numbers, exit code, stderr" --by <you>
 ```
 

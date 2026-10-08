@@ -34,7 +34,7 @@ done
 
 if [ ! -d "$PATCHES_DIR" ]; then
   info "No proposed patches at $PATCHES_DIR (nothing to apply)."
-  info "Generate them first:  talaka/shared/learning/tools/distill-lessons.sh --target=agents"
+  info "Generate them first:  bash talaka/shared/learning/tools/distill-lessons.sh --target=agents"
   exit 0
 fi
 

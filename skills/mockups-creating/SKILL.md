@@ -19,8 +19,8 @@ Your job is to create high-fidelity mockups from the UX design before implementa
 On entry, note the start time and register yourself as the active agent (L1 hot state):
 
 ```bash
-.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent mockups-creating 2>/dev/null || true
-talaka/memory/tools/session.sh agent mockups-creating
+bash .tlk/autoresearch/tools/record-metrics.sh --mark-start --agent mockups-creating 2>/dev/null || true
+bash talaka/memory/tools/session.sh agent mockups-creating
 ```
 
 1. **Read the UX design** — Load `ux-design.md` from the feature folder
@@ -47,7 +47,7 @@ Read spec and UX design from `.tlk/features/YYYY-MM-DD-feature-name/`. Write moc
 After mockups are complete:
 - Record metrics:
   ```bash
-  .tlk/autoresearch/tools/record-metrics.sh \
+  bash .tlk/autoresearch/tools/record-metrics.sh \
     --feature <feature-path> \
     --agent mockups-creating
   ```
@@ -84,17 +84,17 @@ If `.tlk/PROJECT_PROFILE.md` exists, read it before creating mockups — it capt
 ## Memory
 
 1. **Read** `.tlk/MEMORY.md` (L4) before mocking.
-2. **Search**: `talaka/memory/tools/search.sh "<screen | component>"` to pull prior mockup patterns and anti-patterns.
+2. **Search**: `bash talaka/memory/tools/search.sh "<screen | component>"` to pull prior mockup patterns and anti-patterns.
 3. Apply `high` patterns, treat `medium` as advisory, ignore `low`.
 
 ### Mandatory write checklist
 
-Log via `talaka/memory/tools/log.sh --type <t> [--confidence high] "…"` (it appends to today's L2 file and runs promotion) when any of these fire:
+Log via `bash talaka/memory/tools/log.sh --type <t> [--confidence high] "…"` (it appends to today's L2 file and runs promotion) when any of these fire:
 
 - [ ] **Mockup pattern** that fits this project (or one to avoid) — `entity_type: pattern` / `anti-pattern`
 - [ ] **State** that emerged from UAT and was not in the spec — `entity_type: pattern`
 
-Record in-flight decisions as you make them: `talaka/memory/tools/session.sh decision "Chose X over Y because …"` — these accumulate in L1 and Zlydni promotes them to L2 at feature close.
+Record in-flight decisions as you make them: `bash talaka/memory/tools/session.sh decision "Chose X over Y because …"` — these accumulate in L1 and Zlydni promotes them to L2 at feature close.
 
 ## Guardrails
 
@@ -107,7 +107,7 @@ Record in-flight decisions as you make them: `talaka/memory/tools/session.sh dec
 If the kit itself gets in your way — a kit script is slow (measure it) or hangs, a tool cannot produce a real value so you would have to invent one, an artifact lands in the wrong place, two kit instructions disagree — record it and carry on with your task:
 
 ```bash
-talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
+bash talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
   --title "…" --what "what the kit did" --expected "what it should do" --evidence "measured numbers, exit code, stderr" --by <you>
 ```
 

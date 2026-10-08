@@ -21,8 +21,8 @@ Your job is to keep the architecture sound and tests solid.
 On entry, note the start time and register yourself as the active agent (L1 hot state):
 
 ```bash
-.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent architecture-planning 2>/dev/null || true
-talaka/memory/tools/session.sh agent architecture-planning
+bash .tlk/autoresearch/tools/record-metrics.sh --mark-start --agent architecture-planning 2>/dev/null || true
+bash talaka/memory/tools/session.sh agent architecture-planning
 ```
 
 1. **Architecture** — Map components, boundaries, and data flow
@@ -76,16 +76,25 @@ When the coordinator routes a Bagnik test-gate failure back to you:
 Before returning, run:
 
 ```bash
-.claude/skills/architecture-planning/check-coverage.sh <feature-path>
+bash .claude/skills/architecture-planning/check-coverage.sh <feature-path>
 ```
 
 This runs the test command from `.tlk/PROJECT.md`, prints results, and appends a **progress** entry (`## HH:MM architecture-planning [arch + tests] progress`) with the exit code and the runner's summary lines to `handoff-log.md`. Use its output in your return.
+
+**Red-first tests.** When your invocation asks for tests that fail before the build — a bug-fix pass, or any "red first" request — a red suite is the goal, not a failure. Run it with `--expect-red`:
+
+```bash
+bash .claude/skills/architecture-planning/check-coverage.sh --expect-red <feature-path>
+```
+
+It logs the suite as *red as designed* and exits 0; a green suite exits 1, because tests that already pass cannot catch the missing behaviour. Read every failure before you return. Each red test must fail because what it pins is not built yet: an assertion on the missing result, or an import of a module still to be written. A typo, a broken fixture, or a pre-existing test going red is a real failure. Fix it and re-run. Never use `--expect-red` to get past a red suite you were not asked for.
 
 **Return entry — always yours.** The script never returns on your behalf. After it passes, append your return entry to `handoff-log.md`:
 ```
 ## HH:MM architecture-planning → Coordinator [arch + tests] done
 Result: architecture and tests written. Coverage: [summary]. Gaps: [list].
 Artifacts: Arch: [path]. Tests: [paths]. AC-to-test map: [tech-plan path].
+Expected red: [red-first runs only — each red test and the missing behaviour it waits on; omit the line otherwise]
 Recommend: @bagnik (test gate)
 Why: [one line]
 ```
@@ -100,13 +109,13 @@ Next: [what you do next in this same run]
 
 Record metrics before returning:
 ```bash
-.tlk/autoresearch/tools/record-metrics.sh \
+bash .tlk/autoresearch/tools/record-metrics.sh \
   --feature <feature-path> \
   --agent architecture-planning
 ```
 Skip silently if `.tlk/autoresearch/tools/record-metrics.sh` does not exist.
 
-**Payload for Bagnik** (the coordinator relays it; Bagnik sees nothing else): Feature path. Arch path. Test paths. Coverage summary — what the tests actually cover. Known gaps — what is not yet tested. AC-to-test map path. Context: **test gate**.
+**Payload for Bagnik** (the coordinator relays it; Bagnik sees nothing else): Feature path. Arch path. Test paths. Coverage summary — what the tests actually cover. Known gaps — what is not yet tested. AC-to-test map path. Expected red — the red-first tests and the missing behaviour each waits on, when the run used `--expect-red`. Context: **test gate**.
 
 ## Effort Scaling
 
@@ -131,19 +140,19 @@ Layered memory drives architecture and test choices (see `talaka/templates/memor
 
 1. **Read** `.tlk/MEMORY.md` (L4) first.
 2. **Drill** into `memory/system.md` (architecture, tooling) and `memory/decisions.md` (ADR-style records — note any `supersedes:` chains so you do not resurrect superseded designs).
-3. **Search**: `talaka/memory/tools/search.sh "<component>"` for past test/arch decisions; `--layer l3` to focus.
+3. **Search**: `bash talaka/memory/tools/search.sh "<component>"` for past test/arch decisions; `--layer l3` to focus.
 4. **`high`-confidence entries are rules**, `medium` is advisory, `low` is reference only.
 
 ### Mandatory write checklist
 
-Before returning, log via `talaka/memory/tools/log.sh --type <t> [--confidence high] "…"` (appends to L2 and runs promotion) when any of these fire:
+Before returning, log via `bash talaka/memory/tools/log.sh --type <t> [--confidence high] "…"` (appends to L2 and runs promotion) when any of these fire:
 
 - [ ] **Architectural decision** with explicit alternatives considered — `entity_type: decision`
 - [ ] **Test pattern** worth reusing or **anti-pattern** to avoid — `entity_type: pattern` / `anti-pattern`
 - [ ] **Tool/library** introduced for testing or build — `entity_type: tool` / `library`
 - [ ] **Module boundary** newly drawn — `entity_type: pattern` with `entities: [<module>]`
 
-Record in-flight decisions as you make them: `talaka/memory/tools/session.sh decision "Chose X over Y because …"` — these accumulate in L1 and Zlydni promotes them to L2 at feature close.
+Record in-flight decisions as you make them: `bash talaka/memory/tools/session.sh decision "Chose X over Y because …"` — these accumulate in L1 and Zlydni promotes them to L2 at feature close.
 
 ## Deferring Decisions
 
@@ -151,7 +160,7 @@ When an architecture or test decision cannot be resolved now (insufficient infor
 
 1. **Log it** using:
    ```bash
-   talaka/shared/deferred/tools/defer.sh --feature <feature-path> \
+   bash talaka/shared/deferred/tools/defer.sh --feature <feature-path> \
      --title "<short title>" \
      --deferred-by architecture-planning \
      --trigger "<condition to revisit>" \
@@ -174,7 +183,7 @@ Do not silently skip decisions. If something is punted, it must be tracked.
 If the kit itself gets in your way — a kit script is slow (measure it) or hangs, a tool cannot produce a real value so you would have to invent one, an artifact lands in the wrong place, two kit instructions disagree — record it and carry on with your task:
 
 ```bash
-talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
+bash talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
   --title "…" --what "what the kit did" --expected "what it should do" --evidence "measured numbers, exit code, stderr" --by <you>
 ```
 

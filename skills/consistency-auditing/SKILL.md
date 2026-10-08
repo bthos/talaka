@@ -19,14 +19,14 @@ This is the reasoning half of consistency work; the mechanical half (`talaka/sha
 ## Bootstrap
 
 ```bash
-.claude/skills/consistency-auditing/new-audit.sh <slug>
+bash .claude/skills/consistency-auditing/new-audit.sh <slug>
 ```
 
 The slug should name the audit's theme (`model-naming`, `artefact-paths`, `post-rename`). Creates `.tlk/audits/YYYY-MM-DD-<slug>/` with `audit.md` and `handoff-log.md`.
 
 ## Approach
 
-1. **Read `.tlk/MEMORY.md`** (L4) and search `talaka/memory/tools/search.sh "<keywords>"`. Prior **decisions** and **anti-patterns** define what "consistent" means here — they name the canonical source you'll converge findings on. An audit without the conventions is just opinion.
+1. **Read `.tlk/MEMORY.md`** (L4) and search `bash talaka/memory/tools/search.sh "<keywords>"`. Prior **decisions** and **anti-patterns** define what "consistent" means here — they name the canonical source you'll converge findings on. An audit without the conventions is just opinion.
 2. **Fix the corpus and the dimensions.** Write the globs you're auditing into `audit.md`, and tick which dimensions you're checking (below). Scope beats breadth — a focused audit that closes is worth more than an open-ended one.
 3. **Collect evidence mechanically, then reason.** Use search to enumerate every occurrence of a value/term across the corpus (`rg -n`), so no instance is missed; then read the surrounding intent to judge whether a difference is drift or deliberate.
 4. **Write findings.** One per row, ranked by severity. Each finding lists **every** location (`path:line`), names the **single source of truth** the corpus should converge on, and a concrete fix `@cmok` can apply.
@@ -68,14 +68,14 @@ A good finding is:
 
 ## Memory
 
-Read L4 first (`.tlk/MEMORY.md`); drill into `memory/anti-patterns.md` if present. When the audit confirms a convention the whole corpus must follow (the canonical home for a value, the agreed term), log it so future audits and agents enforce it: `talaka/memory/tools/log.sh --type decision "<the convention>"`.
+Read L4 first (`.tlk/MEMORY.md`); drill into `memory/anti-patterns.md` if present. When the audit confirms a convention the whole corpus must follow (the canonical home for a value, the agreed term), log it so future audits and agents enforce it: `bash talaka/memory/tools/log.sh --type decision "<the convention>"`.
 
 ## Kit issues — report, don't paper over
 
 If the kit itself gets in your way — a kit script is slow (measure it) or hangs, a tool cannot produce a real value so you would have to invent one, an artifact lands in the wrong place, two kit instructions disagree — record it and carry on with your task:
 
 ```bash
-talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
+bash talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
   --title "…" --what "what the kit did" --expected "what it should do" --evidence "measured numbers, exit code, stderr" --by <you>
 ```
 

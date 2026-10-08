@@ -25,27 +25,27 @@ Your invocation prompt carries the context — read it before assuming which of 
 On entry, note the start time and register yourself as the active agent (L1 hot state):
 
 ```bash
-.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent cmok 2>/dev/null || true
-talaka/memory/tools/session.sh agent cmok
+bash .tlk/autoresearch/tools/record-metrics.sh --mark-start --agent cmok 2>/dev/null || true
+bash talaka/memory/tools/session.sh agent cmok
 ```
 
 1. **Before build:** Bump **patch** version by running:
    ```bash
-   talaka/shared/project/tools/bump-version.sh patch
+   bash talaka/shared/project/tools/bump-version.sh patch
    ```
    This reads version files from `.tlk/PROJECT.md` and bumps them atomically. If the script is missing (submodule not checked out), skip this step and note "version bump skipped — talaka submodule missing" in the handoff log. Do not fail the build for this.
 2. **Read all artifacts first** — Before writing a single line of code, read every relevant artifact in the feature folder: `spec.md`, `ux-design.md`, `tech-plan.md`, and any files they reference. Also read the existing source files you will modify. Extract and list every acceptance criterion from `spec.md` as a numbered checklist. Only then begin implementing. This prevents blind spots and expensive mid-build rework.
 3. **Build** — Write clean, maintainable code; implement the design from spec, UX, and tech plan. Cross off each acceptance criterion as it is satisfied.
-4. **Stay aligned** — Match the design; flag when implementation diverges. Record significant build decisions and any divergence in L1 as you go: `talaka/memory/tools/session.sh decision "Diverged from tech-plan: <what> because <why>"` (Zlydni promotes L1 decisions to L2 at feature close).
-5. **Verify before returning — build, then focused tests, not full regression:** Run the **Build command** from `.tlk/PROJECT.md` — every build and every fix iteration, whatever layer you touched: a new page, manifest or i18n change can pass every unit test and still never have been through the real bundler. Then run **only the tests that cover what you changed**: the feature's own tests plus the tests for the files you touched. Use the **Focused test command** from `.tlk/PROJECT.md` if it is set; otherwise filter the test command yourself (`npm test -- <pattern>`, `pytest <path> -k <expr>`, `go test ./<pkg>/...`, `cargo test <module>`). Fix every build error and test failure you find. Do not return "done" while the build is broken or a focused test is red.
+4. **Stay aligned** — Match the design; flag when implementation diverges. Record significant build decisions and any divergence in L1 as you go: `bash talaka/memory/tools/session.sh decision "Diverged from tech-plan: <what> because <why>"` (Zlydni promotes L1 decisions to L2 at feature close).
+5. **Verify before returning — build, then focused tests, not full regression:** Run the **Build command** from `.tlk/PROJECT.md` — every build and every fix iteration, whatever layer you touched: a new page, manifest or i18n change can pass every unit test and still never have been through the real bundler. Then run **only the tests that cover what you changed**: the feature's own tests plus the tests for the files you touched. Use the **Focused test command** from `.tlk/PROJECT.md` if it is set; otherwise filter the test command yourself (`npm test -- <pattern>`, `pytest <path> -k <expr>`, `go test ./<pkg>/...`, `cargo test <module>`). Fix every build error and test failure you find. Do not return "done" while the build is broken or a focused test is red. The *Expected red* tests from the test gate belong to your focused set: the build is done when they pass.
 
    **Do not run the full regression suite.** It is Bagnik's gate, and running it on every build — and again on every fix-loop iteration — costs far more time than it saves. Two exceptions, where you run it yourself: the change is **cross-cutting** (shared config, build tooling, a dependency bump, a rename touching many modules) so "what you changed" has no meaningful test subset, or your invocation prompt explicitly asks for a full run.
 
    Name in your return which tests you ran and which you did not. Your "done" means *the focused set is green*, never *regression is green* — Bagnik is the only worker that can say the latter.
-6. **Refresh memory index:** Run `talaka/memory/tools/promote.sh` so Bagnik (and Mokash) read an up-to-date `.tlk/MEMORY.md` on their pass. Skip silently if the script is missing.
+6. **Refresh memory index:** Run `bash talaka/memory/tools/promote.sh` so Bagnik (and Mokash) read an up-to-date `.tlk/MEMORY.md` on their pass. Skip silently if the script is missing.
 7. **Record metrics:** Before returning, append a row to `metrics.jsonl` so Veles can ratchet from real numbers:
    ```bash
-   .tlk/autoresearch/tools/record-metrics.sh \
+   bash .tlk/autoresearch/tools/record-metrics.sh \
      --feature <feature-path> \
      --agent cmok
    ```
@@ -149,7 +149,7 @@ When your prompt says "long-running" or the scope suggests multi-hour work:
 If the kit itself gets in your way — a kit script is slow (measure it) or hangs, a tool cannot produce a real value so you would have to invent one, an artifact lands in the wrong place, two kit instructions disagree — record it and carry on with your task:
 
 ```bash
-talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
+bash talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
   --title "…" --what "what the kit did" --expected "what it should do" --evidence "measured numbers, exit code, stderr" --by <you>
 ```
 

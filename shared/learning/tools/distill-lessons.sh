@@ -227,7 +227,7 @@ Output only the fenced patch blocks (or NO_PATCHES). No preamble."
     writing==1 { print >> file }
   ' <<<"$raw"
 
-  echo "Wrote proposals to $PATCHES_DIR/. Review with: talaka/shared/learning/tools/apply-patches.sh"
+  echo "Wrote proposals to $PATCHES_DIR/. Review with: bash talaka/shared/learning/tools/apply-patches.sh"
 }
 
 PROJECT_ROOT="$(pwd)"

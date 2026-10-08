@@ -20,14 +20,14 @@ A map is **edges, not just nodes** — a file tree any tool can dump. The value 
 ## Bootstrap
 
 ```bash
-.claude/skills/codebase-mapping/new-map.sh <slug>
+bash .claude/skills/codebase-mapping/new-map.sh <slug>
 ```
 
 The slug should be short and area-shaped (`whole-repo`, `payments-service`, `auth-module`). Creates `.tlk/maps/YYYY-MM-DD-<slug>/` with `map.md`, `open-questions.md`, and `handoff-log.md`.
 
 ## Approach
 
-1. **Read `.tlk/MEMORY.md`** (L4) and search `talaka/memory/tools/search.sh "<area keywords>"`. The map may already partly exist — prior maps, decisions, or wiki pages. If `wiki/` exists (knowledge-curating), skim its index; don't re-derive settled knowledge.
+1. **Read `.tlk/MEMORY.md`** (L4) and search `bash talaka/memory/tools/search.sh "<area keywords>"`. The map may already partly exist — prior maps, decisions, or wiki pages. If `wiki/` exists (knowledge-curating), skim its index; don't re-derive settled knowledge.
 2. **Breadth-first tree.** Enumerate directories and files, excluding noise (`.git`, `node_modules`, vendored deps, build output, `.tlk`). Record the date and current commit sha in `map.md` — a map is a snapshot.
 3. **Find the entry points.** Locate every place execution actually begins: `main`s, CLI commands, servers, jobs, build/test scripts. These anchor everything else.
 4. **Draw component boundaries.** Collapse the file list into the 3–8 units the system is really made of. Name each one's responsibility and what it depends on — conceptual, not file-by-file.
@@ -55,14 +55,14 @@ A good map is:
 
 ## Memory
 
-Read L4 first (`.tlk/MEMORY.md`). When the map settles a durable structural fact that future work will rely on (the canonical entry point, where state lives, a load-bearing convention), log it: `talaka/memory/tools/log.sh --type decision "<the fact>"`. If the codebase has an active `wiki/`, a stable map is a strong candidate to ingest via `/knowledge-curating` so it compounds instead of being redrawn each session.
+Read L4 first (`.tlk/MEMORY.md`). When the map settles a durable structural fact that future work will rely on (the canonical entry point, where state lives, a load-bearing convention), log it: `bash talaka/memory/tools/log.sh --type decision "<the fact>"`. If the codebase has an active `wiki/`, a stable map is a strong candidate to ingest via `/knowledge-curating` so it compounds instead of being redrawn each session.
 
 ## Kit issues — report, don't paper over
 
 If the kit itself gets in your way — a kit script is slow (measure it) or hangs, a tool cannot produce a real value so you would have to invent one, an artifact lands in the wrong place, two kit instructions disagree — record it and carry on with your task:
 
 ```bash
-talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
+bash talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
   --title "…" --what "what the kit did" --expected "what it should do" --evidence "measured numbers, exit code, stderr" --by <you>
 ```
 

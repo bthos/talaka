@@ -59,7 +59,7 @@ EOF
 cat > "$FEATURE_DIR/deferred.md" <<EOF
 # Deferred Decisions — ${SLUG}
 
-<!-- Append entries using: talaka/shared/deferred/tools/defer.sh --feature <path> ... -->
+<!-- Append entries using: bash talaka/shared/deferred/tools/defer.sh --feature <path> ... -->
 EOF
 
 # Write handoff log header

@@ -51,7 +51,7 @@ done
 
 [ -n "$target" ] || { echo "--target required (path to installed agent/skill file)" >&2; exit 2; }
 [ -f "$target" ] || { echo "Target not found: $target" >&2; exit 2; }
-[ -f "$PROGRAM" ] || { echo "program.md missing at $PROGRAM — run: talaka/autoresearch/run.sh --init" >&2; exit 2; }
+[ -f "$PROGRAM" ] || { echo "program.md missing at $PROGRAM — run: bash talaka/autoresearch/run.sh --init" >&2; exit 2; }
 
 if ! command -v claude &>/dev/null; then
   echo "claude CLI required for mutation step" >&2

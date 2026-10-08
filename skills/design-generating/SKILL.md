@@ -45,8 +45,8 @@ File conventions (they keep the output portable to design tools that index by co
 On entry, note the start time and register yourself as the active agent (L1 hot state):
 
 ```bash
-.tlk/autoresearch/tools/record-metrics.sh --mark-start --agent design-generating 2>/dev/null || true
-talaka/memory/tools/session.sh agent design-generating
+bash .tlk/autoresearch/tools/record-metrics.sh --mark-start --agent design-generating 2>/dev/null || true
+bash talaka/memory/tools/session.sh agent design-generating
 ```
 
 Make a todo list from the steps below and work it.
@@ -156,7 +156,7 @@ When the design system is written:
 
 1. **Record metrics** (when working inside a feature folder; otherwise skip):
    ```bash
-   .tlk/autoresearch/tools/record-metrics.sh \
+   bash .tlk/autoresearch/tools/record-metrics.sh \
      --feature <feature-path> \
      --agent design-generating
    ```
@@ -189,18 +189,18 @@ If `.tlk/PROJECT_PROFILE.md` exists, read it first — it names the stack and UI
 ## Memory
 
 1. **Read** `.tlk/MEMORY.md` (L4) before exploring.
-2. **Search** `talaka/memory/tools/search.sh "<brand | design system | tokens>"` for prior extraction decisions.
+2. **Search** `bash talaka/memory/tools/search.sh "<brand | design system | tokens>"` for prior extraction decisions.
 3. Apply `high` patterns, treat `medium` as advisory, ignore `low`.
 
 ### Mandatory write checklist
 
-Log via `talaka/memory/tools/log.sh --type <t> [--confidence high] "…"` when any of these fire:
+Log via `bash talaka/memory/tools/log.sh --type <t> [--confidence high] "…"` when any of these fire:
 
 - [ ] **Source of truth** chosen when code and Figma disagree — `entity_type: decision`
 - [ ] **Substitution** made (font, icon set) pending real assets — `entity_type: decision`
 - [ ] **Brand rule** that isn't visible in tokens (copy tone, logo absence) — `entity_type: pattern`
 
-Record in-flight decisions as you make them: `talaka/memory/tools/session.sh decision "Chose X over Y because …"`.
+Record in-flight decisions as you make them: `bash talaka/memory/tools/session.sh decision "Chose X over Y because …"`.
 
 ## Guardrails
 
@@ -214,7 +214,7 @@ Record in-flight decisions as you make them: `talaka/memory/tools/session.sh dec
 If the kit itself gets in your way — a kit script is slow (measure it) or hangs, a tool cannot produce a real value so you would have to invent one, an artifact lands in the wrong place, two kit instructions disagree — record it and carry on with your task:
 
 ```bash
-talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
+bash talaka/shared/feedback/tools/kit-issue.sh add --kind <slow|hang|fabrication|wrong-location|error|docs-mismatch|other> \
   --title "…" --what "what the kit did" --expected "what it should do" --evidence "measured numbers, exit code, stderr" --by <you>
 ```
 

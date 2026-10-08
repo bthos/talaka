@@ -152,7 +152,7 @@ fi
 
 # Guard: program.md must exist (run --init first)
 if [ ! -f "$PROGRAM" ]; then
-  echo "autoresearch not initialised — run: talaka/autoresearch/run.sh --init" >&2
+  echo "autoresearch not initialised — run: bash talaka/autoresearch/run.sh --init" >&2
   exit 1
 fi
 
@@ -173,7 +173,7 @@ else
 fi
 
 if [ ${#candidates[@]} -eq 0 ]; then
-  echo "No installed agent/skill files found — run talaka/shared/lifecycle/tools/init.sh first." >&2
+  echo "No installed agent/skill files found — run bash talaka/shared/lifecycle/tools/init.sh first." >&2
   exit 1
 fi
 

@@ -50,4 +50,41 @@ test_red_run_logs_the_failure_and_exits_non_zero() {
   assert_not_contains "$log" "FAIL" "no uppercase FAIL — reserved for Bagnik's return entry"
 }
 
+# Issue #40: red-first tests (a bug-fix pass) are meant to fail before the build.
+_cov_red() { ( cd "$1" && bash "$SCRIPT" --expect-red .tlk/features/2026-09-22-f ); }
+
+test_expect_red_accepts_a_red_suite() {
+  local proj; proj=$(_proj "echo 2 failed; exit 1")
+  local out rc=0
+  out=$(_cov_red "$proj" 2>&1) || rc=$?
+  assert_eq "0" "$rc" "red suite under --expect-red is the expected result"
+  assert_contains "$out" "Expected red:" "tells the worker to list the red tests in its return"
+  local log; log=$(_log "$proj")
+  assert_contains "$log" "suite red as designed" "entry says the red is by design"
+  assert_not_contains "$log" "fix the failures" "Next: does not ask to fix the designed failures"
+}
+
+test_expect_red_rejects_a_green_suite() {
+  local proj; proj=$(_proj "echo 2 passed")
+  local rc=0
+  _cov_red "$proj" >/dev/null 2>&1 || rc=$?
+  assert_eq "1" "$rc" "tests that pass before the build do not catch the missing behaviour"
+  local log; log=$(_log "$proj")
+  assert_contains "$log" "meant to fail before the build" "entry names the problem"
+}
+
+test_expect_red_works_after_the_feature_path() {
+  local proj; proj=$(_proj "echo 1 failed; exit 1")
+  local rc=0
+  ( cd "$proj" && bash "$SCRIPT" .tlk/features/2026-09-22-f --expect-red ) >/dev/null 2>&1 || rc=$?
+  assert_eq "0" "$rc" "flag order does not matter"
+}
+
+test_unknown_option_is_rejected() {
+  local proj; proj=$(_proj "echo ok")
+  local rc=0
+  ( cd "$proj" && bash "$SCRIPT" --expect-green ) >/dev/null 2>&1 || rc=$?
+  assert_eq "2" "$rc" "a typo in the flag is not taken as a feature path"
+}
+
 run_tests "$@"
