@@ -10,6 +10,20 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Fixed — memory writes and `defer.sh` no longer take 10–25 s on Git Bash (#8)
+
+- **`log.sh --confidence high` curates to L3 inline** instead of running `promote.sh` (~30
+  processes) on every write. It writes exactly the entry `promote.sh` step 2a would, same id and
+  block, so a later run sees it is already there. `promote.sh` itself now runs at most once per
+  `TALAKA_MEMORY_PROMOTE_INTERVAL` whatever the confidence; only the L4 index (`MEMORY.md`) waits for
+  that run. A high-confidence write went from ~30 forks to ~9. A test fails if the inline entry
+  drifts from `promote.sh`'s.
+- **`lib.sh` resolves its paths without forking**, so every kit tool that sources it starts
+  faster: `cd` there and back in the sourcing shell instead of `$(cd … && pwd)`, `dirname` and
+  `basename`. The caller's cwd and `OLDPWD` are kept, and `CDPATH` is ignored.
+- **`defer.sh`** reads the last `DD-NNN` with a bash loop instead of `tr | sed | awk`, and takes the
+  date and slug from builtins. `defer.sh --help` went from 9 forks to 2, an append from 19 to 3.
+
 ### Fixed — kit scripts run through `bash`; red-first tests pass the gate (#39, #40, #41)
 
 - **Every command a prompt runs now starts with `bash`** (#39, #41). Agents, skills and templates

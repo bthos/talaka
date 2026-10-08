@@ -7,7 +7,10 @@
 # shellcheck shell=bash
 
 set -euo pipefail
-source "$(cd "$(dirname "$0")/../../lifecycle/tools" && pwd)/lib.sh"
+# ${0%/*}, not $(cd "$(dirname "$0")" && pwd): every fork counts on Git Bash
+# (issue #8). lib.sh normalises the path itself.
+case "$0" in */*) _self_dir="${0%/*}" ;; *) _self_dir="." ;; esac
+source "$_self_dir/../../lifecycle/tools/lib.sh"
 
 usage() {
   cat >&2 <<EOF
@@ -47,8 +50,12 @@ done
 [ -d "$FEATURE" ] || { err "Feature folder not found: $FEATURE"; exit 1; }
 
 DEFERRED_FILE="$FEATURE/deferred.md"
-DATE=$(date +%Y-%m-%d)
-SLUG=$(basename "$FEATURE" | sed 's/^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}-//')
+# Builtins only — no date/basename/sed forks (issue #8).
+printf -v DATE '%(%Y-%m-%d)T' -1
+SLUG="$FEATURE"
+while [[ $SLUG == */ && $SLUG != / ]]; do SLUG="${SLUG%/}"; done
+SLUG="${SLUG##*/}"
+[[ $SLUG =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}-(.*)$ ]] && SLUG="${BASH_REMATCH[1]}"
 
 if [ ! -f "$DEFERRED_FILE" ]; then
   cat > "$DEFERRED_FILE" <<EOF
@@ -62,11 +69,17 @@ fi
 # "## DD-013 (cross-reference): …"), plus one. Two traps (issue #28):
 #   - "013" in $(( )) is octal (= 11), so the next id collided with an
 #     existing one — and 008/009 were an arithmetic error. Force base 10.
-#   - grep -P is GNU-only; sed runs everywhere.
-LAST_ID=$(tr -d '\r' < "$DEFERRED_FILE" \
-  | sed -n 's/^##[[:space:]]*DD-\([0-9][0-9]*\).*/\1/p' \
-  | awk '{ n = $0 + 0; if (n > max) max = n } END { print max + 0 }')
-NEXT_ID=$(printf "%03d" $(( 10#${LAST_ID:-0} + 1 )))
+#   - grep -P is GNU-only.
+# Read in bash rather than tr|sed|awk: four forks per call on Git Bash (#8).
+LAST_ID=0
+while IFS= read -r _line || [ -n "$_line" ]; do
+  _line="${_line%$'\r'}"
+  if [[ $_line =~ ^##[[:space:]]*DD-([0-9]+) ]]; then
+    _n=$(( 10#${BASH_REMATCH[1]} ))
+    (( _n > LAST_ID )) && LAST_ID=$_n
+  fi
+done < "$DEFERRED_FILE"
+printf -v NEXT_ID '%03d' $(( LAST_ID + 1 ))
 
 cat >> "$DEFERRED_FILE" <<EOF
 

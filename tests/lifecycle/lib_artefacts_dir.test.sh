@@ -56,4 +56,45 @@ test_absolute_windows_drive_backslash_artefacts_dir_used_as_is() {
   assert_eq 'D:\Repo\telegramito\.tlk/.talaka.files' "$mf" "windows backslash drive path used as-is"
 }
 
+# --- path resolution without forks (issue #8) ------------------------------
+# lib.sh resolves its own paths with `cd` in the sourcing shell and back, not
+# `$(cd … && pwd)`. That must leave the caller exactly where it was.
+
+test_paths_resolve_from_a_relative_unnormalised_source_path() {
+  local proj; proj=$(make_tmp_project)
+  install_kit_into "$proj"
+  local out
+  out=$(cd "$proj/talaka/shared/deferred" && bash -c '
+    source "./../lifecycle/tools/../tools/lib.sh"
+    printf "%s|%s|%s|%s" "$_LIB_SELFDIR" "$SCRIPT_DIR" "$PROJECT_ROOT" "$SUBMODULE_DIR"
+  ')
+  local want; want=$(cd "$proj" && pwd)
+  assert_eq "$want/talaka/shared/lifecycle/tools|$want/talaka|$want|talaka" "$out" \
+    "paths normalised as \`pwd\` prints them"
+}
+
+test_sourcing_keeps_cwd_and_oldpwd() {
+  local proj; proj=$(make_tmp_project)
+  install_kit_into "$proj"
+  mkdir -p "$proj/a" "$proj/b"
+  local out
+  out=$(cd "$proj/a" && cd "$proj/b" && bash -c '
+    before="$PWD|$OLDPWD"
+    source "'"$proj"'/talaka/shared/lifecycle/tools/lib.sh"
+    [ "$PWD|$OLDPWD" = "$before" ] && echo same || echo "moved: $PWD|$OLDPWD vs $before"
+  ')
+  assert_eq "same" "$out" "cwd and OLDPWD untouched"
+}
+
+test_sourcing_ignores_cdpath() {
+  local proj; proj=$(make_tmp_project)
+  install_kit_into "$proj"
+  local out
+  out=$(cd "$proj" && CDPATH="$proj/talaka" bash -c '
+    source "talaka/shared/lifecycle/tools/lib.sh"
+    printf "%s" "$SUBMODULE_DIR"
+  ')
+  assert_eq "talaka" "$out" "CDPATH neither prints nor redirects"
+}
+
 run_tests "$@"
