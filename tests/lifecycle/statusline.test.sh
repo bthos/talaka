@@ -79,4 +79,51 @@ test_statusline_without_jq_prints_a_hint() {
   assert_contains "$out" "jqlang.github.io" "and where to get it"
 }
 
+
+# _feature_bar PROJ — render the bar for PROJ with ANSI stripped
+_feature_bar() {
+  printf '{"workspace":{"project_dir":"%s"}}' "$1" \
+    | bash "$KIT_ROOT/statusline/tools/statusline.sh" 2>/dev/null \
+    | sed "s/$(printf '\033')\\[[0-9;]*m//g"
+}
+
+# _two_features PROJ — an older and a newer feature folder; the newer is what
+# the newest-folder fallback would pick.
+_two_features() {
+  mkdir -p "$1/.tlk/features/2026-10-05-f22-old" "$1/.tlk/features/2026-10-07-f25-newer"
+}
+
+test_statusline_resolves_active_feature_slug() {
+  # Issue #44: session.sh feature records a slug, which the bar tested with
+  # [ -d ] and so always fell back to the newest folder.
+  have_jq || { skip_test "jq absent"; return; }
+  local proj; proj=$(make_tmp_project)
+  _two_features "$proj"
+  ( cd "$proj" && bash "$KIT_ROOT/memory/tools/session.sh" feature f22-old >/dev/null )
+  local out; out=$(_feature_bar "$proj")
+  assert_contains "$out" "f22-old" "bar shows the active feature"
+  assert_not_contains "$out" "f25-newer" "not the newest folder"
+}
+
+test_statusline_resolves_active_feature_folder_name() {
+  have_jq || { skip_test "jq absent"; return; }
+  local proj; proj=$(make_tmp_project)
+  _two_features "$proj"
+  ( cd "$proj" && bash "$KIT_ROOT/memory/tools/session.sh" feature 2026-10-05-f22-old >/dev/null )
+  assert_contains "$(_feature_bar "$proj")" "f22-old" "exact folder name resolves"
+}
+
+test_statusline_falls_back_to_newest_feature() {
+  # Placeholder or an unknown slug: the newest folder, as before.
+  have_jq || { skip_test "jq absent"; return; }
+  local proj; proj=$(make_tmp_project)
+  _two_features "$proj"
+  ( cd "$proj" && bash "$KIT_ROOT/memory/tools/session.sh" show >/dev/null 2>&1 || true )
+  local out; out=$(_feature_bar "$proj")
+  assert_contains "$out" "f25-newer" "placeholder falls back to newest"
+  assert_not_contains "$out" "(none" "placeholders are not rendered as names"
+  ( cd "$proj" && bash "$KIT_ROOT/memory/tools/session.sh" feature no-such >/dev/null )
+  assert_contains "$(_feature_bar "$proj")" "f25-newer" "unknown slug falls back to newest"
+}
+
 run_tests "$@"

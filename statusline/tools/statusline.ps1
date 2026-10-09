@@ -56,21 +56,33 @@ if (Test-Path $tlkDir) {
         $content = Get-Content $sessionState -Raw
         if ($content -match '(?m)^## Active agent\s*\r?\n(.+)') {
             $sa = $Matches[1].Trim()
-            if ($sa -and $sa -notmatch '^\(none') {
+            if ($sa -and $sa -notmatch '^_?\(none') {
                 if (-not $activeAgent) { $activeAgent = $sa }
             }
         }
         if ($content -match '(?m)^## Active feature\s*\r?\n(.+)') {
             $af = $Matches[1].Trim()
-            if ($af -and $af -notmatch '^\(none') { $activeFeature = $af }
+            if ($af -and $af -notmatch '^_?\(none') { $activeFeature = $af }
         }
     }
 
     # Find active feature folder
-    if ($activeFeature -and (Test-Path $activeFeature)) {
-        $featPath = $activeFeature
-    } else {
-        $featuresDir = Join-Path $tlkDir "features"
+    # session.sh feature records a slug (f22-old), not a path: resolve it to its
+    # folder (a path, an exact folder name, or the newest folder ending -<slug>)
+    # before falling back to the newest feature folder.
+    $featuresDir = Join-Path $tlkDir "features"
+    if ($activeFeature) {
+        foreach ($cand in @($activeFeature, (Join-Path $projectDir $activeFeature), (Join-Path $featuresDir $activeFeature))) {
+            if (Test-Path $cand -PathType Container) { $featPath = $cand; break }
+        }
+        if (-not $featPath -and (Test-Path $featuresDir)) {
+            $match = Get-ChildItem $featuresDir -Directory |
+                Where-Object { $_.Name.EndsWith("-$activeFeature") } |
+                Sort-Object Name -Descending | Select-Object -First 1
+            if ($match) { $featPath = $match.FullName }
+        }
+    }
+    if (-not $featPath) {
         if (Test-Path $featuresDir) {
             $latest = Get-ChildItem $featuresDir -Directory |
                 Sort-Object Name -Descending | Select-Object -First 1

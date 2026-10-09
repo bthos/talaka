@@ -66,20 +66,29 @@ if [ -d "$AKT" ]; then
 
   if [ -f "$SESSION_STATE" ]; then
     sa=$(sed -n '/^## Active agent/{n;p;}' "$SESSION_STATE" 2>/dev/null || true)
-    if [ -n "$sa" ] && [[ ! "$sa" =~ ^\(none ]]; then
+    if [ -n "$sa" ] && [[ ! "$sa" =~ ^_?\(none ]]; then
       [ -z "$ACTIVE_AGENT" ] && ACTIVE_AGENT="$sa"
     fi
     af=$(sed -n '/^## Active feature/{n;p;}' "$SESSION_STATE" 2>/dev/null || true)
-    if [ -n "$af" ] && [[ ! "$af" =~ ^\(none ]]; then
+    if [ -n "$af" ] && [[ ! "$af" =~ ^_?\(none ]]; then
       ACTIVE_FEATURE="$af"
     fi
   fi
 
   # Find active feature folder
+  # session.sh feature records a slug (f22-old), not a path: resolve it to its
+  # folder (a path, an exact folder name, or the newest folder ending -<slug>)
+  # before falling back to the newest feature folder.
   FEAT_PATH=""
-  if [ -n "${ACTIVE_FEATURE:-}" ] && [ -d "$ACTIVE_FEATURE" ]; then
-    FEAT_PATH="$ACTIVE_FEATURE"
-  elif [ -d "$AKT/features" ]; then
+  if [ -n "${ACTIVE_FEATURE:-}" ]; then
+    for cand in "$ACTIVE_FEATURE" "$PROJECT_DIR/$ACTIVE_FEATURE" "$AKT/features/$ACTIVE_FEATURE"; do
+      if [ -d "$cand" ]; then FEAT_PATH="$cand"; break; fi
+    done
+    if [ -z "$FEAT_PATH" ] && [ -d "$AKT/features" ]; then
+      FEAT_PATH=$(ls -1d "$AKT/features/"*-"$ACTIVE_FEATURE"/ 2>/dev/null | sort -r | head -1 || true)
+    fi
+  fi
+  if [ -z "$FEAT_PATH" ] && [ -d "$AKT/features" ]; then
     FEAT_PATH=$(ls -1d "$AKT/features/"*/ 2>/dev/null | sort -r | head -1 || true)
   fi
 
