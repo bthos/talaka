@@ -23,16 +23,25 @@
 #   talaka/memory/tools/promote.sh                    # run steps 1..4
 #   talaka/memory/tools/promote.sh --propose-hardening
 #   talaka/memory/tools/promote.sh --dry-run          # show what would happen
+#   talaka/memory/tools/promote.sh --single-shot FILE # step 2a for one daily file
+#
+# --single-shot FILE curates the high-confidence entries of one daily L2 file to
+# L3 (step 2a) and does nothing else: no pending-id hashing, no 2-strike pass, no
+# supersedes, no L4 index and no run stamp. log.sh calls it after a
+# --confidence high write, so the single-shot contract (L3 right now) costs a
+# handful of processes instead of a full run, through the same code that writes
+# every other L3 entry. The next full run picks up the rest.
 #
 # Run from project root.
 #
 # ---------------------------------------------------------------------------
 # PERFORMANCE CONTRACT — read before editing.
 #
-# log.sh calls this after every memory write and tick.sh calls it from the Stop
-# hook, so its cost is paid constantly. The cost is dominated by *process
-# count*, not data: on Windows/Git-Bash an MSYS fork costs ~1s (fork emulation
-# plus per-exec antivirus scanning), and only ~12% of that is real work. A tree
+# log.sh calls this (or its --single-shot step) after memory writes and tick.sh
+# calls it from the Stop hook, so its cost is paid constantly. The cost is
+# dominated by *process count*, not data: on Windows/Git-Bash an MSYS fork costs
+# ~1s (fork emulation plus per-exec antivirus scanning), and only ~12% of that
+# is real work. A tree
 # with 44 daily files used to cost 150–250 spawns — minutes per run — because
 # every step walked the tree with one subprocess per file, and per-entry helpers
 # were called through `$(...)`, which forks a subshell each time.
@@ -57,12 +66,16 @@ PATCHES_DIR="$ARTEFACTS/proposed-patches"
 
 DRY_RUN=false
 PROPOSE_HARDENING=false
-for _arg in "$@"; do
-  case "$_arg" in
+SINGLE_SHOT_FILE=""
+while [ $# -gt 0 ]; do
+  case "$1" in
     --dry-run)            DRY_RUN=true ;;
     --propose-hardening)  PROPOSE_HARDENING=true ;;
-    -h|--help) sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --single-shot=*)      SINGLE_SHOT_FILE="${1#--single-shot=}" ;;
+    --single-shot)        SINGLE_SHOT_FILE="${2:-}"; shift ;;
+    -h|--help) sed -n '2,35p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
   esac
+  shift
 done
 
 if [ ! -d "$MEM_DIR" ]; then
@@ -192,11 +205,14 @@ l3_has_key() {
 }
 
 # append_l3 TARGET ETYPE TEXT IDKEY CONFIDENCE SOURCE — append a curated L3 entry.
-# TEXT is stored verbatim; IDKEY (the normalised key) is used for the stable id.
+# TEXT is stored verbatim; IDKEY (the normalised key) is used for the stable id,
+# left in $L3_LAST_ID.
+L3_LAST_ID=""
 append_l3() {
   local target="$1" etype="$2" text="$3" idkey="$4" conf="$5" source="$6"
-  local shared_id
+  local shared_id folded line
   shared_id="mem_$(sha8 "$idkey")"
+  folded=$(fold -s -w 100 <<< "$text")   # indented below by a loop, not `| sed`
   {
     echo ""
     echo "- id: $shared_id"
@@ -206,10 +222,11 @@ append_l3() {
     echo "  confidence: $conf"
     echo "  source: $source"
     echo "  text: |"
-    printf '%s\n' "$text" | fold -s -w 100 | sed 's/^/    /'
+    while IFS= read -r line; do printf '    %s\n' "$line"; done <<< "$folded"
   } >> "$target"
   L3_KEYS_LOADED[$target]=1
   L3_KEYS["$target|$idkey"]=1
+  L3_LAST_ID="$shared_id"
 }
 
 # ---------------------------------------------------------------------------
@@ -218,13 +235,20 @@ append_l3() {
 # One `grep -l` finds every file that needs work and one `python3` rewrites them
 # all. This used to be a grep probe plus a python3 process per file.
 # ---------------------------------------------------------------------------
+# --single-shot: one daily file, step 2a only (see the header).
+if [ -n "$SINGLE_SHOT_FILE" ]; then
+  [ -f "$SINGLE_SHOT_FILE" ] || { echo "promote.sh: --single-shot: no such file: $SINGLE_SHOT_FILE" >&2; exit 2; }
+fi
+
 ALL_MEM_FILES=()
-shopt -s nullglob
-for f in "$MEM_DIR"/preferences.md "$MEM_DIR"/system.md "$MEM_DIR"/projects.md \
-         "$MEM_DIR"/decisions.md "$MEM_DIR"/[0-9]*.md; do
-  [ -f "$f" ] && ALL_MEM_FILES+=( "$f" )
-done
-shopt -u nullglob
+if [ -z "$SINGLE_SHOT_FILE" ]; then   # --single-shot leaves ids for the next full run
+  shopt -s nullglob
+  for f in "$MEM_DIR"/preferences.md "$MEM_DIR"/system.md "$MEM_DIR"/projects.md \
+           "$MEM_DIR"/decisions.md "$MEM_DIR"/[0-9]*.md; do
+    [ -f "$f" ] && ALL_MEM_FILES+=( "$f" )
+  done
+  shopt -u nullglob
+fi
 
 PENDING_FILES=()
 if [ "${#ALL_MEM_FILES[@]}" -gt 0 ]; then
@@ -273,11 +297,15 @@ SINGLE=0
 # the tree independently — one awk spawn per file each, for identical data.
 # ---------------------------------------------------------------------------
 DAILY_FILES=()
-shopt -s nullglob
-for daily in "$MEM_DIR"/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].md; do
-  DAILY_FILES+=( "$daily" )
-done
-shopt -u nullglob
+if [ -n "$SINGLE_SHOT_FILE" ]; then
+  DAILY_FILES=( "$SINGLE_SHOT_FILE" )
+else
+  shopt -s nullglob
+  for daily in "$MEM_DIR"/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].md; do
+    DAILY_FILES+=( "$daily" )
+  done
+  shopt -u nullglob
+fi
 
 DAILY_TSV=""
 if [ "${#DAILY_FILES[@]}" -gt 0 ]; then
@@ -304,7 +332,14 @@ if [ -n "$DAILY_TSV" ]; then
     # Store the original payload verbatim; dedupe/id on the normalised key.
     append_l3 "$target" "$etype" "$payload" "$key" "high" "$f:$s-$e (single-shot, high-confidence)"
     SINGLE=$((SINGLE+1))
+    if [ -n "$SINGLE_SHOT_FILE" ]; then echo "Curated to L3 ($L3_LAST_ID) → $target"; fi
   done <<< "$DAILY_TSV"
+fi
+
+# --single-shot stops here: no 2-strike, supersedes, L4 index or run stamp.
+if [ -n "$SINGLE_SHOT_FILE" ]; then
+  [ "$SINGLE" -gt 0 ] || $DRY_RUN || echo "Nothing new to curate (already in L3) — $SINGLE_SHOT_FILE"
+  exit 0
 fi
 
 # ---------------------------------------------------------------------------

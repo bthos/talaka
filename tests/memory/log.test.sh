@@ -20,7 +20,7 @@ test_appends_entry_to_today_daily() {
 test_high_confidence_auto_promotes_to_l3() {
   local art; art=$(_art)
   _log "$art" --type decision --confidence high "Adopt OAuth device flow." >/dev/null 2>&1
-  # log.sh runs promote.sh → single-shot lands it in decisions.md (L3).
+  # First write, no promote stamp yet → promote.sh runs: L3 and the L4 index.
   assert_file_contains "$art/memory/decisions.md" "Adopt OAuth device flow." "high-confidence reached L3"
   assert_file_contains "$art/memory/decisions.md" "confidence: high"
   # And L4 index reflects it.
@@ -71,9 +71,10 @@ test_dry_run_writes_nothing() {
 }
 
 # --- promote throttling (issue #8) ----------------------------------------
-# promote.sh is ~40 processes — ~10s per write on Git Bash. log.sh runs it for
-# high confidence (single-shot contract) and otherwise at most once per
-# $TALAKA_MEMORY_PROMOTE_INTERVAL seconds, tracked by promote.sh's own stamp.
+# promote.sh is ~40 processes — 10–25s per write on Git Bash. log.sh runs it at
+# most once per $TALAKA_MEMORY_PROMOTE_INTERVAL seconds, tracked by promote.sh's
+# own stamp, whatever the confidence; a high entry still reaches L3 at once,
+# through `promote.sh --single-shot` (step 2a for today's file only).
 
 _stamp() { printf '%s/memory/.last-promote' "$1"; }
 
@@ -132,6 +133,48 @@ test_interval_zero_promotes_every_write() {
   echo 12345 > "$art/MEMORY.md"
   TALAKA_MEMORY_PROMOTE_INTERVAL=0 _log "$art" --type pattern "Old behaviour." >/dev/null 2>&1
   assert_file_not_contains "$art/MEMORY.md" "12345" "TALAKA_MEMORY_PROMOTE_INTERVAL=0 restores promote-on-every-write"
+}
+
+test_high_write_after_a_recent_promote_skips_promote_sh() {
+  local art; art=$(_art)
+  _log "$art" --type pattern --promote "Seed the tree." >/dev/null 2>&1
+  echo 12345 > "$art/MEMORY.md"          # sentinel: a promote run would overwrite it
+  local out; out=$(_log "$art" --type decision --confidence high "Fast decision." 2>&1)
+  assert_contains "$out" "Curated to L3" "high entry curated by promote.sh --single-shot"
+  assert_eq "12345" "$(cat "$art/MEMORY.md")" "promote.sh did not run (L4 waits for the next run)"
+  assert_file_contains "$art/memory/decisions.md" "Fast decision."
+}
+
+# The fast path (--single-shot) must write exactly what a full promote.sh run
+# would — same id, same block — or a later run curates the same fact twice.
+test_fast_curation_matches_a_full_promote_run() {
+  local fast ref text
+  text=$'Adopt OAuth device flow because the browser redirect fails over SSH sessions, and the team agreed on it.\n\n  Кірыліца too.'
+  fast=$(_art); ref=$(_art)
+  _log "$fast" --type pattern --promote "Seed the tree." >/dev/null 2>&1
+  _log "$fast" --type decision --confidence high "$text" >/dev/null 2>&1
+  _log "$ref" --type pattern --promote "Seed the tree." >/dev/null 2>&1
+  _log "$ref" --type decision --confidence high --no-promote "$text" >/dev/null 2>&1
+  ARTEFACTS_DIR="$ref" bash "$KIT_ROOT/memory/tools/promote.sh" >/dev/null 2>&1
+  local a b
+  a=$(cat "$fast/memory/decisions.md"); b=$(cat "$ref/memory/decisions.md")
+  assert_eq "${b//$ref/ART}" "${a//$fast/ART}" "fast-path L3 entry identical to a full run's"
+}
+
+test_promote_after_fast_curation_does_not_duplicate() {
+  local art; art=$(_art)
+  _log "$art" --type pattern --promote "Seed the tree." >/dev/null 2>&1
+  _log "$art" --type decision --confidence high "Only once." >/dev/null 2>&1
+  _log "$art" --type decision --confidence high "Only once." >/dev/null 2>&1
+  ARTEFACTS_DIR="$art" bash "$KIT_ROOT/memory/tools/promote.sh" >/dev/null 2>&1
+  assert_eq "1" "$(grep -c '^- id:' "$art/memory/decisions.md")" "one L3 entry for one fact"
+}
+
+test_no_promote_skips_fast_curation_too() {
+  local art; art=$(_art)
+  _log "$art" --type pattern --promote "Seed the tree." >/dev/null 2>&1
+  _log "$art" --type decision --confidence high --no-promote "Not yet." >/dev/null 2>&1
+  assert_file_absent "$art/memory/decisions.md" "--no-promote writes no L3"
 }
 
 run_tests "$@"

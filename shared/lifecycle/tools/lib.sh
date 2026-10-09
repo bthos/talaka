@@ -83,11 +83,31 @@ PROJECT_PATCH_END='<!-- project-patch:end -->'
 
 ARTEFACTS_NAME="${ARTEFACTS_DIR:-.tlk}"
 
-_LIB_SELFDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Every kit tool sources this file, so its own startup cost is paid on every
+# call: on Git Bash a fork can cost up to a second (issue #8). Resolve paths with
+# builtins — `cd` in this shell and back, parameter expansion — not `$(cd … &&
+# pwd)`, `dirname` or `basename`, which fork.
+#
+# _kit_abs_dir DIR → sets $_KIT_ABS to what `cd DIR && pwd` would print (empty,
+# and returns 1, if DIR is not reachable). The caller's cwd and OLDPWD are kept.
+_kit_abs_dir() {
+  local here="$PWD" oldpwd="${OLDPWD:-}"
+  _KIT_ABS=""
+  CDPATH='' builtin cd -- "$1" 2>/dev/null || return 1
+  _KIT_ABS="$PWD"
+  builtin cd -- "$here" 2>/dev/null || true
+  OLDPWD="$oldpwd"
+}
+
+case "${BASH_SOURCE[0]}" in
+  */*) _kit_abs_dir "${BASH_SOURCE[0]%/*}" ;;
+  *)   _kit_abs_dir . ;;
+esac
+_LIB_SELFDIR="$_KIT_ABS"
 # lib.sh lives at <kit>/shared/lifecycle/tools/lib.sh — kit root is three levels up.
-SCRIPT_DIR="$(cd "$_LIB_SELFDIR/../../.." && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-SUBMODULE_DIR=$(basename "$SCRIPT_DIR")
+_kit_abs_dir "$_LIB_SELFDIR/../../.."; SCRIPT_DIR="$_KIT_ABS"
+_kit_abs_dir "$SCRIPT_DIR/..";         PROJECT_ROOT="$_KIT_ABS"
+SUBMODULE_DIR="${SCRIPT_DIR##*/}"
 
 # ARTEFACTS_DIR is normally a bare relative name (default ".tlk") that we resolve
 # against the project root. But several callers export it already resolved to an

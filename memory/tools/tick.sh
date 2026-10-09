@@ -3,10 +3,10 @@
 # pass in one call. Intended for an idle/Stop hook or a daily cron so L3/L4 stay
 # fresh and stale L1/L2 gets compacted without anyone remembering to run them.
 #
-# Note: log.sh runs promote.sh on every high-confidence write but throttles it
-# for medium/low ones (TALAKA_MEMORY_PROMOTE_INTERVAL), so tick.sh also catches those
-# up; its other job is the time-based rollover (24h SESSION clear, 7-day L2
-# compaction).
+# Note: log.sh runs promote.sh at most once per TALAKA_MEMORY_PROMOTE_INTERVAL
+# (a high-confidence entry still reaches L3 at once, via promote.sh --single-shot),
+# so tick.sh also catches up 2-strike promotions and the L4 index; its other job
+# is the time-based rollover (24h SESSION clear, 7-day L2 compaction).
 #
 # Usage:
 #   memory/tools/tick.sh            # promote + rollover

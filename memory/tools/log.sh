@@ -7,15 +7,19 @@
 # `--confidence high` entry is promoted to L3 immediately (single-shot
 # curation); medium/low entries wait for the 2-strike rule.
 #
-# WHEN promote.sh RUNS. It is the expensive part — ~40 processes, which is ~10s
-# on Git Bash where every fork costs a fraction of a second (issue #8) — so it
-# runs only when it can matter:
-#   - always for --confidence high (the single-shot contract: L3 right now);
-#   - for medium/low, only if promote.sh has not run in the last
-#     $TALAKA_MEMORY_PROMOTE_INTERVAL seconds (default 900). Such an entry can only be
-#     promoted by the 2-strike rule, so a later run loses nothing; tick.sh, the
-#     Stop hook and workers' own promote.sh calls pick it up.
-#   - --promote forces a run; --no-promote skips it.
+# WHEN promote.sh RUNS. It is the expensive part — ~40 processes, which is
+# 10–25s on Git Bash where every fork can cost up to a second (issue #8) — so
+# it runs at most once per $TALAKA_MEMORY_PROMOTE_INTERVAL seconds (default
+# 900), whatever the confidence:
+#   - a --confidence high entry is curated to L3 right away (the single-shot
+#     contract) by `promote.sh --single-shot <today's file>`: step 2a for that one
+#     file and nothing else, a handful of processes instead of a full run. Only
+#     the L4 index (MEMORY.md) waits for the next full promote.sh run.
+#   - a medium/low entry can only be promoted by the 2-strike rule, so a later
+#     run loses nothing; tick.sh, the Stop hook and workers' own promote.sh
+#     calls pick it up.
+#   - --promote forces a run; --no-promote skips promotion entirely (no L3
+#     write either).
 #
 #   observed → logged (L2, here) → curated (L3, via promote.sh) → …
 #
@@ -29,7 +33,7 @@
 #   --type TYPE         entity_type — one of:
 #                       person project file tool library pattern anti-pattern decision
 #   --confidence C      high | medium | low   (default: medium)
-#                       high → promoted straight to L3 by promote.sh
+#                       high → curated straight to L3
 #   --entities "a,b"    comma-separated related entities (default: none)
 #   --source S          provenance note (default: "log.sh")
 #   --promote           run promote.sh even if it ran recently
@@ -65,7 +69,7 @@ while [ $# -gt 0 ]; do
     --no-promote)  NO_PROMOTE=true; shift ;;
     --promote)     FORCE_PROMOTE=true; shift ;;
     --dry-run)     DRY_RUN=true; shift ;;
-    -h|--help)     sed -n '2,41p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help)     sed -n '2,45p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     --)            shift; break ;;
     -*)            echo "Unknown option: $1" >&2; exit 2 ;;
     *)             TEXT="${TEXT:+$TEXT }$1"; shift ;;
@@ -109,7 +113,10 @@ printf -v TODAY '%(%Y-%m-%d)T' -1
 printf -v NOW '%(%s)T' -1
 DAILY="$MEM_DIR/$TODAY.md"
 
+FOLDED=$(fold -s -w 100 <<< "$TEXT")   # here-string, not printf |: one fork fewer
+
 render_entry() {
+  local line
   printf -- '\n- id: pending\n'
   printf -- '  decided: %s\n' "$TODAY"
   printf -- '  entity_type: %s\n' "$TYPE"
@@ -118,7 +125,7 @@ render_entry() {
   printf -- '  confidence: %s\n' "$CONFIDENCE"
   printf -- '  source: %s\n' "$SOURCE"
   printf -- '  text: |\n'
-  printf '%s\n' "$TEXT" | fold -s -w 100 | sed 's/^/    /'
+  while IFS= read -r line; do printf '    %s\n' "$line"; done <<< "$FOLDED"
 }
 
 if $DRY_RUN; then
@@ -142,7 +149,7 @@ case "$INTERVAL" in ''|*[!0-9]*) INTERVAL=900 ;; esac
 run_promote=false
 if $NO_PROMOTE; then
   run_promote=false
-elif $FORCE_PROMOTE || [ "$CONFIDENCE" = "high" ]; then
+elif $FORCE_PROMOTE; then
   run_promote=true
 else
   last=0
@@ -155,5 +162,9 @@ if $run_promote && [ -x "$SELF_DIR/promote.sh" ]; then
   ARTEFACTS_DIR="$ARTEFACTS" "$SELF_DIR/promote.sh" >/dev/null 2>&1 || true
   echo "Promotion run complete (L3/L4 refreshed)."
 elif ! $NO_PROMOTE; then
-  echo "Promotion deferred (ran <${INTERVAL}s ago; a $CONFIDENCE entry only promotes on a 2nd sighting). Force with --promote."
+  # Single-shot contract: a high entry reaches L3 now; promote.sh writes it.
+  if [ "$CONFIDENCE" = "high" ] && [ -x "$SELF_DIR/promote.sh" ]; then
+    ARTEFACTS_DIR="$ARTEFACTS" bash "$SELF_DIR/promote.sh" --single-shot "$DAILY" || true
+  fi
+  echo "Promotion deferred (ran <${INTERVAL}s ago; the L4 index refreshes on the next run). Force with --promote."
 fi
