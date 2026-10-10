@@ -7,7 +7,7 @@
 # into archive/features/. A name already taken there is left in place with a
 # warning — two copies of one feature are for a person to merge, not a script.
 #
-# Sourced by kit_run_migrations (lib.sh) in a subshell with `set -e`.
+# Run by kit_run_migrations (lib.sh) in its own bash process with `set -e`.
 
 archive="$ARTEFACTS/archive"
 moved=0

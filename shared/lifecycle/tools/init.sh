@@ -44,7 +44,6 @@ source "$_TOOLS_DIR/lib.sh"
 # shellcheck source=install-helpers.sh
 source "$_TOOLS_DIR/install-helpers.sh"
 
-kit_migrate_legacy_root_state
 kit_run_migrations || true   # a failure is reported; install carries on
 
 # Canonical project-local locations (after migration from .artefacts/)

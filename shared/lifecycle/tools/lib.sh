@@ -135,24 +135,10 @@ KIT_FILES_MANIFEST="$ARTEFACTS/.${KIT_SLUG}.files"
 KIT_BASE_DIR="$ARTEFACTS/.base"
 KIT_CONFLICTS_DIR="$ARTEFACTS/.conflicts"
 
-# One-time migration from older layouts (manifest + cfg at project root).
-kit_migrate_legacy_root_state() {
-  mkdir -p "$ARTEFACTS"
-  local lc="$PROJECT_ROOT/.talaka.cfg"
-  local lm="$PROJECT_ROOT/.talaka.files"
-  if [ -f "$lc" ] && [ ! -f "$KIT_CFG" ]; then
-    mv "$lc" "$KIT_CFG"
-    info "migrated .talaka.cfg → $ARTEFACTS_NAME/.talaka.cfg"
-  fi
-  if [ -f "$lm" ] && [ ! -f "$KIT_FILES_MANIFEST" ]; then
-    mv "$lm" "$KIT_FILES_MANIFEST"
-    info "migrated .talaka.files → $ARTEFACTS_NAME/.talaka.files"
-  fi
-}
-
 # ---------------------------------------------------------------------------
 # Migrations: one-time changes to a project's $ARTEFACTS_NAME/ layout that ship
-# with a kit version. init.sh (and so update.sh) runs them in name order:
+# with a kit version. init.sh, update.sh and teardown.sh (except --dry-run) each
+# run them first thing, before reading any kit state, in name order:
 #
 #   shared/lifecycle/migrations/NNN-<slug>.sh
 #
@@ -165,7 +151,7 @@ kit_migrate_legacy_root_state() {
 # had the old layout.
 # Applied ids are appended to $ARTEFACTS_NAME/.migrations ("id<TAB>date") and
 # never run again. A migration that fails is not recorded and stops the run,
-# so a later one never sees a half-migrated tree; the next init.sh retries it.
+# so a later one never sees a half-migrated tree; the next run retries it.
 # ---------------------------------------------------------------------------
 KIT_MIGRATIONS_DIR="${KIT_MIGRATIONS_DIR:-$SCRIPT_DIR/shared/lifecycle/migrations}"
 KIT_MIGRATIONS_LEDGER="$ARTEFACTS/.migrations"
@@ -189,7 +175,7 @@ kit_run_migrations() {
     if "$BASH" -c 'set -e; . "$1"; . "$2"' migration "$_LIB_SELFDIR/lib.sh" "$f"; then
       printf '%s\t%s\n' "$id" "$today" >> "$KIT_MIGRATIONS_LEDGER"
     else
-      warn "migration $id failed — later migrations not run; the next init.sh retries it"
+      warn "migration $id failed — later migrations not run; the next init.sh or update.sh retries it"
       return 1
     fi
   done

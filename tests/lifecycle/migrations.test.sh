@@ -97,6 +97,53 @@ test_archive_features_on_a_fresh_install_is_a_no_op() {
   assert_file_contains "$proj/.tlk/.migrations" "001-archive-features" "recorded, so it never runs again"
 }
 
+test_root_state_moves_into_artefacts() {
+  local proj; proj=$(_proj)
+  printf 'TEMPLATE_SHA=abc\n' > "$proj/.talaka.cfg"
+  printf '.claude/agents/cmok.md\tdeadbeef\n' > "$proj/.talaka.files"
+  local out; out=$(_migrate "$proj" 2>&1) || fail "migrations failed: $out"
+  assert_file_contains "$proj/.tlk/.talaka.cfg" "TEMPLATE_SHA=abc" "cfg moved"
+  assert_file_contains "$proj/.tlk/.talaka.files" "deadbeef" "manifest moved"
+  assert_file_absent "$proj/.talaka.cfg"
+  assert_file_absent "$proj/.talaka.files"
+  assert_file_contains "$proj/.tlk/.migrations" "000-root-state-into-artefacts"
+}
+
+test_root_state_never_overwrites() {
+  local proj; proj=$(_proj)
+  mkdir -p "$proj/.tlk"
+  printf 'old\n' > "$proj/.talaka.cfg"
+  printf 'new\n' > "$proj/.tlk/.talaka.cfg"
+  local out; out=$(_migrate "$proj" 2>&1)
+  assert_contains "$out" "already exists"
+  assert_file_contains "$proj/.tlk/.talaka.cfg" "new" "the artefacts copy is kept"
+  assert_file_contains "$proj/.talaka.cfg" "old" "the root copy is left for a person"
+}
+
+test_teardown_migrates_but_not_on_dry_run() {
+  local proj; proj=$(_proj)
+  printf 'TEMPLATE_SHA=abc\n' > "$proj/.talaka.cfg"
+  ( cd "$proj" && bash talaka/shared/lifecycle/tools/teardown.sh --yes --dry-run ) >/dev/null 2>&1 \
+    || fail "teardown --dry-run failed"
+  assert_file_exists "$proj/.talaka.cfg" "a dry run changes nothing"
+  assert_file_absent "$proj/.tlk/.migrations" "a dry run records nothing"
+  ( cd "$proj" && bash talaka/shared/lifecycle/tools/teardown.sh --yes ) >/dev/null 2>&1 \
+    || fail "teardown failed"
+  assert_file_absent "$proj/.talaka.cfg" "teardown ran the migrations first"
+}
+
+test_update_runs_the_migrations_before_init() {
+  local proj; proj=$(_proj)
+  mkdir -p "$proj/.tlk/archive/2026-08-10-login"
+  # --help exits before anything is touched; the run itself is cut short by a
+  # stub init.sh so only update.sh's own migration call is exercised.
+  ( cd "$proj" && bash talaka/shared/lifecycle/tools/update.sh --help ) >/dev/null 2>&1
+  assert_dir_exists "$proj/.tlk/archive/2026-08-10-login" "--help changes nothing"
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$proj/talaka/shared/lifecycle/tools/init.sh"
+  ( cd "$proj" && bash talaka/shared/lifecycle/tools/update.sh --no-pull ) >/dev/null 2>&1
+  assert_dir_exists "$proj/.tlk/archive/features/2026-08-10-login" "update.sh migrated before init"
+}
+
 test_init_runs_the_migrations() {
   local proj; proj=$(make_tmp_project)
   install_kit_into "$proj"

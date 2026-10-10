@@ -32,8 +32,6 @@ set -euo pipefail
 # shellcheck source=lib.sh
 source "$(cd "$(dirname "$0")" && pwd)/lib.sh"
 
-kit_migrate_legacy_root_state
-
 show_update_help() {
   cat <<'EOF'
 talaka / update.sh
@@ -79,6 +77,8 @@ for arg in "$@"; do
     *) forward_args+=("$arg") ;;
   esac
 done
+
+kit_run_migrations || true   # a failure is reported; the update carries on
 
 kit_banner "$KIT_BRAND update"
 info "project root: $PROJECT_ROOT"

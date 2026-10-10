@@ -30,8 +30,6 @@ set -euo pipefail
 # shellcheck source=lib.sh
 source "$(cd "$(dirname "$0")" && pwd)/lib.sh"
 
-kit_migrate_legacy_root_state
-
 # ---------------------------------------------------------------------------
 # Flag parsing (must come before any removal logic)
 # ---------------------------------------------------------------------------
@@ -72,6 +70,10 @@ for _arg in "$@"; do
 done
 # Non-interactive (no TTY) auto-enables --yes
 [ ! -t 0 ] && YES=true
+
+# Bring an old layout up to date first, so the cfg and manifest are found where
+# this script looks. A dry run changes nothing, migrations included.
+$DRY_RUN || kit_run_migrations || true
 
 # ---------------------------------------------------------------------------
 # Header

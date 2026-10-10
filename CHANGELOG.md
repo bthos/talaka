@@ -10,6 +10,15 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Changed — every layout change is a numbered migration
+
+- `kit_migrate_legacy_root_state` (lib.sh) is gone: moving `.talaka.cfg` / `.talaka.files` from the
+  project root into `.tlk/` is now migration `000-root-state-into-artefacts`, and a root copy that
+  clashes with an existing `.tlk/` one is left in place with a warning.
+- `update.sh` and `teardown.sh` run the migrations first, as `init.sh` already did, so each finds
+  the current layout before reading the cfg or manifest. `teardown.sh --dry-run` runs none, and
+  `--help` no longer touches the project.
+
 ### Added — dashboard: one page over everything the agents write down
 
 - **`dashboard/viewer.html`** — a single static page that reads `.tlk/` and `wiki/` and shows it:
