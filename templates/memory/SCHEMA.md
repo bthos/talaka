@@ -38,6 +38,7 @@ Every memory entry is a markdown bullet block of this exact form:
   confidence: high      # high | medium | low
   supersedes: mem_<id>  # OPTIONAL — points to entry this one replaces
   source: archive/<feature-id>/LESSONS.md   # OPTIONAL
+  curated_from: memory/<date>.md:<lines> (…)  # L3 only — written by promote.sh
   text: |
     One- or two-line concrete fact. Specific, actionable, verifiable.
 ```
@@ -48,7 +49,8 @@ Rules:
 2. **`decided` is mandatory** for L3. Allows the **temporal-awareness** resolver (OpenClaw gap #1) to deprioritise older entries when newer ones supersede them.
 3. **`supersedes`** is the explicit replacement pointer. When present, `memory/tools/search.sh` returns the new entry but tags the old one as `[superseded]` (instead of silently dropping it — Навь principle).
 4. **`entities`** is a flat list. Lets simple `grep`-traversal find related entries (OpenClaw gap #2: no relationships) without needing a graph DB.
-5. **`confidence`** drives the agent's behaviour: `high` is treated as a rule; `medium` as advisory; `low` is reference only.
+5. **Curation keeps what was logged.** `promote.sh` copies `decided`, `entities` and `source` from the L2 entry (for a 2-strike promotion: the earliest date, the union of entities, the first real source) and stores the text verbatim. Where the L2 entry came from goes in `curated_from:`; an entry with no `source` of its own gets that pointer as its source too.
+6. **`confidence`** drives the agent's behaviour: `high` is treated as a rule; `medium` as advisory; `low` is reference only.
 
 ## Promotion state machine
 
