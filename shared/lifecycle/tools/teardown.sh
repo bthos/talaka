@@ -13,7 +13,7 @@
 #      still matches; PROJECT.md is kept unless --full-clean.
 #   4. Strip the managed block from .gitignore.
 #   5. (--remove-submodule) Deinit the talaka submodule.
-#   6. (--full-clean) Sweep .tlk/scratch/ (ephemeral runtime files),
+#   6. (--full-clean) Sweep .tlk/scratch/ and .tlk/dashboard/ (rebuildable),
 #      offer to remove .tlk/PROJECT.md, and try to remove the .tlk/
 #      folder itself if nothing user-owned remains.
 #
@@ -49,7 +49,7 @@ talaka / teardown.sh
 
   FLAGS
     --remove-submodule   Also `git submodule deinit` and remove the kit submodule.
-    --full-clean         Sweep .tlk/scratch/, also remove .tlk/PROJECT.md
+    --full-clean         Sweep .tlk/scratch/ and .tlk/dashboard/, also remove .tlk/PROJECT.md
                          and the .tlk/ folder if empty.
     --yes, -y            Skip confirmation prompts. Aliases: --non-interactive, -n.
     --dry-run            Show what would be removed without doing it.
@@ -255,6 +255,13 @@ if $FULL_CLEAN; then
   if [ -d "$ARTEFACTS/scratch" ]; then
     kit_rm_rf "$ARTEFACTS/scratch"
     $DRY_RUN || removed "$ARTEFACTS_NAME/scratch/"
+  fi
+
+  # dashboard/ is a snapshot of the rest of the tree (dashboard/tools/snapshot.sh)
+  # and is rebuilt from it in one command, so it goes with scratch/.
+  if [ -d "$ARTEFACTS/dashboard" ]; then
+    kit_rm_rf "$ARTEFACTS/dashboard"
+    $DRY_RUN || removed "$ARTEFACTS_NAME/dashboard/"
   fi
 
   # Try to remove the artefacts directory if empty (it usually still has

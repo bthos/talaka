@@ -158,7 +158,7 @@ trap _cleanup_tmp_dirs EXIT
 install_kit_into() {
   local proj="$1" d
   mkdir -p "$proj/talaka"
-  for d in shared statusline templates agents skills memory autoresearch; do
+  for d in shared statusline templates agents skills memory autoresearch dashboard; do
     cp -r "$KIT_ROOT/$d" "$proj/talaka/" 2>/dev/null || true
   done
   cp "$KIT_ROOT"/*.sh "$proj/talaka/" 2>/dev/null || true

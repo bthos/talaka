@@ -72,7 +72,7 @@ talaka/kit.sh
 talaka/shared/lifecycle/tools/init.sh
 ```
 
-`talaka/kit.sh` is a stage-aware menu: at stage **0 (not installed)** it only shows `init`; at stage **1 (needs config)** it adds `probe`, `edit PROJECT.md`, `validate`, `teardown`, and an **Optional components** submenu; at stage **2 (ready)** it surfaces the full set — feature status, memory search, version bumps, memory rollover/promotion, distill lessons, apply patches. The **Optional components** submenu installs/removes opt-in add-ons (statusline, AutoResearch, memory Stop hook) from one place, each showing live `[installed]`/`[off]` status — adding a new add-on is one registry row. Press `h` for inline descriptions of every action. For CI / agents, pass an action as a positional argument: `talaka/kit.sh status` runs once and exits; `talaka/kit.sh --list-json` dumps the action registry as JSON; `talaka/kit.sh --help` prints the full reference.
+`talaka/kit.sh` is a stage-aware menu: at stage **0 (not installed)** it only shows `init`; at stage **1 (needs config)** it adds `probe`, `edit PROJECT.md`, `validate`, `teardown`, and an **Optional components** submenu; at stage **2 (ready)** it surfaces the full set — feature status, the dashboard, memory search, version bumps, memory rollover/promotion, distill lessons, apply patches. The **Optional components** submenu installs/removes opt-in add-ons (statusline, AutoResearch, memory Stop hook) from one place, each showing live `[installed]`/`[off]` status — adding a new add-on is one registry row. Press `h` for inline descriptions of every action. For CI / agents, pass an action as a positional argument: `talaka/kit.sh status` runs once and exits; `talaka/kit.sh --list-json` dumps the action registry as JSON; `talaka/kit.sh --help` prints the full reference.
 
 > **Requirements.** Bash ≥ 4.0 (uses `read -a`, associative-style arrays, `[[ … ]]`). On Windows use **MSYS2 / Git Bash**. macOS / Linux work out of the box.
 
@@ -125,6 +125,7 @@ That's it.
 │   ├── proposed-patches/<agent>.md           ← agent hardening patches awaiting review
 │   ├── features/<slug>/                      ← active feature (spec, UX, tech plan, handoffs)
 │   ├── archive/<slug>/                       ← completed features (moved by Zlydni)
+│   ├── dashboard/                            ← (on first use) snapshot + page for the dashboard
 │   ├── .talaka.cfg                      ← saved IDE + pipeline template SHA (gitignored)
 │   └── .talaka.files                    ← SHA manifest for teardown (gitignored)
 │
@@ -295,6 +296,36 @@ talaka/shared/lifecycle/tools/teardown.sh --dry-run
 - **`.tlk/PROJECT.md`** — kept by default (it has your project config); removed only with `--full-clean` (and only after a y/N prompt unless `--yes` is passed).
 - **`.tlk/{memory,features,archive,proposed-patches}/`** — never touched by teardown. They are your project's runtime state.
 - **`.tlk/scratch/`** — swept by `--full-clean`. Pure ephemera (commit messages, PR bodies, large request payloads) with no user state.
+- **`.tlk/dashboard/`** — swept by `--full-clean`. A snapshot of the rest of the tree, rebuilt by one command.
+
+## Dashboard
+
+Everything the agents write down is also something you may want to look at: what waits for you, where each feature stands, what it cost, what the memory now holds, whether Veles is improving anything. The dashboard is one static page that reads `.tlk/` and `wiki/` and shows it. No server, no build step, nothing to install.
+
+```bash
+bash talaka/dashboard/tools/snapshot.sh --open      # or: talaka/kit.sh dashboard
+```
+
+| View | Shows |
+|------|-------|
+| **Today** | What needs you: STOP returns, fix loops that are not converging, blockers, open deferred decisions, proposed patches, update conflicts, paused goals, a stale price table, unfiled kit issues. Each with the command that resolves it. Also spend, usage limits with the statusline's pace rule, and the latest handoff entries. |
+| **Work** | Features as a board by pipeline stage, or as a timeline of handoff entries (fix loops and STOPs marked). Goals with status, pause reason and resume point; audits, maps and investigations. |
+| **Cost** | Spend per day stacked by worker, per feature and goal, per worker. Measured rows only; estimated rows hatched, unmeasured rows counted but never priced. |
+| **Memory** | Curated facts as a graph (entities as hubs, supersedes as arrows, hardened rules ringed), as a decision timeline, or as a filterable list. The promotion funnel and the L1 hot state. |
+| **AutoResearch** | Composite per round for each ratcheted target, accepted and rejected rounds with their reason. |
+| **Wiki** | The `[[wikilink]]` graph with orphans and broken links, and a reader with backlinks. |
+| **Map** | One canvas across all of it: which feature produced which decision, which decision hardened into which agent prompt, which wiki page explains it. |
+| **Files** | Every file in the snapshot, unparsed. Nothing the kit writes is out of reach. |
+
+Any object opens the same side panel, and everything in it links onward. `Ctrl K` searches titles, facts, wiki pages and file paths, and on request the text of every file.
+
+**How it stays current.** `snapshot.sh` writes `.tlk/dashboard/`: the page, a `manifest.js` listing every file, and one `data/c<N>.js` per text file holding that file verbatim (escaped for a JS string, never truncated or summarised). A browser opening a page from disk cannot read the files next to it, but it can load scripts; that is the whole trick. Runs are incremental — only files whose size or mtime changed are rewritten — and once the snapshot exists, `memory/tools/tick.sh` (the memory Stop hook) refreshes it after every session. The open page re-reads the manifest every 30 seconds.
+
+**Live mode.** In Chrome or Edge, *Snapshot* in the top bar switches to reading the project folder directly through the File System Access API: pick the project root once, and the page re-reads it every 5 seconds. The folder handle and a text cache keyed by path, size and mtime live in the browser's IndexedDB; both are rebuilt from the files whenever they are missing.
+
+**What it never does.** It is read-only: every action is a command to copy. It makes no network requests; every style, script and chart is inside `dashboard/viewer.html`. It does not estimate: a number shown is a number some file contains.
+
+Two things the files do not carry, and the page says so where it matters. Handoff entries record a time but not a date, so dates are inferred from the log's modification time and marked `≈`. And `promote.sh` writes curated facts with `entities: []`; the page reads the entities and the original source back from the L2 entry the fact came from.
 
 ## Self-improving agents
 
@@ -603,6 +634,7 @@ Each skill bundles its own script. Shared scripts live under `talaka/shared/<cat
 | `talaka/shared/project/tools/bump-version.sh patch\|minor` | Bumps version in all files listed in `.tlk/PROJECT.md` (Cmok uses `patch`, Zlydni uses `minor`) — run from project root |
 | `talaka/shared/project/tools/validate-config.sh` | Checks `.tlk/PROJECT.md` for unfilled `<placeholder>` values — run after `init.sh` |
 | `talaka/shared/project/tools/feature-status.sh` | Shows pipeline status for active features in `.tlk/features/` |
+| `talaka/dashboard/tools/snapshot.sh [--open] [--full] [--quiet]` | Writes the dashboard snapshot to `.tlk/dashboard/` (incremental; `--full` rewrites every chunk) and optionally opens it. See *Dashboard* above. |
 | `talaka/statusline/tools/pace.sh [--delay]` | Usage-limit pace for the coordinator: `mode=speed-up\|normal\|slow-down\|stop` from the snapshot the statusline writes (`.tlk/usage.env`); `--delay` prints a `/loop` wake delay for that mode. Exit 4 = not measured, run at normal. See `PIPELINE.md` → *Pace*. |
 | `talaka/shared/feedback/tools/kit-issue.sh add\|list\|show\|submit\|link\|dismiss` | Field reports about the kit itself: agents record slow/hanging scripts, fabrication pressure, misplaced artifacts in `.tlk/kit-issues.md`; `submit` previews, `submit --confirm` files a GitHub issue after the user agrees. See *Kit issues* above. |
 | `talaka/shared/debug/tools/debug-log-server.py` | Local debug log server (Python 3 stdlib, loopback only). Captures runtime probes from instrumented code into `<investigation>/runtime.jsonl`. Endpoints: `/log`, `/console`, `/network`, `/tail`, `/stream`, `/shutdown`. |
@@ -613,7 +645,7 @@ Each skill bundles its own script. Shared scripts live under `talaka/shared/<cat
 
 | Script | What it does |
 |--------|-------------|
-| `kit.sh` | **Recommended human entry point.** Stage-aware interactive launcher. Detects install state (not installed / needs config / ready) and surfaces only actions that make sense at the current stage: `init`, `probe`, edit + `validate` `PROJECT.md`, `update`, `teardown`, feature `status`, memory `search`, version `bump`, memory `rollover` / `promote`, `distill` lessons, apply `patches`. Press `h` inside the menu for one-line descriptions. |
+| `kit.sh` | **Recommended human entry point.** Stage-aware interactive launcher. Detects install state (not installed / needs config / ready) and surfaces only actions that make sense at the current stage: `init`, `probe`, edit + `validate` `PROJECT.md`, `update`, `teardown`, feature `status`, the `dashboard`, memory `search`, version `bump`, memory `rollover` / `promote`, `distill` lessons, apply `patches`. Press `h` inside the menu for one-line descriptions. |
 | `shared/lifecycle/tools/init.sh` | Sets up `.tlk/`; copies agents to `.claude/agents/` and skills to `.claude/skills/`; manages include blocks in `CLAUDE.md` and `AGENTS.md`; manages the `.gitignore` block; maintains **`.tlk/.talaka.files`**. |
 | `shared/lifecycle/tools/update.sh` | `git submodule update --remote` for the kit, then re-runs `shared/lifecycle/tools/init.sh` with the same arguments you pass (optional `--no-pull` to skip the fetch). Warns once if `.cursor/` or `.github/` copies from a pre-Claude-only install are still present (it does not remove them — see [Leftovers from old installs](#leftovers-from-old-installs)). Warns if `templates/PIPELINE.md.template` drifted since last init. |
 | `shared/lifecycle/tools/teardown.sh` | Strips managed include blocks from `CLAUDE.md` and `AGENTS.md`; strips the managed `.gitignore` block; removes kit-installed copies when SHA-256 matches **`.tlk/.talaka.files`**. `--full-clean` also removes `.tlk/PROJECT.md`, `.tlk/.talaka.cfg`, and `.tlk/scratch/`; `--remove-submodule` deinits git. |

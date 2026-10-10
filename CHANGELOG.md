@@ -10,6 +10,27 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Added — dashboard: one page over everything the agents write down
+
+- **`dashboard/viewer.html`** — a single static page that reads `.tlk/` and `wiki/` and shows it:
+  what needs the user (STOP returns, non-converging fix loops, blockers, open deferred decisions,
+  proposed patches, update conflicts, paused goals, a stale price table, unfiled kit issues — each
+  with the command that resolves it), features as a board or a timeline, goals, cost (measured rows
+  only), memory as a graph / timeline / list with the promotion funnel, AutoResearch rounds, the wiki
+  link graph and reader, a canvas map of how features, decisions, agents and wiki pages connect, and
+  every file unparsed. Read-only, no network requests, no build step.
+- **`dashboard/tools/snapshot.sh`** writes `.tlk/dashboard/`: the page, `manifest.js` and one
+  `data/c<N>.js` per text file holding the file verbatim — a page opened from disk can load scripts
+  but not read files. Incremental (size + mtime), lossless (no truncation; >32 KB files escaped with
+  one `sed`), locked against concurrent runs. `--open`, `--full`, `--quiet`, `--out`.
+- **Kept current**: `memory/tools/tick.sh` refreshes the snapshot once it exists, so the memory Stop
+  hook updates it after every session; the open page re-reads it every 30 s. In Chrome and Edge a
+  Live mode reads the project folder directly (File System Access API) every 5 s.
+- `kit.sh dashboard` opens it; `teardown.sh --full-clean` sweeps `.tlk/dashboard/`.
+- Known gaps the page works around and labels: handoff entries carry no date (inferred from the
+  log's mtime, marked `≈`), and `promote.sh` curates facts with `entities: []` (read back from the
+  originating L2 entry).
+
 ### Fixed — memory writes and `defer.sh` no longer take 10–25 s on Git Bash (#8)
 
 - **`log.sh --confidence high` no longer runs a full `promote.sh`** (~30 processes) on every write.
