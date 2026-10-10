@@ -136,12 +136,15 @@ jstr() {
 # Characters a template literal cannot hold as-is: \ ` $ and CR (which the JS
 # parser would normalise to LF).
 SPECIAL=$'*[\\\\`$\r]*'
-# CR is matched as `\r` by GNU sed (Linux, Git Bash) — never as a literal CR in
-# the argument: Git Bash drops it, the expression becomes `s//\\r/g`, and an
-# empty regex means "the previous one", so every `$` turned into `\r`. BSD sed
-# (macOS) has no `\r` but keeps a literal CR intact.
-if sed --version >/dev/null 2>&1; then SED_CR='s/\r/\\r/g'; else SED_CR=$'s/\r/\\\\r/g'; fi
-SED_ESC=(sed -e 's/\\/\\\\/g' -e 's/`/\\`/g' -e 's/\$/\\$/g' -e "$SED_CR")
+# GNU sed (Linux, Git Bash) runs with -b and matches CR as `\r`. Without -b,
+# Git Bash's sed reads in text mode and strips every CR before the regex sees
+# it; and a literal CR in the argument never arrives at all (the expression
+# becomes `s//\\r/g`, an empty regex reuses `\$`, and every `$` turned into
+# `\r`). BSD sed (macOS) has neither -b nor `\r`, and keeps a literal CR intact.
+# Backslashes are doubled first, so the `\r` written for a CR comes last.
+if sed --version >/dev/null 2>&1; then SED_ESC=(sed -b); SED_CR='s/\r/\\r/g'
+else SED_ESC=(sed); SED_CR=$'s/\r/\\\\r/g'; fi
+SED_ESC+=(-e 's/\\/\\\\/g' -e 's/`/\\`/g' -e 's/\$/\\$/g' -e "$SED_CR")
 
 # write_chunk SRC OUTFILE SIZE JSONPATH
 # Small files are escaped in-process (no fork); bash's pattern substitution
