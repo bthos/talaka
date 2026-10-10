@@ -66,20 +66,31 @@ if [ -d "$AKT" ]; then
 
   if [ -f "$SESSION_STATE" ]; then
     sa=$(sed -n '/^## Active agent/{n;p;}' "$SESSION_STATE" 2>/dev/null || true)
-    if [ -n "$sa" ] && [[ ! "$sa" =~ ^\(none ]]; then
+    # "(none)" and the template's "_(none — …)_" both mean unset.
+    if [ -n "$sa" ] && [[ ! "$sa" =~ ^_?\(none ]]; then
       [ -z "$ACTIVE_AGENT" ] && ACTIVE_AGENT="$sa"
     fi
     af=$(sed -n '/^## Active feature/{n;p;}' "$SESSION_STATE" 2>/dev/null || true)
-    if [ -n "$af" ] && [[ ! "$af" =~ ^\(none ]]; then
+    if [ -n "$af" ] && [[ ! "$af" =~ ^_?\(none ]]; then
       ACTIVE_FEATURE="$af"
     fi
   fi
 
-  # Find active feature folder
+  # Find the active feature's folder. session.sh records a slug ("f22-old"); a
+  # folder name or a path also turns up. Resolve whichever it is — as a path, a
+  # folder under features/, or the folder whose name ends in "-<slug>" — and
+  # only with no match fall back to the newest folder (issue #44).
   FEAT_PATH=""
-  if [ -n "${ACTIVE_FEATURE:-}" ] && [ -d "$ACTIVE_FEATURE" ]; then
-    FEAT_PATH="$ACTIVE_FEATURE"
-  elif [ -d "$AKT/features" ]; then
+  af="${ACTIVE_FEATURE:-}"; af="${af%/}"
+  if [ -n "$af" ]; then
+    if [ -d "$af" ]; then FEAT_PATH="$af"
+    elif [ -d "$PROJECT_DIR/$af" ]; then FEAT_PATH="$PROJECT_DIR/$af"
+    elif [ -d "$AKT/features/$af" ]; then FEAT_PATH="$AKT/features/$af"
+    else
+      for d in "$AKT/features/"*-"$af"/; do [ -d "$d" ] && FEAT_PATH="${d%/}"; done   # last = newest date
+    fi
+  fi
+  if [ -z "$FEAT_PATH" ] && [ -d "$AKT/features" ]; then
     FEAT_PATH=$(ls -1d "$AKT/features/"*/ 2>/dev/null | sort -r | head -1 || true)
   fi
 

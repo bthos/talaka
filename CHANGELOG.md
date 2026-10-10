@@ -31,6 +31,15 @@ tags yet — entries are dated and grouped by submodule HEAD).
   (marked `≈`), and a fact curated with `entities: []` gets its entities and source back from the
   originating L2 entry.
 
+### Fixed — the statusline names the active feature, not the newest one (#44)
+
+- `statusline.sh` and `statusline.ps1` tested SESSION-STATE.md's *Active feature* as a path, but
+  `session.sh feature` records a slug, so the bar always fell back to the newest folder under
+  `.tlk/features/` — with that folder's stage and STUCK alert. The value is now resolved as a path
+  (as given or relative to the project), a folder name under `features/`, or the folder ending in
+  `-<slug>`; only with no match does the newest folder win. The template's `_(none — …)_`
+  placeholder now reads as unset for both *Active feature* and *Active agent*.
+
 ### Added — layout migrations; the archive keeps one folder per kind (#47)
 
 - **Migrations.** A kit change that moves something under a project's `.tlk/` now ships a

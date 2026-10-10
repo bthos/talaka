@@ -56,26 +56,38 @@ if (Test-Path $tlkDir) {
         $content = Get-Content $sessionState -Raw
         if ($content -match '(?m)^## Active agent\s*\r?\n(.+)') {
             $sa = $Matches[1].Trim()
-            if ($sa -and $sa -notmatch '^\(none') {
+            # "(none)" and the template's "_(none — …)_" both mean unset.
+            if ($sa -and $sa -notmatch '^_?\(none') {
                 if (-not $activeAgent) { $activeAgent = $sa }
             }
         }
         if ($content -match '(?m)^## Active feature\s*\r?\n(.+)') {
             $af = $Matches[1].Trim()
-            if ($af -and $af -notmatch '^\(none') { $activeFeature = $af }
+            if ($af -and $af -notmatch '^_?\(none') { $activeFeature = $af }
         }
     }
 
-    # Find active feature folder
-    if ($activeFeature -and (Test-Path $activeFeature)) {
-        $featPath = $activeFeature
-    } else {
-        $featuresDir = Join-Path $tlkDir "features"
-        if (Test-Path $featuresDir) {
-            $latest = Get-ChildItem $featuresDir -Directory |
-                Sort-Object Name -Descending | Select-Object -First 1
-            if ($latest) { $featPath = $latest.FullName }
+    # Find the active feature's folder. session.sh records a slug ("f22-old"); a
+    # folder name or a path also turns up. Resolve whichever it is — as a path, a
+    # folder under features/, or the folder whose name ends in "-<slug>" — and
+    # only with no match fall back to the newest folder (issue #44).
+    $featuresDir = Join-Path $tlkDir "features"
+    if ($activeFeature) {
+        $af = $activeFeature.TrimEnd('/', '\')
+        foreach ($c in @($af, (Join-Path $projectDir $af), (Join-Path $featuresDir $af))) {
+            if (Test-Path -LiteralPath $c -PathType Container) { $featPath = $c; break }
         }
+        if (-not $featPath -and (Test-Path $featuresDir)) {
+            $match = Get-ChildItem $featuresDir -Directory |
+                Where-Object { $_.Name.EndsWith("-$af") } |
+                Sort-Object Name -Descending | Select-Object -First 1
+            if ($match) { $featPath = $match.FullName }
+        }
+    }
+    if (-not $featPath -and (Test-Path $featuresDir)) {
+        $latest = Get-ChildItem $featuresDir -Directory |
+            Sort-Object Name -Descending | Select-Object -First 1
+        if ($latest) { $featPath = $latest.FullName }
     }
 
     # Count active features
