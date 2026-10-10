@@ -558,6 +558,8 @@ talaka/shared/feedback/tools/kit-issue.sh add --kind slow --title "log.sh takes 
 
 Entries land in `.tlk/kit-issues.md` (git-ignored). Repeats bump a `Seen:` count instead of duplicating. `slow` and `hang` reports are refused without a measured `--evidence`. Paths under the project root and `$HOME` are redacted.
 
+A proposal is not a defect, so it has its own kind: `add --kind idea --title … --problem … --proposal … [--acceptance …]` needs no `--what`/`--expected` and no evidence, and is filed as `[idea] <title>` with Problem / Proposal / Acceptance sections, so maintainers can triage ideas apart from field reports. An `--evidence-file` keeps the end of an error log or the start of an idea's write-up, and says how much it left out.
+
 Nothing leaves the machine on its own. When a pipeline stops or ends, the coordinator lists pending entries and asks you once whether to file them. `kit-issue.sh sync` fetches every kit issue, open and closed, so a report already filed from another session or clone is linked rather than filed again, and `add`/`list` flag likely duplicates by key words. `kit-issue.sh submit KI-001` previews the exact issue body and any similar existing issues. Only `submit KI-001 --confirm`, after you approve, runs `gh issue create` on `github.com/bthos/talaka` (override with `TALAKA_ISSUES_REPO`). `dismiss` and `link` cover "not a kit problem" and "filed by hand / commented on an existing issue". The `kit.sh` menu lists them under *Kit issues*.
 
 ## Feature artifacts

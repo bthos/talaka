@@ -31,6 +31,18 @@ tags yet — entries are dated and grouped by submodule HEAD).
   (marked `≈`), and a fact curated with `entities: []` gets its entities and source back from the
   originating L2 entry.
 
+### Added — `kit-issue.sh` has an `idea` kind for proposals (#46)
+
+- `add --kind idea --title … --problem … --proposal … [--acceptance …]`: no `--what`/`--expected`
+  (an idea has no "what the kit did", so reporters had to invent one) and no evidence. Ideas are
+  previewed and filed as `[idea] <title>` with Problem / Proposal / Acceptance, not as
+  `[field report] Idea: …`; `sync` links either prefix, and the duplicate check ignores both.
+  Defect kinds keep their rules; existing `other` entries titled "Idea: …" are left as they are.
+- `--evidence-file` no longer cuts silently: a log keeps its last 60 lines, an idea's write-up its
+  first 200, and the entry says how many lines were left out.
+- PIPELINE.md lists the kind, and the coordinator's end-of-session offer counts ideas apart from
+  defects.
+
 ### Fixed — the statusline names the active feature, not the newest one (#44)
 
 - `statusline.sh` and `statusline.ps1` tested SESSION-STATE.md's *Active feature* as a path, but
