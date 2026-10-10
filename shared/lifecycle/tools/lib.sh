@@ -151,6 +151,52 @@ kit_migrate_legacy_root_state() {
 }
 
 # ---------------------------------------------------------------------------
+# Migrations: one-time changes to a project's $ARTEFACTS_NAME/ layout that ship
+# with a kit version. init.sh (and so update.sh) runs them in name order:
+#
+#   shared/lifecycle/migrations/NNN-<slug>.sh
+#
+# Each file runs in its own bash process with `set -e`, this library sourced
+# first (ARTEFACTS, ARTEFACTS_NAME, PROJECT_ROOT, info, warn, …). A separate
+# process, not a subshell: bash ignores `set -e` inside anything whose status
+# is being tested, so `if ( set -e; . file )` would run past a failing command.
+# A migration must be safe on any tree — a fresh install, a half-migrated one,
+# one already in the new shape — because it also runs on projects that never
+# had the old layout.
+# Applied ids are appended to $ARTEFACTS_NAME/.migrations ("id<TAB>date") and
+# never run again. A migration that fails is not recorded and stops the run,
+# so a later one never sees a half-migrated tree; the next init.sh retries it.
+# ---------------------------------------------------------------------------
+KIT_MIGRATIONS_DIR="${KIT_MIGRATIONS_DIR:-$SCRIPT_DIR/shared/lifecycle/migrations}"
+KIT_MIGRATIONS_LEDGER="$ARTEFACTS/.migrations"
+
+kit_run_migrations() {
+  local f id line applied=" " today
+  [ -d "$KIT_MIGRATIONS_DIR" ] || return 0
+  mkdir -p "$ARTEFACTS"
+  if [ -f "$KIT_MIGRATIONS_LEDGER" ]; then
+    while IFS= read -r line || [ -n "$line" ]; do
+      line="${line%$'\r'}"
+      [ -n "$line" ] && applied+="${line%%$'\t'*} "
+    done < "$KIT_MIGRATIONS_LEDGER"
+  fi
+  printf -v today '%(%Y-%m-%d)T' -1
+  for f in "$KIT_MIGRATIONS_DIR"/[0-9][0-9][0-9]-*.sh; do
+    [ -f "$f" ] || continue
+    id="${f##*/}"; id="${id%.sh}"
+    case "$applied" in *" $id "*) continue ;; esac
+    # shellcheck disable=SC2016  # $1/$2 belong to the child shell
+    if "$BASH" -c 'set -e; . "$1"; . "$2"' migration "$_LIB_SELFDIR/lib.sh" "$f"; then
+      printf '%s\t%s\n' "$id" "$today" >> "$KIT_MIGRATIONS_LEDGER"
+    else
+      warn "migration $id failed — later migrations not run; the next init.sh retries it"
+      return 1
+    fi
+  done
+  return 0
+}
+
+# ---------------------------------------------------------------------------
 # Temp-file tracking with auto-cleanup
 # ---------------------------------------------------------------------------
 _KIT_TEMP_FILES=()

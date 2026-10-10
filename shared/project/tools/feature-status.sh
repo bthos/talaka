@@ -72,6 +72,11 @@ if [ $found -eq 0 ]; then
 fi
 
 if [ -d "$ARCHIVE_DIR" ]; then
-  archived=$(find "$ARCHIVE_DIR" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
-  [ "$archived" -gt 0 ] && echo "$archived archived feature(s) in $ARCHIVE_DIR"
+  # Archived features live in archive/features/<slug>/ (init.sh moves the older
+  # flat layout there); archive/debug/ and other kinds are not features.
+  archived=0
+  for d in "$ARCHIVE_DIR"/features/*/; do
+    [ -d "$d" ] && archived=$((archived + 1))
+  done
+  [ "$archived" -gt 0 ] && echo "$archived archived feature(s) in $ARCHIVE_DIR/features"
 fi

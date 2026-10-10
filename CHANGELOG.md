@@ -31,6 +31,20 @@ tags yet — entries are dated and grouped by submodule HEAD).
   (marked `≈`), and a fact curated with `entities: []` gets its entities and source back from the
   originating L2 entry.
 
+### Added — layout migrations; the archive keeps one folder per kind (#47)
+
+- **Migrations.** A kit change that moves something under a project's `.tlk/` now ships a
+  `shared/lifecycle/migrations/NNN-<slug>.sh`. `init.sh` — so every `update.sh` — runs the ones not
+  yet applied, in order, each in its own bash process with `set -e`, and records them in
+  `.tlk/.migrations`. A failing migration is reported, not recorded, retried on the next run, and
+  holds back the ones after it. `teardown.sh --full-clean` removes the ledger with `.talaka.cfg`.
+- **`001-archive-features`**: features archived directly under `.tlk/archive/<slug>/` move to
+  `.tlk/archive/features/<slug>/`, beside Yaga's `archive/debug/`. A name already taken there stays
+  put with a warning. Zlydni archives into `archive/features/`; `build-eval-set.sh`,
+  `distill-lessons.sh`, `feature-status.sh`, `record-metrics.sh` (archive-race fallback and bare-slug
+  lookup) and the dashboard read only that. PIPELINE.md, README and the memory templates say the same.
+- The dashboard no longer counts closed investigations (`archive/debug/`) as archived features.
+
 ### Fixed — curated memory keeps what the agent logged; handoff headers carry the date
 
 - **`promote.sh` no longer drops fields when curating to L3.** It wrote every curated fact with

@@ -124,10 +124,12 @@ That's it.
 │   ├── memory/{preferences,system,projects,decisions}.md   ← L3 curated facts
 │   ├── proposed-patches/<agent>.md           ← agent hardening patches awaiting review
 │   ├── features/<slug>/                      ← active feature (spec, UX, tech plan, handoffs)
-│   ├── archive/<slug>/                       ← completed features (moved by Zlydni)
+│   ├── archive/features/<slug>/              ← completed features (moved by Zlydni)
+│   ├── archive/debug/<slug>/                 ← closed investigations (moved by Yaga)
 │   ├── dashboard/                            ← (on first use) snapshot + page for the dashboard
 │   ├── .talaka.cfg                      ← saved IDE + pipeline template SHA (gitignored)
-│   └── .talaka.files                    ← SHA manifest for teardown (gitignored)
+│   ├── .talaka.files                    ← SHA manifest for teardown (gitignored)
+│   └── .migrations                           ← layout migrations already applied (see Updating the kit)
 │
 ├── .claude/                                  ← agent + skill copies (kit copies git-ignored; Veles ratchets them)
 │   └── loop.md                               ← goal-loop protocol (default prompt of a bare /loop)
@@ -234,6 +236,7 @@ git commit -m "chore: update talaka"
 - New agents and skills — `init.sh` installs missing paths and refreshes hashes in **`.tlk/.talaka.files`**
 - **Locally-improved agents/skills are 3-way merged, not clobbered.** `init.sh` snapshots the kit version it installs as a merge base under **`.tlk/.base/`**; on the next update it merges `local ⨝ base ⨝ new-kit`, so your local edits — Veles autoresearch ratchets, `apply-patches.sh` blocks, hand tweaks — are carried forward and combined with the incoming kit changes. Non-overlapping changes merge silently; a genuine overlap surfaces as a conflict (interactive: `[k]eep-merged / take-[o]urs / take-[t]heirs`; under `--skip`/`--non-interactive` the local copy is kept and the incoming kit is dropped to `.tlk/.conflicts/…` for review). `--force`/`--overwrite-all` still takes the kit version outright. All comparisons are CR-normalized, so a CRLF-vs-LF mismatch no longer shows a one-line change as a whole-file diff.
 - Scripts under `talaka/shared/` and the component `tools/` dirs — they ship with the submodule; `git submodule update` brings new versions
+- **Your `.tlk/` layout.** When a kit version changes where something lives under `.tlk/`, it ships a migration in `shared/lifecycle/migrations/NNN-<slug>.sh`. `init.sh` (so every `update.sh`) runs the ones not yet applied, in order, and records them in `.tlk/.migrations`; each runs once. A migration that fails is reported, left unrecorded and retried on the next run, and the ones after it wait. Kit tools read only the current layout, so a project is migrated rather than read both ways. `001-archive-features` moves features archived directly under `.tlk/archive/` into `.tlk/archive/features/`.
 - `.tlk/PIPELINE.md` — refreshed in place when you pass `--force` (or answer **o**); `update.sh` warns you if `talaka/templates/PIPELINE.md.template` has changed since last init so you know when a refresh is worth running
 - The managed blocks in `CLAUDE.md` and `AGENTS.md` — refreshed in place; everything outside the markers is preserved
 
@@ -566,8 +569,13 @@ All feature work lives under `.tlk/`:
 ├── features/
 │   └── YYYY-MM-DD-feature-name/   ← active feature (spec, UX, tech plan, handoffs)
 └── archive/
-    └── YYYY-MM-DD-feature-name/   ← completed features (moved by Zlydni after commit)
+    ├── features/
+    │   └── YYYY-MM-DD-feature-name/   ← completed features (moved by Zlydni after commit)
+    └── debug/
+        └── YYYY-MM-DD-slug/           ← closed investigations (moved by Yaga)
 ```
+
+The archive keeps one folder per kind, and the kit's tools read only this layout. Features archived before it, directly under `.tlk/archive/`, are moved into `archive/features/` by migration `001-archive-features` on the next `update.sh` (or one run of `init.sh`). A name that already exists under `features/` is left in place with a warning, never merged or overwritten.
 
 requirements-eliciting creates the feature folder automatically when starting a new spec.
 

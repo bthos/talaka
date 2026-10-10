@@ -279,6 +279,12 @@ if $FULL_CLEAN; then
   elif [ -f "$KIT_CFG" ] && $DRY_RUN; then
     info "would remove: $ARTEFACTS_NAME/.talaka.cfg"
   fi
+  # The migration ledger is kit bookkeeping like the cfg: a re-init starts it over.
+  if [ -f "$KIT_MIGRATIONS_LEDGER" ] && ! $DRY_RUN; then
+    rm "$KIT_MIGRATIONS_LEDGER" && removed "$ARTEFACTS_NAME/.migrations"
+  elif [ -f "$KIT_MIGRATIONS_LEDGER" ] && $DRY_RUN; then
+    info "would remove: $ARTEFACTS_NAME/.migrations"
+  fi
 fi
 
 # ---------------------------------------------------------------------------

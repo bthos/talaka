@@ -37,7 +37,7 @@ Every memory entry is a markdown bullet block of this exact form:
   entities: [<name1>, <name2>]
   confidence: high      # high | medium | low
   supersedes: mem_<id>  # OPTIONAL — points to entry this one replaces
-  source: archive/<feature-id>/LESSONS.md   # OPTIONAL
+  source: archive/features/<feature-id>/LESSONS.md   # OPTIONAL
   curated_from: memory/<date>.md:<lines> (…)  # L3 only — written by promote.sh
   text: |
     One- or two-line concrete fact. Specific, actionable, verifiable.

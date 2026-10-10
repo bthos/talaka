@@ -48,9 +48,9 @@
 # and cost are recorded as null ("source":"none") — never as a made-up number.
 #
 # --feature must name a directory that already exists. A bare slug
-# (2026-04-30-foo) is resolved against .tlk/features, .tlk/archive, .tlk/audits and
-# .tlk/goals; a .tlk/features/<slug> path whose feature has already been
-# archived falls back to .tlk/archive/<slug>. An unresolvable --feature is an
+# (2026-04-30-foo) is resolved against .tlk/features, .tlk/archive/features,
+# .tlk/audits and .tlk/goals; a .tlk/features/<slug> path whose feature has
+# already been archived falls back to .tlk/archive/features/<slug>. An unresolvable --feature is an
 # error — the row is never written to a freshly created directory.
 #
 # Anything missing is recorded as null. Run from project root.
@@ -189,14 +189,14 @@ fi
 # against something on disk; otherwise we refuse to write.
 #
 #   1. the path as given, if it is a directory
-#   2. archive race: .tlk/features/<slug> already moved to .tlk/archive/<slug>
+#   2. archive race: .tlk/features/<slug> already moved to .tlk/archive/features/<slug>
 #   3. bare slug: look it up under the known artefact roots
 # ---------------------------------------------------------------------------
 resolved=""
 if [ -d "$feature" ]; then
   resolved="$feature"
 else
-  archived="${feature/\/features\//\/archive\/}"
+  archived="${feature/\/features\//\/archive\/features\/}"
   if [ "$archived" != "$feature" ] && [ -d "$archived" ]; then
     echo "record-metrics: '$feature' not found — feature already archived; appending to '$archived'" >&2
     resolved="$archived"
@@ -208,7 +208,7 @@ else
     case "$ARTEFACTS" in
       "$PROJECT_ROOT"/*) art_prefix="${ARTEFACTS#"$PROJECT_ROOT"/}" ;;
     esac
-    for candidate in "$art_prefix/features/$feature" "$art_prefix/archive/$feature" \
+    for candidate in "$art_prefix/features/$feature" "$art_prefix/archive/features/$feature" \
                      "$art_prefix/audits/$feature" "$art_prefix/goals/$feature"; do
       [ -d "$candidate" ] || continue
       resolved="$candidate"
@@ -221,7 +221,7 @@ if [ -z "$resolved" ]; then
   {
     echo "record-metrics: --feature '$feature' does not resolve to an existing directory."
     echo "  Tried: '$feature', its /archive/ counterpart, and"
-    echo "         ${art_prefix:-$ARTEFACTS}/{features,archive,audits,goals}/$feature"
+    echo "         ${art_prefix:-$ARTEFACTS}/{features,archive/features,audits,goals}/$feature"
     echo "  Pass a real feature path (e.g. .tlk/features/<slug>) — refusing to create it,"
     echo "  because an invented path orphans this row where nothing will ever read it."
   } >&2

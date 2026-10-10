@@ -531,9 +531,16 @@ function build(){NOW=new Date();
 
   /* items: features, archive, goals, audits, maps, debug */
   const items=new Map();
-  for(const [rel,f] of A){let m=rel.match(/^(archive)\/(debug)\/([^/]+)\/(.+)$/)||rel.match(/^(features|archive|goals|audits|maps|debug)\/([^/]+)\/(.+)$/);if(!m)continue;
-    let area=m[1],slug=m[2],name=m[3],dir=`${m[1]}/${m[2]}`;if(m.length===5){slug=m[3];name=m[4];dir=`archive/debug/${slug}`}
-    if(!items.has(dir))items.set(dir,{dir,slug,area,kind:{features:"feature",archive:"archived",goals:"goal",audits:"audit",maps:"map",debug:"debug"}[area],files:new Map(),mtime:0});
+  // Live work: <kind>/<slug>/. The archive keeps one folder per kind: archive/features/<slug>,
+  // archive/debug/<slug>, … (init.sh moves the older flat layout into archive/features/).
+  const KIND={features:"feature",goals:"goal",audits:"audit",maps:"map",debug:"debug"};
+  for(const [rel,f] of A){let dir,slug,name,kind,inArchive=false;
+    const a=rel.match(/^archive\/([^/]+)\/([^/]+)\/(.+)$/);
+    if(a&&/^\d{4}-\d{2}-\d{2}-/.test(a[1]))continue;   // flat layout, not migrated yet: Files view only
+    if(a){inArchive=true;slug=a[2];name=a[3];dir=`archive/${a[1]}/${slug}`;kind=a[1]==="features"?"archived":KIND[a[1]]||"archived"}
+    else{const m=rel.match(/^(features|goals|audits|maps|debug)\/([^/]+)\/(.+)$/);if(!m)continue;
+      slug=m[2];name=m[3];dir=`${m[1]}/${slug}`;kind=KIND[m[1]]}
+    if(!items.has(dir))items.set(dir,{dir,slug,kind,inArchive,files:new Map(),mtime:0});
     const it=items.get(dir);it.files.set(name,f);it.mtime=Math.max(it.mtime,f.mtime)}
   const rows=[];const seenRun=new Set();
   for(const it of items.values()){
@@ -543,20 +550,21 @@ function build(){NOW=new Date();
     const mf=it.files.get("metrics.jsonl");(mf&&txt(mf.path)?parseJsonl(txt(mf.path)):[]).forEach(r=>{const k=(r.run_id||"")+"|"+r.ts+"|"+r.agent;seenRun.add(k);rows.push(rowOf(r,it.dir))});
     if(it.goal){const g=it.files.get("goal.md");const gt=g?txt(g.path):null;if(gt){const h=gt.match(/^#\s+(.+)$/m);const o=gt.match(/^\**(?:Objective|Goal)\**\s*:\s*\**\s*(.+)$/mi);if(o)it.title=o[1].trim();else if(h)it.title=h[1].replace(/^Goal\s*[:—-]\s*/i,"").trim()}
       const s=it.files.get("summary.md");const st=s?txt(s.path):null;
-      if(!s)it.status="open";else if(st!=null){const m=st.match(/^Status:\s*(\w+)/m);it.status=m?m[1].toLowerCase():"done";const r=st.match(/^Reason:\s*(.+)$/m);const rp=st.match(/^Resume point:\s*(.+)$/m);it.reason=r?r[1].trim():"";it.resume=rp?rp[1].trim():""}else it.status="open"}
+      if(!s)it.status="open";else if(st!=null){const m=st.match(/^Status:\s*(\w+)/m);it.status=m?m[1].toLowerCase():"done";const r=st.match(/^Reason:\s*(.+)$/m);const rp=st.match(/^Resume point:\s*(.+)$/m);it.reason=r?r[1].trim():"";it.resume=rp?rp[1].trim():""}else it.status="open";if(it.inArchive&&it.status==="open")it.status="done"}
     // stage
     let stage=null;for(const e of it.entries){let s=CTX_STAGE[(e.ctx||"").toLowerCase()];if(!s&&e.who.startsWith("skill:"))s=SKILL_STAGE[e.who.slice(6)];if(s)stage=s}
     if(!stage){const has=n=>it.files.has(n)||[...it.files.keys()].some(k=>k.startsWith(n+"/"));stage=has("tech-plan.md")?"arch":has("mockups")?"mockups":has("ux-design.md")?"ux":"spec"}
     it.stage=it.archived?"ship":stage;
     const rets=it.entries.filter(e=>e.kind==="return");const last=rets[rets.length-1];
     it.last=it.entries[it.entries.length-1]||null;
-    it.stop=!!(last&&last.rec&&/^STOP\b/i.test(last.rec))&&!it.archived&&it.status!=="done";
-    it.blocked=!!(last&&(last.status==="blocked"||(last.blk&&!/^none\b/i.test(last.blk))))&&!it.archived&&it.status!=="done";
+    it.stop=!!(last&&last.rec&&/^STOP\b/i.test(last.rec))&&!it.inArchive&&it.status!=="done";
+    it.blocked=!!(last&&(last.status==="blocked"||(last.blk&&!/^none\b/i.test(last.blk))))&&!it.inArchive&&it.status!=="done";
     it.loops=it.entries.filter(e=>e.kind==="return"&&e.who==="bagnik"&&e.status==="fail"&&!/test gate/i.test(e.ctx)).length;
     it.lastT=it.last?it.last.t:new Date(it.mtime*1000)}
   // runs that only reached the fleet log (eval variants, rows whose folder is gone)
   const cj=artText("autoresearch/runs/cost.jsonl");if(cj)parseJsonl(cj).forEach(r=>{const k=(r.run_id||"")+"|"+r.ts+"|"+r.agent;if(seenRun.has(k))return;seenRun.add(k);rows.push(rowOf(r,null))});
-  function rowOf(r,dir){let d=dir;if(!d&&r.feature){const m=String(r.feature).match(/(features|archive|goals|audits|maps|debug)\/([^/]+)\/?$/);if(m)d=`${m[1]}/${m[2]}`;if(d&&!items.has(d)){const alt=`archive/${m[2]}`;if(items.has(alt))d=alt}}
+  function rowOf(r,dir){let d=dir;if(!d&&r.feature){const m=String(r.feature).match(/(features|archive|goals|audits|maps|debug)\/([^/]+)\/?$/);
+    if(m)d=[`${m[1]}/${m[2]}`,`archive/features/${m[2]}`,`archive/${m[1]}/${m[2]}`].find(k=>items.has(k))||`${m[1]}/${m[2]}`}
     const src=r.source||(r.cost_usd!=null?"estimated":"none");
     return{ts:new Date(r.ts),dir:d,agent:rowWho(r.agent),cost:typeof r.cost_usd==="number"?r.cost_usd:null,tokens:typeof r.tokens==="number"?r.tokens:null,wall:typeof r.wall_ms==="number"?r.wall_ms:null,acc:typeof r.accuracy==="number"?r.accuracy:null,source:src,variant:r.variant||null}}
   rows.forEach(r=>{if(isNaN(r.ts))r.ts=null});
@@ -624,7 +632,7 @@ function build(){NOW=new Date();
 
 function buildInbox(){const K=META.kit||"talaka",out=[];const art=META.art;
   for(const it of [...M.features,...M.goals,...M.other]){
-    if(it.goal&&it.status==="done")continue;const l=it.entries.filter(e=>e.kind==="return").pop();
+    if(it.inArchive||(it.goal&&it.status==="done"))continue;const l=it.entries.filter(e=>e.kind==="return").pop();
     if(it.stop)out.push({sev:"stop",title:`${it.title} is waiting for you`,why:`${aname(l.who)} returned with “${l.rec}”.${l.f.why?" "+l.f.why:""}`,cmd:`cat ${art}/${it.dir}/handoff-log.md`,open:["item",it.dir],t:l.t});
     if(it.kind==="feature"&&it.loops>=2)out.push({sev:"loop",title:`Fix loop is not converging: ${it.title}`,why:`Bagnik has failed code QA ${it.loops} times. The protocol suggests a Yaga side loop instead of another build.`,cmd:`@yaga investigate ${art}/${it.dir}`,open:["item",it.dir],t:it.lastT});
     if(it.blocked&&!it.stop)out.push({sev:"warn",title:`${it.title} is blocked`,why:`${aname(l.who)}: ${l.blk&&!/^none/i.test(l.blk)?l.blk:l.result}`,cmd:`cat ${art}/${it.dir}/handoff-log.md`,open:["item",it.dir],t:l.t});
@@ -827,7 +835,7 @@ function vWork(){
     <div id="wbody"></div>
     <div class="head" style="margin-top:26px"><h2>Goals</h2></div>
     ${M.goals.length?`<div class="goals">${M.goals.map(goalCard).join("")}</div>`:`<section class="panel">${empty("No goals yet","A bare /loop asks for an objective and works it in iterations under "+esc(META.art)+"/goals/.","/loop")}</section>`}
-    ${M.other.length?`<div class="head" style="margin-top:26px"><h2>Audits, maps and investigations</h2></div><section class="panel tw"><table class="tbl"><thead><tr><th>Name</th><th>Kind</th><th>Last entry</th><th class="r">Spend</th></tr></thead><tbody>${M.other.map(o=>`<tr class="c" ${oa("item",o.dir)}><td>${esc(o.title)}</td><td>${o.kind}</td><td>${o.last?esc(o.last.result):"—"}</td><td class="r num">${usd(o.cost)}</td></tr>`).join("")}</tbody></table></section>`:""}</div>`;
+    ${M.other.length?`<div class="head" style="margin-top:26px"><h2>Audits, maps and investigations</h2></div><section class="panel tw"><table class="tbl"><thead><tr><th>Name</th><th>Kind</th><th>Last entry</th><th class="r">Spend</th></tr></thead><tbody>${M.other.map(o=>`<tr class="c" ${oa("item",o.dir)}><td>${esc(o.title)}${o.inArchive?' <span class="chip">archived</span>':""}</td><td>${o.kind}</td><td>${o.last?esc(o.last.result):"—"}</td><td class="r num">${usd(o.cost)}</td></tr>`).join("")}</tbody></table></section>`:""}</div>`;
   $$("[data-m]",main).forEach(b=>b.onclick=()=>{workMode=b.dataset.m;store.set("work",workMode);vWork()});
   workMode==="board"?board():gantt()}
 function board(){const arch=M.archived;

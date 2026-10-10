@@ -25,7 +25,8 @@ project root/
 │   ├── PROJECT.md                 ← project-specific config (you edit this)
 │   ├── memory/                    ← layered memory (auto-managed)
 │   ├── features/                  ← active feature folders (created per /requirements-eliciting)
-│   ├── archive/                   ← completed features (moved by Zlydni)
+│   ├── archive/features/<slug>/   ← completed features (moved by Zlydni)
+│   ├── archive/debug/<slug>/      ← closed investigations (moved by Yaga)
 │   └── scratch/                   ← ephemeral runtime files (auto-managed)
 ├── CLAUDE.md                      ← Claude Code entry-point with managed include block
 ├── AGENTS.md                      ← cross-IDE entry-point with the same include block
@@ -328,7 +329,7 @@ Append progress entries to `handoff-log.md` as you hit checkpoints, then one ret
 
 That last line is not boilerplate — restate it in every invocation.
 
-**Feature path rule:** All feature artifacts live in `.tlk/features/YYYY-MM-DD-feature-name/`. The coordinator includes this path in every invocation so the worker knows where to read/write. When the feature is complete, Zlydni moves the folder to `.tlk/archive/`.
+**Feature path rule:** All feature artifacts live in `.tlk/features/YYYY-MM-DD-feature-name/`. The coordinator includes this path in every invocation so the worker knows where to read/write. When the feature is complete, Zlydni moves the folder to `.tlk/archive/features/`. The archive keeps one folder per kind (`features/`, `debug/`); `init.sh` moves features archived under the older flat layout into `features/`.
 
 ### Per-Worker Invocation Checklists
 
@@ -369,7 +370,7 @@ The coordinator reads this log before every routing decision. It is the only pla
 5. **Flag blockers early** — Workers report blockers in the return entry; the coordinator routes or stops
 6. **Log partial results** — Progress entries as checkpoints land, not one dump at the end
 7. **Parallel work** — Only Mokash runs in parallel; pass it the same context. In `speed-up` pace, independent read-only steps may run in parallel too; in `slow-down`, nothing does (see *Pace*)
-8. **Close feature after commit** — After Zlydni commit, move feature folder to `.tlk/archive/`
+8. **Close feature after commit** — After Zlydni commit, move feature folder to `.tlk/archive/features/`
 9. **Version bumping** — Cmok: bump patch before each build. Zlydni: bump minor before commit. Update all version files listed in Project-Specific Configuration.
 
 ### Test scope — who runs what
