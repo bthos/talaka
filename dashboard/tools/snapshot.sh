@@ -136,7 +136,12 @@ jstr() {
 # Characters a template literal cannot hold as-is: \ ` $ and CR (which the JS
 # parser would normalise to LF).
 SPECIAL=$'*[\\\\`$\r]*'
-SED_ESC=(sed -e 's/\\/\\\\/g' -e 's/`/\\`/g' -e 's/\$/\\$/g' -e $'s/\r/\\\\r/g')
+# CR is matched as `\r` by GNU sed (Linux, Git Bash) — never as a literal CR in
+# the argument: Git Bash drops it, the expression becomes `s//\\r/g`, and an
+# empty regex means "the previous one", so every `$` turned into `\r`. BSD sed
+# (macOS) has no `\r` but keeps a literal CR intact.
+if sed --version >/dev/null 2>&1; then SED_CR='s/\r/\\r/g'; else SED_CR=$'s/\r/\\\\r/g'; fi
+SED_ESC=(sed -e 's/\\/\\\\/g' -e 's/`/\\`/g' -e 's/\$/\\$/g' -e "$SED_CR")
 
 # write_chunk SRC OUTFILE SIZE JSONPATH
 # Small files are escaped in-process (no fork); bash's pattern substitution
