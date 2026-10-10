@@ -23,9 +23,20 @@ _chunk() {
   id=$(grep -F "[\"$2\"," "$1/.tlk/dashboard/manifest.js" | sed 's/.*,\([0-9][0-9]*\)\]\(,\)\{0,1\}$/\1/')
   printf '%s/.tlk/dashboard/data/c%s.js' "$1" "$id"
 }
-# _js_text CHUNKFILE → the text the page would see (needs node).
-_js_text() {
-  node -e 'let out;global.TLK={chunk:(p,t)=>{out=t}};require(process.argv[1]);process.stdout.write(out)' "$1"
+# _js_same CHUNKFILE ORIGINAL → empty when the text the page would see equals the
+# file byte for byte; otherwise the first differing offset with both sides
+# around it. Compared inside node, so no shell pipe or locale sits in between.
+_js_same() {
+  node -e '
+    const fs = require("fs"); let out;
+    global.TLK = { chunk: (p, t) => { out = t } };
+    require(process.argv[1]);
+    const got = Buffer.from(out, "utf8"), want = fs.readFileSync(process.argv[2]);
+    if (got.equals(want)) process.exit(0);
+    let i = 0; while (i < got.length && i < want.length && got[i] === want[i]) i++;
+    const ctx = b => JSON.stringify(b.subarray(Math.max(0, i - 12), i + 12).toString("latin1"));
+    console.log(`differs at byte ${i} (page ${got.length} B, file ${want.length} B): page ${ctx(got)} file ${ctx(want)}`);
+  ' "$1" "$2"
 }
 
 test_writes_manifest_chunks_and_page() {
@@ -62,8 +73,8 @@ test_chunk_round_trips_through_js() {
   local f="$proj/.tlk/features/2026-10-01-login/spec.md"
   printf 'a `b` ${c} \\d \\` \\${x}\r\n\ttab ünïcode\n\n' > "$f"
   _snap "$proj" >/dev/null 2>&1
-  local got; got=$(_js_text "$(_chunk "$proj" .tlk/features/2026-10-01-login/spec.md)" | od -An -c)
-  assert_eq "$(od -An -c < "$f")" "$got" "page sees the file byte for byte"
+  assert_eq "" "$(_js_same "$(_chunk "$proj" .tlk/features/2026-10-01-login/spec.md)" "$f")" \
+    "page sees the file byte for byte"
 }
 
 test_large_file_round_trips_through_js() {
@@ -75,7 +86,7 @@ test_large_file_round_trips_through_js() {
   [ "$(wc -c < "$f")" -gt 32768 ] || fail "fixture is not over 32 KB"
   _snap "$proj" >/dev/null 2>&1
   local c; c=$(_chunk "$proj" .tlk/features/2026-10-01-login/metrics.jsonl)
-  assert_eq "$(cksum < "$f")" "$(_js_text "$c" | cksum)" "large file round-trips"
+  assert_eq "" "$(_js_same "$c" "$f")" "large file round-trips"
 }
 
 test_second_run_writes_nothing() {
