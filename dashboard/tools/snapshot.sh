@@ -147,6 +147,8 @@ write_chunk() {
   if [ "$size" -le 32768 ]; then
     IFS= read -r -d '' v < "$src" || true
     if [ "${#v}" -eq "$size" ]; then
+      # SPECIAL is a glob on purpose: "does v contain any of \ ` $ CR".
+      # shellcheck disable=SC2053
       if [[ $v == $SPECIAL ]]; then
         v=${v//\\/\\\\}; v=${v//\`/\\\`}; v=${v//\$/\\\$}; v=${v//$'\r'/\\r}
       fi
