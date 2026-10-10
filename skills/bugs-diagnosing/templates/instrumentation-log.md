@@ -7,7 +7,7 @@ Mode: server | offline   <!-- server: probes POST to the loopback log server →
 
 <!-- Entry format:
 
-## HH:MM — [add probe pN | observe | hypothesis update | remove probe pN]
+## YYYY-MM-DD HH:MM — [add probe pN | observe | hypothesis update | remove probe pN]
 
 **Probe:** pN at `path/to/file.ext:42` capturing `[vars]`
 **Run:** [what was reproduced]
@@ -31,14 +31,14 @@ ssh user@host 'tail -F /var/log/app.log' \
     done
 ```
 
-If forwarding is not possible, paste excerpts here under a `## HH:MM — pasted` entry and call them out in `findings.md`.
+If forwarding is not possible, paste excerpts here under a `## YYYY-MM-DD HH:MM — pasted` entry and call them out in `findings.md`.
 
 ## Offline targets (no route to 127.0.0.1)
 
 Embedded devices, wearables, unattended overnight runs: no server can receive a probe, so none is started. Probes write to one capped on-device debug key or file (`dbg_{{INVESTIGATION_ID}}`); read it back through an in-app diagnostics surface after each repro and paste it here:
 
 ```
-## HH:MM — pasted (read back from dbg_{{INVESTIGATION_ID}}, run N)
+## YYYY-MM-DD HH:MM — pasted (read back from dbg_{{INVESTIGATION_ID}}, run N)
 <excerpt>
 ```
 

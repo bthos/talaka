@@ -27,9 +27,25 @@ tags yet — entries are dated and grouped by submodule HEAD).
   hook updates it after every session; the open page re-reads it every 30 s. In Chrome and Edge a
   Live mode reads the project folder directly (File System Access API) every 5 s.
 - `kit.sh dashboard` opens it; `teardown.sh --full-clean` sweeps `.tlk/dashboard/`.
-- Known gaps the page works around and labels: handoff entries carry no date (inferred from the
-  log's mtime, marked `≈`), and `promote.sh` curates facts with `entities: []` (read back from the
-  originating L2 entry).
+- Older logs and memory are still read: a header without a date gets it from the log's mtime
+  (marked `≈`), and a fact curated with `entities: []` gets its entities and source back from the
+  originating L2 entry.
+
+### Fixed — curated memory keeps what the agent logged; handoff headers carry the date
+
+- **`promote.sh` no longer drops fields when curating to L3.** It wrote every curated fact with
+  `entities: []`, `decided:` set to the day of curation and `source:` replaced by a pointer into the
+  daily file — so a fact lost what it was about and where it came from the moment it became a rule.
+  It now copies `decided`, `entities` and `source` from the L2 entry and keeps the pointer as
+  `curated_from:` (an entry with no source of its own still gets the pointer as its source).
+- **2-strike promotions store the text verbatim.** They stored the normalised dedupe key — lowercased,
+  whitespace collapsed — as the fact. The first sighting's text is kept now; the entities are the
+  union of all sightings, `decided` the earliest, `source` the first real one.
+- `list_entries` writes `-` for an empty field: tab is IFS whitespace, so an empty `entity_type` or
+  text used to collapse and shift every later field of the row.
+- **Handoff headers start with the date**: `## YYYY-MM-DD HH:MM Worker → Coordinator [context] status`,
+  in `PIPELINE.md` and every agent, skill and template. A bare `HH:MM` could not be placed on a
+  timeline once a feature's log spanned days.
 
 ### Fixed — memory writes and `defer.sh` no longer take 10–25 s on Git Bash (#8)
 

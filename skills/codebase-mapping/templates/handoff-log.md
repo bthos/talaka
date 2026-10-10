@@ -9,14 +9,14 @@ Two kinds of entry:
    done but unverified, when a check produces results, before something long or
    irreversible, or when the plan changes.
 
-## HH:MM [Worker] [context] progress
+## YYYY-MM-DD HH:MM [Worker] [context] progress
 Result: ...
 Artifacts: ...
 Next: ...
 
 2. Return — exactly one, appended immediately before returning.
 
-## HH:MM [Worker] → Coordinator [context] [done|pass|fail|blocked]
+## YYYY-MM-DD HH:MM [Worker] → Coordinator [context] [done|pass|fail|blocked]
 Result: ...
 Artifacts: ...
 Recommend: [@agent | /skill | STOP — user input needed | END]

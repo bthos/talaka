@@ -171,7 +171,7 @@ Thresholds default to `slow5h=-15 slow7d=-10 push5h=20 push7d=10 stop5h=90 stop7
 **Log switches, not readings.** Append a line to `handoff-log.md` only when the mode changes (and once for an unmeasured fallback):
 
 ```markdown
-## HH:MM [Coordinator] pace normal → slow-down
+## YYYY-MM-DD HH:MM [Coordinator] pace normal → slow-down
 - 7d 38% used, 21% of window elapsed, resets in 5d
 - Deferred: docs sweep, Veles round
 ```
@@ -191,12 +191,14 @@ It does **not** invoke the next worker. See *The one routing rule* above.
 
 `handoff-log.md` takes two kinds of entry, and only one of them ends your turn.
 
+Every header starts with the local date and time, `YYYY-MM-DD HH:MM` — take it from `date '+%Y-%m-%d %H:%M'`, never from memory. A feature's log spans days; a bare time cannot be placed on a timeline, and the dashboard can only guess at it.
+
 #### Progress entry — mid-run, no arrow
 
 Written when you reach a checkpoint worth recording but are **not** finished. There is no `→ Coordinator` on the header: the arrow means "I have returned", and you have not.
 
 ```markdown
-## HH:MM [Worker] [context] progress
+## YYYY-MM-DD HH:MM [Worker] [context] progress
 Result: [what is now true — what got done, and what it means]
 Artifacts: [paths written or updated so far, or "none yet"]
 Next: [what you do next in this same run]
@@ -223,7 +225,7 @@ Rules for progress entries:
 The `→ Coordinator` target is literal — every worker returns to the coordinator, so there is never another value:
 
 ```markdown
-## HH:MM [Worker] → Coordinator [context] [status]
+## YYYY-MM-DD HH:MM [Worker] → Coordinator [context] [status]
 Result: [one line — what happened]
 Artifacts: [paths written or updated]
 Recommend: [@agent | /skill | STOP — user input needed | END]

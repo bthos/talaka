@@ -25,10 +25,10 @@ This skill frames the riddle before the search begins. You read the bug, read th
    ```
    The slug should be short and bug-shaped (`login-stuck-spinner`, `pdf-export-blank-page`). The script creates `.tlk/debug/YYYY-MM-DD-<slug>/` with `hypothesis.md`, `instrumentation-log.md`, `findings.md`, and `handoff-log.md` templates.
 5. **Fill `hypothesis.md`.** Use the template that was created. The hypothesis section is the contract — `@yaga` will refuse to instrument without it.
-6. **Log and return.** Append your return entry to `handoff-log.md`, then return to the coordinator — **do not invoke `@yaga` yourself**. Yaga is a user-authorised side-loop; the coordinator surfaces the recommendation and the user decides. Append a `## HH:MM bugs-diagnosing [investigation] progress` entry (`Result:` / `Artifacts:` / `Next:`, no arrow, no `Recommend:`) when the reproduction is confirmed and again when the ranked hypotheses are written — Yaga reads both if it is authorised.
+6. **Log and return.** Append your return entry to `handoff-log.md`, then return to the coordinator — **do not invoke `@yaga` yourself**. Yaga is a user-authorised side-loop; the coordinator surfaces the recommendation and the user decides. Append a `## YYYY-MM-DD HH:MM bugs-diagnosing [investigation] progress` entry (`Result:` / `Artifacts:` / `Next:`, no arrow, no `Recommend:`) when the reproduction is confirmed and again when the ranked hypotheses are written — Yaga reads both if it is authorised.
 
 ```
-## HH:MM bugs-diagnosing → Coordinator [hypothesis] done
+## YYYY-MM-DD HH:MM bugs-diagnosing → Coordinator [hypothesis] done
 Result: [N] ranked hypotheses with probes. Investigation: .tlk/debug/YYYY-MM-DD-<slug>/
 Artifacts: hypothesis.md
 Recommend: @yaga (user-authorised) — run the instrumentation loop

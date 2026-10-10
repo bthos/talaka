@@ -106,7 +106,7 @@ Never add `retries` to the visual config. A retry that passes hides the flake an
 
 2. **Append your log entry** to `handoff-log.md` (the feature's, if one is active):
    ```
-   ## HH:MM screenshots-testing → Coordinator [visual] pass | changes | fail
+   ## YYYY-MM-DD HH:MM screenshots-testing → Coordinator [visual] pass | changes | fail
    Result: Mode [setup|check|accept]. Shots [n run / n total] across [modes]. Changed [n], new [n], accepted [n], rejected [n]. Container [image | none].
    Artifacts: playwright.visual.config.ts, tests/visual/, visual-report/
    Caveats: [stories tagged no-visual, host-rendered baselines, masks added — or "none"]
@@ -117,7 +117,7 @@ Never add `retries` to the visual config. A retry that passes hides the flake an
 
 **Progress entries — log as you go.** Append one after setup installs and the first run completes, after the baselines are stable (two green runs), and after a check run. No `→ Coordinator` arrow, no `Recommend:` line:
 ```
-## HH:MM screenshots-testing [visual] progress
+## YYYY-MM-DD HH:MM screenshots-testing [visual] progress
 Result: [what now exists, run counts]
 Artifacts: [paths]
 Next: [what you do next in this same run]

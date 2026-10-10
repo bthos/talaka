@@ -54,7 +54,7 @@ After mockups are complete:
   Skip silently if `.tlk/autoresearch/tools/record-metrics.sh` does not exist.
 - Append your log entry to `handoff-log.md`:
   ```
-  ## HH:MM mockups-creating → Coordinator [mockups] done
+  ## YYYY-MM-DD HH:MM mockups-creating → Coordinator [mockups] done
   Result: mockups complete. States implemented: [list]. Design system: [reused components/tokens, or omit].
   Artifacts: [paths]
   Recommend: STOP — user UAT required before architecture-planning.
@@ -62,7 +62,7 @@ After mockups are complete:
   ```
 - **Progress entries — log as you go.** Append a `progress` entry to `handoff-log.md` as each screen's mockup lands, and when a state in the matrix turns out to be undesignable as specified. No `→ Coordinator` arrow (you have not returned), no `Recommend:` line:
   ```
-  ## HH:MM mockups-creating [mockups] progress
+  ## YYYY-MM-DD HH:MM mockups-creating [mockups] progress
   Result: [which screens/states are now mocked]
   Artifacts: [paths]
   Next: [what you mock next in this same run]

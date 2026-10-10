@@ -325,7 +325,7 @@ Any object opens the same side panel, and everything in it links onward. `Ctrl K
 
 **What it never does.** It is read-only: every action is a command to copy. It makes no network requests; every style, script and chart is inside `dashboard/viewer.html`. It does not estimate: a number shown is a number some file contains.
 
-Two things the files do not carry, and the page says so where it matters. Handoff entries record a time but not a date, so dates are inferred from the log's modification time and marked `≈`. And `promote.sh` writes curated facts with `entities: []`; the page reads the entities and the original source back from the L2 entry the fact came from.
+Logs and memory written before this kit version carry less, and the page says so where it matters. A handoff header with a time but no date (`## 14:32 …`) gets its date inferred from the log's modification time, marked `≈`. A curated fact with `entities: []` and a daily-file `source:` gets both read back from the L2 entry it came from.
 
 ## Self-improving agents
 

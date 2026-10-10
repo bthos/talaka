@@ -30,10 +30,10 @@ The slug should name the audit's theme (`model-naming`, `artefact-paths`, `post-
 2. **Fix the corpus and the dimensions.** Write the globs you're auditing into `audit.md`, and tick which dimensions you're checking (below). Scope beats breadth — a focused audit that closes is worth more than an open-ended one.
 3. **Collect evidence mechanically, then reason.** Use search to enumerate every occurrence of a value/term across the corpus (`rg -n`), so no instance is missed; then read the surrounding intent to judge whether a difference is drift or deliberate.
 4. **Write findings.** One per row, ranked by severity. Each finding lists **every** location (`path:line`), names the **single source of truth** the corpus should converge on, and a concrete fix `@cmok` can apply.
-5. **Log and return.** Append your return entry to `handoff-log.md`, then return to the coordinator — **do not invoke `@cmok` yourself**. The audit is the fix contract; the coordinator routes it to `@cmok`, who applies it, and `@bagnik` gates the result. As findings accumulate, append `## HH:MM consistency-auditing [audit] progress` entries (`Result:` / `Artifacts:` / `Next:`, no arrow, no `Recommend:`) — a partial ranked list is still actionable if the sweep does not finish.
+5. **Log and return.** Append your return entry to `handoff-log.md`, then return to the coordinator — **do not invoke `@cmok` yourself**. The audit is the fix contract; the coordinator routes it to `@cmok`, who applies it, and `@bagnik` gates the result. As findings accumulate, append `## YYYY-MM-DD HH:MM consistency-auditing [audit] progress` entries (`Result:` / `Artifacts:` / `Next:`, no arrow, no `Recommend:`) — a partial ranked list is still actionable if the sweep does not finish.
 
 ```
-## HH:MM consistency-auditing → Coordinator [audit] done
+## YYYY-MM-DD HH:MM consistency-auditing → Coordinator [audit] done
 Result: [N] findings — [high]/[med]/[low]. Corpus: [globs].
 Artifacts: [audit-path]/audit.md
 Recommend: @cmok (apply the fixes)

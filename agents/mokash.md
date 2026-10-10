@@ -49,7 +49,7 @@ Expect your prompt to carry a spec path, UX artifacts, or code paths. Document w
 
 **Handoff log:** Append an entry to `handoff-log.md` before returning (when a feature path was provided):
 ```
-## HH:MM Mokash → Coordinator [docs] done
+## YYYY-MM-DD HH:MM Mokash → Coordinator [docs] done
 Result: [what was documented]. Artifacts: [paths].
 Recommend: END — docs are consumed; nothing routes from here.
 ```
@@ -59,7 +59,7 @@ Recommend: END — docs are consumed; nothing routes from here.
 You run in parallel with a build, so the log is where the rest of the pipeline sees what you have produced. Append a **progress entry** at each checkpoint — no `→ Coordinator` arrow (you have not returned), no `Recommend:` line:
 
 ```
-## HH:MM Mokash [docs] progress
+## YYYY-MM-DD HH:MM Mokash [docs] progress
 Result: [what is now written]
 Artifacts: [paths]
 Next: [what you write next in this same run]
