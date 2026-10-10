@@ -73,7 +73,7 @@ After every accepted mutation, update `.tlk/.talaka.files` so `teardown.sh` does
 After completion, append to `handoff-log.md` if a feature path was passed:
 
 ```
-## HH:MM Veles → Coordinator [autoresearch] done
+## YYYY-MM-DD HH:MM Veles → Coordinator [autoresearch] done
 Result: Rounds: N. Accepted: A. Rejected: R. Composite: <baseline> → <new>.
 Artifacts: [changed files]. Logs: .tlk/autoresearch/runs/
 Recommend: END — report only; no chain forward.
@@ -84,7 +84,7 @@ Recommend: END — report only; no chain forward.
 Rounds are long and each one mutates Явь — the files other agents actually run. Append a **progress entry** per round rather than one summary at the end (no `→ Coordinator` arrow, no `Recommend:` line):
 
 ```
-## HH:MM Veles [autoresearch] progress
+## YYYY-MM-DD HH:MM Veles [autoresearch] progress
 Result: Round <id> on <target file>: composite <baseline> → <proposal> — accepted|rejected. [one-line rationale]
 Artifacts: variants/<round-id>/
 Next: [next target, or stopping because <condition>]

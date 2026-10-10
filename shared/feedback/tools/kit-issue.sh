@@ -12,6 +12,8 @@
 #   kit-issue.sh add --kind <kind> --title <t> --what <observed> --expected <e>
 #                    [--command <cmd>] [--evidence <text>] [--evidence-file <path>]
 #                    [--by <worker>]
+#   kit-issue.sh add --kind idea --title <t> --problem <p> --proposal <s>
+#                    [--acceptance <criteria>] [--evidence-file <path>] [--by <worker>]
 #   kit-issue.sh list [--all]
 #   kit-issue.sh sync
 #   kit-issue.sh show <KI-id>
@@ -21,6 +23,9 @@
 #
 # Kinds: slow | hang | fabrication | wrong-location | error | docs-mismatch | other
 #   slow and hang need --evidence: a measured duration, not an impression.
+# Kind idea is a proposal, not a defect: it takes --problem (what is missing or
+#   costs time today) and --proposal instead of --what/--expected, needs no
+#   evidence, and is filed as "[idea] <title>" rather than "[field report] …".
 #
 # `add` with the title of a pending entry does not duplicate it — it bumps that
 # entry's Seen count, which is exactly what tells a maintainer how often it bites.
@@ -48,8 +53,12 @@ source "$(cd "$(dirname "$0")/../../lifecycle/tools" && pwd)/lib.sh"
 ISSUES_FILE="$ARTEFACTS/kit-issues.md"
 REMOTE_FILE="$ARTEFACTS/kit-issues-remote.tsv"   # number \t state \t title \t url
 ISSUES_REPO="${TALAKA_ISSUES_REPO:-bthos/talaka}"
-KINDS="slow hang fabrication wrong-location error docs-mismatch other"
-EVIDENCE_TAIL=60
+KINDS="slow hang fabrication wrong-location error docs-mismatch other idea"
+EVIDENCE_TAIL=60    # an error log: its end is what matters
+EVIDENCE_HEAD=200   # an idea's write-up: its start (the problem) is what matters
+
+# _prefix KIND → REPLY = the issue-title prefix this kind is filed under.
+_prefix() { if [ "$1" = idea ]; then REPLY="[idea]"; else REPLY="[field report]"; fi; }
 
 usage() {
   sed -n '2,/^# shellcheck/{/^# shellcheck/d;s/^# \{0,1\}//;p}' "$0" >&2
@@ -179,8 +188,9 @@ _set_fields() {  # id field value [field value …]
 
 # The entry as a GitHub issue body: everything but the header and local bookkeeping.
 _render_body() {
-  local id="$1"
-  printf '<!-- Field report from an installed %s kit (%s %s). -->\n\n' "$KIT_BRAND" "$SUBMODULE_DIR/shared/feedback/tools/kit-issue.sh" "$id"
+  local id="$1" what="Field report"
+  [ "$(_get_field "$id" Kind)" = idea ] && what="Idea"
+  printf '<!-- %s from an installed %s kit (%s %s). -->\n\n' "$what" "$KIT_BRAND" "$SUBMODULE_DIR/shared/feedback/tools/kit-issue.sh" "$id"
   KI_ID="$id" awk '
     /^## KI-[0-9]+: / { inblk = ($2 == ENVIRON["KI_ID"] ":"); next }
     inblk && /^- \*\*(Status|Issue):\*\* / { next }
@@ -201,7 +211,7 @@ _render_body() {
 _SIMILAR_AWK='
   function kw(s, out,   n, i, w, parts, seen) {
     s = tolower(s)
-    sub(/^\[field report\][ ]*/, "", s)
+    sub(/^\[(field report|idea)\][ ]*/, "", s)
     gsub(/_/, "-", s)
     n = split(s, parts, /[^a-z0-9.-]+/)
     for (k in out) delete out[k]
@@ -216,7 +226,7 @@ _SIMILAR_AWK='
   BEGIN {
     ns = split("the and not for with when does doesn don from into than then that this " \
                "has have are was were but all any its only same one per via instead also " \
-               "should never always after before field report issue kit", sw, " ")
+               "should never always after before field report issue kit idea", sw, " ")
     for (i = 1; i <= ns; i++) STOP[sw[i]] = 1
     na = kw(ENVIRON["KI_T"], A)
   }
@@ -271,12 +281,16 @@ _remote_fetch() {
 # ---------------------------------------------------------------------------
 cmd_add() {
   local kind="" title="" what="" expected="" command="" evidence="" evidence_file="" by="coordinator"
+  local problem="" proposal="" acceptance=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --kind)          kind="${2:-}"; shift 2 ;;
       --title)         title="${2:-}"; shift 2 ;;
       --what)          what="${2:-}"; shift 2 ;;
       --expected)      expected="${2:-}"; shift 2 ;;
+      --problem)       problem="${2:-}"; shift 2 ;;
+      --proposal)      proposal="${2:-}"; shift 2 ;;
+      --acceptance)    acceptance="${2:-}"; shift 2 ;;
       --command)       command="${2:-}"; shift 2 ;;
       --evidence)      evidence="${2:-}"; shift 2 ;;
       --evidence-file) evidence_file="${2:-}"; shift 2 ;;
@@ -288,9 +302,15 @@ cmd_add() {
 
   [ -n "$kind" ]     || die "add: --kind is required ($KINDS)"
   [ -n "$title" ]    || die "add: --title is required"
-  [ -n "$what" ]     || die "add: --what is required (what the kit actually did)"
-  [ -n "$expected" ] || die "add: --expected is required (what it should have done)"
   case " $KINDS " in *" $kind "*) ;; *) die "add: --kind must be one of: $KINDS" ;; esac
+  if [ "$kind" = idea ]; then
+    # An idea has no "what the kit did": asking for one makes the reporter invent it.
+    [ -n "$problem" ]  || die "add: --kind idea needs --problem (what is missing or costs time today)"
+    [ -n "$proposal" ] || die "add: --kind idea needs --proposal (what the kit should do instead)"
+  else
+    [ -n "$what" ]     || die "add: --what is required (what the kit actually did)"
+    [ -n "$expected" ] || die "add: --expected is required (what it should have done)"
+  fi
   if [ "$kind" = slow ] || [ "$kind" = hang ]; then
     [ -n "$evidence" ] || [ -n "$evidence_file" ] \
       || die "add: --kind $kind needs --evidence with a measured duration (e.g. \"time: 41.2s, 3 runs\") — an impression is not a report"
@@ -317,7 +337,7 @@ cmd_add() {
     return 0
   fi
 
-  local id version platform c_by c_cmd c_what c_exp c_evid
+  local id version platform c_by c_cmd c_what c_exp c_evid c_prob c_prop c_acc
   printf -v id 'KI-%03d' $((max + 1))
   version=$(git -C "$SCRIPT_DIR" rev-parse --short HEAD 2>/dev/null || kit_cfg_get KIT_VERSION 2>/dev/null || true)
   platform="$(uname -sr 2>/dev/null || echo unknown) · bash ${BASH_VERSION%%(*}"
@@ -326,6 +346,9 @@ cmd_add() {
   _clean "$what";                c_what="$REPLY"
   _clean "$expected";            c_exp="$REPLY"
   _clean "${evidence:-—}";       c_evid="$REPLY"
+  _clean "$problem";             c_prob="$REPLY"
+  _clean "$proposal";            c_prop="$REPLY"
+  _clean "${acceptance:-—}";     c_acc="$REPLY"
 
   {
     printf '\n## %s: %s\n' "$id" "$title"
@@ -338,15 +361,33 @@ cmd_add() {
     printf -- '- **Kit version:** %s\n' "${version:-unknown}"
     printf -- '- **Platform:** %s\n' "$platform"
     printf -- '- **Command:** %s\n' "$c_cmd"
-    printf -- '- **What happened:** %s\n' "$c_what"
-    printf -- '- **Expected:** %s\n' "$c_exp"
+    if [ "$kind" = idea ]; then
+      printf -- '- **Problem:** %s\n' "$c_prob"
+      printf -- '- **Proposal:** %s\n' "$c_prop"
+      printf -- '- **Acceptance:** %s\n' "$c_acc"
+    else
+      printf -- '- **What happened:** %s\n' "$c_what"
+      printf -- '- **Expected:** %s\n' "$c_exp"
+    fi
     printf -- '- **Evidence:** %s\n' "$c_evid"
     printf -- '- **Issue:** —\n'
     if [ -n "$evidence_file" ]; then
-      local tailtext
-      tailtext=$(tail -n "$EVIDENCE_TAIL" "$evidence_file")
-      _redact "${tailtext//$'\r'/}"
-      printf '\n~~~~text\n%s\n~~~~\n' "$REPLY"
+      # A log keeps its end, a write-up its start. Whatever is cut is said, never silent.
+      local text lines note=""
+      lines=$(awk 'END { print NR }' "$evidence_file")
+      if [ "$kind" = idea ]; then
+        text=$(head -n "$EVIDENCE_HEAD" "$evidence_file")
+        [ "$lines" -le "$EVIDENCE_HEAD" ] || note="[… $((lines - EVIDENCE_HEAD)) more line(s) of the file not included]"
+      else
+        text=$(tail -n "$EVIDENCE_TAIL" "$evidence_file")
+        [ "$lines" -le "$EVIDENCE_TAIL" ] || note="[first $((lines - EVIDENCE_TAIL)) line(s) of the file not included]"
+      fi
+      _redact "${text//$'\r'/}"
+      if [ "$kind" = idea ]; then
+        printf '\n~~~~text\n%s\n%s~~~~\n' "$REPLY" "${note:+$note$'\n'}"
+      else
+        printf '\n~~~~text\n%s%s\n~~~~\n' "${note:+$note$'\n'}" "$REPLY"
+      fi
     fi
   } >> "$ISSUES_FILE"
 
@@ -415,7 +456,8 @@ cmd_sync() {
   local id st title rest url
   while IFS=$'\t' read -r id st title rest; do
     [ "$st" = pending ] || continue
-    url=$(KI_T="[field report] $title" awk -F '\t' 'tolower($3) == tolower(ENVIRON["KI_T"]) { print $4; exit }' "$REMOTE_FILE")
+    url=$(KI_T="$title" awk -F '\t' '{ t = tolower($3); sub(/^\[(field report|idea)\][ ]*/, "", t) }
+      t == tolower(ENVIRON["KI_T"]) { print $4; exit }' "$REMOTE_FILE")
     [ -n "$url" ] || continue
     _set_fields "$id" Status filed Issue "$url"
     success "$id was already filed: $url — linked"
@@ -451,6 +493,7 @@ cmd_submit() {
     return 0
   fi
   title=$(_get_title "$id")
+  local prefix; _prefix "$(_get_field "$id" Kind)"; prefix="$REPLY"
 
   # The body is kept under scratch (not a self-deleting temp) so the manual path
   # below can point at it.
@@ -459,7 +502,7 @@ cmd_submit() {
   _render_body "$id" > "$body"
 
   header "$id → github.com/$ISSUES_REPO"
-  printf '  Title: [field report] %s\n  Body:  %s\n\n' "$title" "${body#"$PROJECT_ROOT"/}"
+  printf '  Title: %s %s\n  Body:  %s\n\n' "$prefix" "$title" "${body#"$PROJECT_ROOT"/}"
   cat "$body"
   printf '\n'
 
@@ -500,7 +543,7 @@ cmd_submit() {
   fi
 
   local url
-  url=$(gh issue create --repo "$ISSUES_REPO" --title "[field report] $title" --body-file "$body")
+  url=$(gh issue create --repo "$ISSUES_REPO" --title "$prefix $title" --body-file "$body")
   _oneline "$url"; url="$REPLY"
   _set_fields "$id" Status filed Issue "$url"
   rm -f "$body" 2>/dev/null || true

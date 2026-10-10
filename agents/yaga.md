@@ -42,10 +42,10 @@ bash talaka/memory/tools/session.sh agent yaga
      python3 talaka/shared/debug/tools/debug-log-server.py --investigation <investigation-dir> &
      ```
      If `python3` is missing, fall back to `talaka/shared/debug/tools/debug-log-server.sh`. The server writes `<investigation-dir>/server.json` with `{port,pid,started}`. Read the port from there.
-   - **Offline mode** — the target has no route to your loopback: an embedded device or wearable, a phone without a debug bridge, an unattended overnight run, a sandboxed runtime. A server there would never receive a probe, so **do not start one**. Instead, probes persist to on-device storage under one dedicated debug key or file named for the investigation (e.g. `dbg_<investigation-id>`), capped in size, and you read them back through an in-app surface (a diagnostics page, a debug export, a device log pull). An empty or absent `runtime.jsonl` is then the **expected outcome**, not a missing artifact — the evidence lives in `instrumentation-log.md` as `## HH:MM — pasted` read-back entries.
+   - **Offline mode** — the target has no route to your loopback: an embedded device or wearable, a phone without a debug bridge, an unattended overnight run, a sandboxed runtime. A server there would never receive a probe, so **do not start one**. Instead, probes persist to on-device storage under one dedicated debug key or file named for the investigation (e.g. `dbg_<investigation-id>`), capped in size, and you read them back through an in-app surface (a diagnostics page, a debug export, a device log pull). An empty or absent `runtime.jsonl` is then the **expected outcome**, not a missing artifact — the evidence lives in `instrumentation-log.md` as `## YYYY-MM-DD HH:MM — pasted` read-back entries.
 5. **Inject probes.** For the language(s) declared in `.tlk/PROJECT.md` (or detected), use the snippets in `.claude/skills/bugs-diagnosing/templates/probes/`. Every injected line MUST carry the sentinel comment `DEBUG:<investigation-id>` (use the investigation folder name without the date prefix as the id). In server mode, inline the port from `server.json` as a literal — never depend on environment variables in the app under test. In offline mode, probes write to the debug key/file from step 4, and any read-back surface you add (a diagnostics page) carries the same sentinel so strip removes it too.
 6. **Reproduce.** Run the project repro / test command (`.tlk/PROJECT.md` → Test command, or a user-provided repro). For web frontends, paste `.claude/skills/bugs-diagnosing/templates/probes/browser-bootstrap.js` into the app entry or devtools to capture console + network signals.
-7. **Observe.** Server mode: poll `curl -s 127.0.0.1:<port>/tail?n=200` or subscribe to `/stream`. Offline mode: read the stored probes back through the in-app surface after each repro and paste them in as `## HH:MM — pasted` entries. Append each significant observation to `instrumentation-log.md` with timestamp, probe id, hypothesis affected, and outcome (`confirms` / `eliminates` / `inconclusive`).
+7. **Observe.** Server mode: poll `curl -s 127.0.0.1:<port>/tail?n=200` or subscribe to `/stream`. Offline mode: read the stored probes back through the in-app surface after each repro and paste them in as `## YYYY-MM-DD HH:MM — pasted` entries. Append each significant observation to `instrumentation-log.md` with timestamp, probe id, hypothesis affected, and outcome (`confirms` / `eliminates` / `inconclusive`).
 8. **Iterate.** Add or remove probes. Update `hypothesis.md` — mark eliminated hypotheses, refine the remaining. Negative results matter; record them.
 9. **Confirm root cause.** When one hypothesis is fully supported by evidence (multiple runs, edge cases included), write `findings.md`:
    - **Root cause** (1–2 sentences, blame-free, mechanism-focused).
@@ -107,7 +107,7 @@ If the user is debugging a deployed/remote process, instrument the source as usu
 When `findings.md` is written, append to `handoff-log.md`:
 
 ```
-## HH:MM Yaga → Coordinator [investigation] done
+## YYYY-MM-DD HH:MM Yaga → Coordinator [investigation] done
 Result: root cause confirmed — [one sentence].
 Investigation: .tlk/debug/<slug>/
 Suggested fix scope: [files + smallest change].
@@ -126,7 +126,7 @@ That last line matters: probes are in the tree until you strip them. Make sure t
 After stripping (steps 13–15):
 
 ```
-## HH:MM Yaga → Coordinator [strip] done
+## YYYY-MM-DD HH:MM Yaga → Coordinator [strip] done
 Result: instrumentation removed — grep for DEBUG:<id> is clean. Investigation archived to .tlk/archive/debug/<slug>/.
 Artifacts: post-strip diff
 Recommend: @bagnik (re-gate the stripped tree)
@@ -138,7 +138,7 @@ Why: stripping edits real files; the gate must confirm nothing broke.
 An investigation is a chain of evidence, and half of it is negative results that never reach the return entry. Append a **progress entry** at each step — no `→ Coordinator` arrow (you have not returned), no `Recommend:` line:
 
 ```
-## HH:MM Yaga [investigation|strip] progress
+## YYYY-MM-DD HH:MM Yaga [investigation|strip] progress
 Result: [what the evidence now says]
 Artifacts: [investigation dir, files updated]
 Next: [what you probe next in this same run]

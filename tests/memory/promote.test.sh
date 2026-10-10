@@ -44,10 +44,10 @@ test_two_strike_promotes_to_correct_l3() {
   _daily "$art" 2026-05-01 tool "Run npm test before every commit."
   _daily "$art" 2026-05-02 tool "Run npm test before every commit."
   _run "$art" >/dev/null 2>&1
-  # promote.sh stores the normalised (lowercased) 2-strike key as the L3 text.
-  assert_file_contains "$art/memory/system.md" "run npm test before every commit." "promoted to system.md"
+  # The L3 text is the first sighting verbatim; only the dedupe key is normalised.
+  assert_file_contains "$art/memory/system.md" "Run npm test before every commit." "promoted to system.md"
   assert_file_contains "$art/memory/system.md" "2-strike" "marked as 2-strike promotion"
-  assert_file_not_contains "$art/memory/preferences.md" "run npm test before every commit." "not mis-routed"
+  assert_file_not_contains "$art/memory/preferences.md" "Run npm test before every commit." "not mis-routed"
 }
 
 test_single_occurrence_not_promoted() {
@@ -132,7 +132,7 @@ test_entity_type_routes_decision_to_decisions() {
   _daily "$art" 2026-05-01 decision "Adopt trunk-based development."
   _daily "$art" 2026-05-02 decision "Adopt trunk-based development."
   _run "$art" >/dev/null 2>&1
-  assert_file_contains "$art/memory/decisions.md" "adopt trunk-based development." "decision routed to decisions.md"
+  assert_file_contains "$art/memory/decisions.md" "Adopt trunk-based development." "decision routed to decisions.md"
 }
 
 test_id_hashing_replaces_pending() {
@@ -193,7 +193,7 @@ test_last_entry_in_a_file_is_not_dropped() {
   _daily "$art" 2026-05-01 tool "Fact sitting at the very end of a file."
   _daily "$art" 2026-05-02 tool "Fact sitting at the very end of a file."
   _run "$art" >/dev/null 2>&1
-  assert_file_contains "$art/memory/system.md" "fact sitting at the very end of a file." \
+  assert_file_contains "$art/memory/system.md" "Fact sitting at the very end of a file." \
     "trailing entry in each file was seen"
 }
 
@@ -207,7 +207,7 @@ test_counts_across_many_daily_files() {
     _daily "$art" "$d" pattern "Filler unique to $d."
   done
   _run "$art" >/dev/null 2>&1
-  local n; n=$(grep -c "recurring fact across the whole week." "$art/memory/system.md")
+  local n; n=$(grep -c "Recurring fact across the whole week." "$art/memory/system.md")
   assert_eq "1" "$n" "promoted exactly once despite five sightings"
   assert_file_contains "$art/memory/system.md" "×5" "all five sightings counted"
 }
@@ -223,10 +223,10 @@ test_entry_at_a_file_boundary_keeps_its_own_type() {
   _daily "$art" 2026-05-03 tool "Neighbour fact that belongs in system."
   _daily "$art" 2026-05-04 tool "Neighbour fact that belongs in system."
   _run "$art" >/dev/null 2>&1
-  assert_file_contains "$art/memory/decisions.md" "boundary fact that belongs in decisions." "first routed by its own type"
-  assert_file_contains "$art/memory/system.md" "neighbour fact that belongs in system." "second routed by its own type"
-  assert_file_not_contains "$art/memory/system.md" "boundary fact that belongs in decisions." "no bleed across the boundary"
-  assert_file_not_contains "$art/memory/decisions.md" "neighbour fact that belongs in system." "no bleed back"
+  assert_file_contains "$art/memory/decisions.md" "Boundary fact that belongs in decisions." "first routed by its own type"
+  assert_file_contains "$art/memory/system.md" "Neighbour fact that belongs in system." "second routed by its own type"
+  assert_file_not_contains "$art/memory/system.md" "Boundary fact that belongs in decisions." "no bleed across the boundary"
+  assert_file_not_contains "$art/memory/decisions.md" "Neighbour fact that belongs in system." "no bleed back"
 }
 
 test_source_line_numbers_are_per_file() {
@@ -286,7 +286,7 @@ test_daily_file_without_a_header_does_not_bleed() {
     "headerless file's entry parsed on its own"
   assert_file_not_contains "$art/memory/decisions.md" "Tail fact in the headerless" \
     "previous file's trailing entry did not bleed into it"
-  assert_file_contains "$art/memory/system.md" "tail fact in the headerless neighbour's predecessor." \
+  assert_file_contains "$art/memory/system.md" "Tail fact in the headerless neighbour's predecessor." \
     "trailing entry still promoted under its own type"
 }
 
@@ -297,6 +297,51 @@ test_dry_run_does_not_modify() {
   local out; out=$(_run "$art" --dry-run 2>&1)
   assert_contains "$out" "promote" "dry-run reports a planned promotion"
   assert_file_not_contains "$art/memory/system.md" "Pin dependency versions" "dry-run wrote nothing to L3"
+}
+
+# _daily_full ART DATE ETYPE TEXT CONF ENTITIES SOURCE — an entry as log.sh writes it.
+_daily_full() {
+  local art="$1" date="$2" etype="$3" text="$4" conf="$5" ents="$6" src="$7"
+  local f="$art/memory/$date.md"
+  [ -f "$f" ] || printf '# Daily memory — %s (L2)\n\n## Observations\n' "$date" > "$f"
+  {
+    printf -- '\n- id: pending\n  decided: %s\n  entity_type: %s\n  entities: [%s]\n' "$date" "$etype" "$ents"
+    printf -- '  confidence: %s\n  source: %s\n  text: |\n    %s\n' "$conf" "$src" "$text"
+  } >> "$f"
+}
+
+test_single_shot_keeps_what_the_agent_logged() {
+  local art; art=$(_fresh_art)
+  _daily_full "$art" 2026-05-01 decision "Invite links are opaque tokens." high "auth, invite-link" "features/2026-05-01-invites"
+  _run "$art" >/dev/null 2>&1
+  local f="$art/memory/decisions.md"
+  assert_file_contains "$f" "  entities: [auth, invite-link]" "entities carried to L3"
+  assert_file_contains "$f" "  source: features/2026-05-01-invites" "agent's source carried to L3"
+  assert_file_contains "$f" "  decided: 2026-05-01" "decided is when it was logged, not when curated"
+  assert_file_contains "$f" "  curated_from: " "provenance kept separately"
+  assert_file_contains "$f" "(single-shot, high-confidence)" "curation path recorded"
+}
+
+test_two_strike_merges_entities_and_keeps_the_first_sighting() {
+  local art; art=$(_fresh_art)
+  _daily_full "$art" 2026-05-02 tool "Use PNPM, never npm install." medium "pnpm" "log.sh"
+  _daily_full "$art" 2026-05-04 tool "use pnpm, never npm install." medium "pnpm, lockfile" "features/2026-05-04-ci"
+  _run "$art" >/dev/null 2>&1
+  local f="$art/memory/system.md"
+  assert_file_contains "$f" "    Use PNPM, never npm install." "first sighting stored verbatim"
+  assert_file_contains "$f" "  entities: [pnpm, lockfile]" "entities are the union of the sightings"
+  assert_file_contains "$f" "  source: features/2026-05-04-ci" "first real source wins over log.sh"
+  assert_file_contains "$f" "  decided: 2026-05-02" "earliest sighting is the decision date"
+  assert_file_contains "$f" "(×2, 2-strike)" "2-strike provenance kept"
+}
+
+test_entry_without_source_falls_back_to_provenance() {
+  local art; art=$(_fresh_art)
+  _daily_full "$art" 2026-05-01 pattern "Prefer small PRs." high "" "log.sh"
+  _run "$art" >/dev/null 2>&1
+  local f="$art/memory/preferences.md"
+  assert_file_contains "$f" "  entities: []" "no entities stays an empty list"
+  assert_file_contains "$f" "  source: $art/memory/2026-05-01.md:" "source falls back to the daily file"
 }
 
 run_tests "$@"

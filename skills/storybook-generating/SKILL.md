@@ -111,7 +111,7 @@ When the Storybook builds and every story has been looked at:
 
 2. **Append your log entry** to `handoff-log.md` (the feature's, if one is active):
    ```
-   ## HH:MM storybook-generating → Coordinator [storybook] done
+   ## YYYY-MM-DD HH:MM storybook-generating → Coordinator [storybook] done
    Result: Components [covered / total from stories-coverage.sh]. Stories [n]. Thin [n]. Verified [n rendered / n stories]. Build: [command] exit [code]. Story tests: [runner — n pass / n | added: runner | none].
    Artifacts: .storybook/preview.tsx, [story globs]
    Caveats: [devDependencies added, components not isolatable, thin by design, unverified renders, stories run by no test — or "none"]
@@ -121,7 +121,7 @@ When the Storybook builds and every story has been looked at:
 
 **Progress entries — log as you go.** This is long work. Append a `progress` entry when preview wiring renders one real component correctly, after each component group, and after the first full build. No `→ Coordinator` arrow, no `Recommend:` line:
 ```
-## HH:MM storybook-generating [storybook] progress
+## YYYY-MM-DD HH:MM storybook-generating [storybook] progress
 Result: [what now exists and builds]
 Artifacts: [paths]
 Next: [what you write next in this same run]

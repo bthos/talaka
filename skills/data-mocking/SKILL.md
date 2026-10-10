@@ -122,7 +122,7 @@ When the mocks work, or `--plan` has its answer:
 
 2. **Append your log entry** to `handoff-log.md` (the feature's, if one is active):
    ```
-   ## HH:MM data-mocking → Coordinator [mocks] done
+   ## YYYY-MM-DD HH:MM data-mocking → Coordinator [mocks] done
    Result: Boundaries [n]. Tools: [boundary → tool — evidence, one each]. Operations mocked [n / n called]. Scenarios [names]. Tests: [command] exit [code]. Prod build clean: [yes | no | not run].
    Artifacts: [mocks dir], [fixtures], [test setup], [scripts]
    Caveats: [dependencies added, runner-up tools, hard-coded URLs, unverified steps, operations left unmocked — or "none"]
@@ -132,7 +132,7 @@ When the mocks work, or `--plan` has its answer:
 
 **Progress entries — log as you go.** Append a `progress` entry after the tool choice and after each boundary is mocked and passing. No `→ Coordinator` arrow, no `Recommend:` line:
 ```
-## HH:MM data-mocking [mocks] progress
+## YYYY-MM-DD HH:MM data-mocking [mocks] progress
 Result: [boundary → tool, what now answers and where]
 Artifacts: [paths]
 Next: [what you set up next in this same run]

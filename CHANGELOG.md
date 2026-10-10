@@ -10,6 +10,78 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Added — dashboard: one page over everything the agents write down
+
+- **`dashboard/viewer.html`** — a single static page that reads `.tlk/` and `wiki/` and shows it:
+  what needs the user (STOP returns, non-converging fix loops, blockers, open deferred decisions,
+  proposed patches, update conflicts, paused goals, a stale price table, unfiled kit issues — each
+  with the command that resolves it), features as a board or a timeline, goals, cost (measured rows
+  only), memory as a graph / timeline / list with the promotion funnel, AutoResearch rounds, the wiki
+  link graph and reader, a canvas map of how features, decisions, agents and wiki pages connect, and
+  every file unparsed. Read-only, no network requests, no build step.
+- **`dashboard/tools/snapshot.sh`** writes `.tlk/dashboard/`: the page, `manifest.js` and one
+  `data/c<N>.js` per text file holding the file verbatim — a page opened from disk can load scripts
+  but not read files. Incremental (size + mtime), lossless (no truncation; >32 KB files escaped with
+  one `sed`), locked against concurrent runs. `--open`, `--full`, `--quiet`, `--out`.
+- **Kept current**: `memory/tools/tick.sh` refreshes the snapshot once it exists, so the memory Stop
+  hook updates it after every session; the open page re-reads it every 30 s. In Chrome and Edge a
+  Live mode reads the project folder directly (File System Access API) every 5 s.
+- `kit.sh dashboard` opens it; `teardown.sh --full-clean` sweeps `.tlk/dashboard/`.
+- Older logs and memory are still read: a header without a date gets it from the log's mtime
+  (marked `≈`), and a fact curated with `entities: []` gets its entities and source back from the
+  originating L2 entry.
+
+### Added — `kit-issue.sh` has an `idea` kind for proposals (#46)
+
+- `add --kind idea --title … --problem … --proposal … [--acceptance …]`: no `--what`/`--expected`
+  (an idea has no "what the kit did", so reporters had to invent one) and no evidence. Ideas are
+  previewed and filed as `[idea] <title>` with Problem / Proposal / Acceptance, not as
+  `[field report] Idea: …`; `sync` links either prefix, and the duplicate check ignores both.
+  Defect kinds keep their rules; existing `other` entries titled "Idea: …" are left as they are.
+- `--evidence-file` no longer cuts silently: a log keeps its last 60 lines, an idea's write-up its
+  first 200, and the entry says how many lines were left out.
+- PIPELINE.md lists the kind, and the coordinator's end-of-session offer counts ideas apart from
+  defects.
+
+### Fixed — the statusline names the active feature, not the newest one (#44)
+
+- `statusline.sh` and `statusline.ps1` tested SESSION-STATE.md's *Active feature* as a path, but
+  `session.sh feature` records a slug, so the bar always fell back to the newest folder under
+  `.tlk/features/` — with that folder's stage and STUCK alert. The value is now resolved as a path
+  (as given or relative to the project), a folder name under `features/`, or the folder ending in
+  `-<slug>`; only with no match does the newest folder win. The template's `_(none — …)_`
+  placeholder now reads as unset for both *Active feature* and *Active agent*.
+
+### Added — layout migrations; the archive keeps one folder per kind (#47)
+
+- **Migrations.** A kit change that moves something under a project's `.tlk/` now ships a
+  `shared/lifecycle/migrations/NNN-<slug>.sh`. `init.sh` — so every `update.sh` — runs the ones not
+  yet applied, in order, each in its own bash process with `set -e`, and records them in
+  `.tlk/.migrations`. A failing migration is reported, not recorded, retried on the next run, and
+  holds back the ones after it. `teardown.sh --full-clean` removes the ledger with `.talaka.cfg`.
+- **`001-archive-features`**: features archived directly under `.tlk/archive/<slug>/` move to
+  `.tlk/archive/features/<slug>/`, beside Yaga's `archive/debug/`. A name already taken there stays
+  put with a warning. Zlydni archives into `archive/features/`; `build-eval-set.sh`,
+  `distill-lessons.sh`, `feature-status.sh`, `record-metrics.sh` (archive-race fallback and bare-slug
+  lookup) and the dashboard read only that. PIPELINE.md, README and the memory templates say the same.
+- The dashboard no longer counts closed investigations (`archive/debug/`) as archived features.
+
+### Fixed — curated memory keeps what the agent logged; handoff headers carry the date
+
+- **`promote.sh` no longer drops fields when curating to L3.** It wrote every curated fact with
+  `entities: []`, `decided:` set to the day of curation and `source:` replaced by a pointer into the
+  daily file — so a fact lost what it was about and where it came from the moment it became a rule.
+  It now copies `decided`, `entities` and `source` from the L2 entry and keeps the pointer as
+  `curated_from:` (an entry with no source of its own still gets the pointer as its source).
+- **2-strike promotions store the text verbatim.** They stored the normalised dedupe key — lowercased,
+  whitespace collapsed — as the fact. The first sighting's text is kept now; the entities are the
+  union of all sightings, `decided` the earliest, `source` the first real one.
+- `list_entries` writes `-` for an empty field: tab is IFS whitespace, so an empty `entity_type` or
+  text used to collapse and shift every later field of the row.
+- **Handoff headers start with the date**: `## YYYY-MM-DD HH:MM Worker → Coordinator [context] status`,
+  in `PIPELINE.md` and every agent, skill and template. A bare `HH:MM` could not be placed on a
+  timeline once a feature's log spanned days.
+
 ### Fixed — memory writes and `defer.sh` no longer take 10–25 s on Git Bash (#8)
 
 - **`log.sh --confidence high` no longer runs a full `promote.sh`** (~30 processes) on every write.

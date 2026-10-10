@@ -65,7 +65,7 @@ All feature artifacts live in `.tlk/features/YYYY-MM-DD-feature-name/`. Read spe
 
 **Handoff log:** Append an entry to `handoff-log.md` in the feature folder **before** returning:
 ```
-## HH:MM Cmok → Coordinator [build] done
+## YYYY-MM-DD HH:MM Cmok → Coordinator [build] done
 Result: [2–3 sentences — what was built]. Changed files: [list]. Divergence: [none|description].
 Build: [Build command you ran] → ok. (Or: "no Build command configured in PROJECT.md".)
 Tests run: focused — [command/pattern you used]. Full regression: not run (Bagnik's gate).
@@ -79,7 +79,7 @@ Why: [one line]
 Your context dies when you return. Anything you learned that did not fit the one-line `Result:` is lost unless you wrote it down, and a build that dies mid-way should still leave something useful behind. So append a **progress entry** to `handoff-log.md` at each checkpoint — no `→ Coordinator` arrow (you have not returned), no `Recommend:` line (you are not handing over):
 
 ```
-## HH:MM Cmok [build] progress
+## YYYY-MM-DD HH:MM Cmok [build] progress
 Result: [what is now true]
 Artifacts: [files written so far]
 Next: [what you do next in this same run]

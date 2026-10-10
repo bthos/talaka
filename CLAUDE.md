@@ -21,6 +21,20 @@ passes locally and on the Windows runner — then Linux and macOS fail with
 - `tests/lint/structure.test.sh` (`tracked_shell_scripts_are_executable`) fails
   on any tracked `.sh` not at `100755`, naming the file and the fix.
 
+## Changing the `.tlk/` layout
+
+A kit change that moves or renames anything under a project's `.tlk/` ships with
+a migration, so installed projects follow on their next `update.sh`:
+
+- Add `shared/lifecycle/migrations/NNN-<slug>.sh` (next free number), opening
+  with `# NNN — <what changes>`. It is sourced in its own bash process with
+  `set -e` and `shared/lifecycle/tools/lib.sh` loaded (`ARTEFACTS`, `info`,
+  `warn`, …). Commit it executable like any `.sh`.
+- It must be a no-op on a tree that never had the old layout, and must never
+  overwrite: on a clash, warn and leave both copies.
+- Tools then read only the new layout — no "also accept the old path" branches.
+- Test it in `tests/lifecycle/migrations.test.sh`.
+
 ## Tests
 
 - `bash tests/run.sh` runs everything; `bash tests/run.sh <pattern>` filters.

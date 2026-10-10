@@ -91,7 +91,7 @@ When commit completes:
 2. **Append final return entry** to `handoff-log.md` — before the archive move, so it travels with the folder. Append **progress entries** before it as you go (no `→ Coordinator` arrow, no `Recommend:` line): after staging and writing the commit message but before committing; after the commit lands but before the archive move; and if the version bump or memory promotion fails while the commit itself succeeded. The archive move is irreversible for the log — anything unwritten at that point is gone.
 
    ```
-   ## HH:MM Zlydni [commit] progress
+   ## YYYY-MM-DD HH:MM Zlydni [commit] progress
    Result: [what is now true — e.g. "Committed a1b2c3d. Archive move next."]
    Artifacts: [paths]
    Next: [what you do next in this same run]
@@ -99,8 +99,8 @@ When commit completes:
 
    Then the return entry itself:
    ```
-   ## HH:MM Zlydni → Coordinator [commit] done
-   Result: commit [hash]. Version: [new version]. Feature archived to .tlk/archive/.
+   ## YYYY-MM-DD HH:MM Zlydni → Coordinator [commit] done
+   Result: commit [hash]. Version: [new version]. Feature archived to .tlk/archive/features/<slug>/.
    Recommend: END — optionally `git push` / open a PR (user's call), or `@veles` for an autoresearch round.
    Why: pipeline complete for this feature.
    ```
@@ -113,21 +113,25 @@ When commit completes:
    ```
    Pass the live `.tlk/features/…` path here, not the archive path. Skip silently if `.tlk/autoresearch/tools/record-metrics.sh` does not exist.
 
-4. **Move feature folder to `.tlk/archive/`** immediately. Feature is closed after commit. The complete `metrics.jsonl` — all agents' rows plus the zlydni row recorded in step 3 — moves with the folder intact.
+4. **Move feature folder to `.tlk/archive/features/`** immediately. Feature is closed after commit. The complete `metrics.jsonl` — all agents' rows plus the zlydni row recorded in step 3 — moves with the folder intact.
+   ```bash
+   mkdir -p .tlk/archive/features && mv "$feature_path" .tlk/archive/features/
+   ```
+   The archive holds one folder per kind — `features/` here, `debug/` for Yaga's investigations — never a feature directly under `.tlk/archive/`. Older features archived that way are moved into `features/` by `init.sh` on the next kit update; do not move them yourself as a side effect of a commit.
 
 5. **Promote memory.** Mirror the LESSONS.md entries into today's L2 daily file and run the promotion state machine so the 2-strike rule, supersedes resolver, and L4 root index stay current:
    ```bash
    # Mirror LESSONS.md into today's daily file (L2)
    today=$(date +%Y-%m-%d); daily=".tlk/memory/${today}.md"
    feature_slug="$(basename "$feature_path")"
-   archive_path=".tlk/archive/${feature_slug}"
+   archive_path=".tlk/archive/features/${feature_slug}"
    [ -d .tlk/memory ] || bash talaka/memory/tools/init.sh
    {
      printf '\n## Lessons from %s (mirrored from LESSONS.md by zlydni)\n\n' "$feature_slug"
      awk -v slug="$feature_slug" -v today="$today" '/^- \[/ {
        tag=$0; sub(/^- \[/, "", tag); sub(/].*/, "", tag)
        text=$0; sub(/^- \[[^]]+\][[:space:]]*/, "", text)
-       printf "- id: pending\n  decided: %s\n  entity_type: %s\n  entities: []\n  confidence: medium\n  source: archive/%s/LESSONS.md\n  text: |\n    %s\n", today, tag, slug, text
+       printf "- id: pending\n  decided: %s\n  entity_type: %s\n  entities: []\n  confidence: medium\n  source: archive/features/%s/LESSONS.md\n  text: |\n    %s\n", today, tag, slug, text
      }' "${archive_path}/LESSONS.md"
    } >> "$daily"
    bash talaka/memory/tools/promote.sh
@@ -151,7 +155,7 @@ When commit completes:
 
 Then report: "Pipeline complete. Commit [hash]. Optionally run `git push` or create a PR." Flow stops here — the coordinator decides whether anything follows.
 
-**Close feature after commit:** Record metrics into the live feature folder first (step 3), then move the folder from `.tlk/features/YYYY-MM-DD-feature-name/` to `.tlk/archive/`. Feature is closed after commit.
+**Close feature after commit:** Record metrics into the live feature folder first (step 3), then move the folder from `.tlk/features/YYYY-MM-DD-feature-name/` to `.tlk/archive/features/`. Feature is closed after commit.
 
 **Commit message traceability (optional):** For user-facing changes: "UX: [path to ux-design.md]". For architecture/test changes: "Arch: [path]. Tests: [paths]".
 

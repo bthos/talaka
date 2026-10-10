@@ -172,6 +172,8 @@ register_actions() {
        "$KIT/shared/project/tools/feature-status.sh"
   add memory   2 daily "Search memory"                   "Top-k retrieval across all memory layers (L1..L4). Prompts for a query." \
        "::memory-prompt"
+  add dashboard 2 daily "Open dashboard"                 "Snapshot $ARTEFACTS_NAME/ and wiki/ into $ARTEFACTS_NAME/dashboard/ and open it in the browser. The memory Stop hook keeps it fresh after that." \
+       "$KIT/dashboard/tools/snapshot.sh::--open"
   add issues   2 daily "Kit issues (field reports)"      "List problems agents hit in the kit itself ($ARTEFACTS_NAME/kit-issues.md). File one with: kit-issue.sh submit KI-nnn." \
        "$KIT/shared/feedback/tools/kit-issue.sh::list::--all"
 

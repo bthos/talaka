@@ -79,7 +79,7 @@ Before returning, run:
 bash .claude/skills/architecture-planning/check-coverage.sh <feature-path>
 ```
 
-This runs the test command from `.tlk/PROJECT.md`, prints results, and appends a **progress** entry (`## HH:MM architecture-planning [arch + tests] progress`) with the exit code and the runner's summary lines to `handoff-log.md`. Use its output in your return.
+This runs the test command from `.tlk/PROJECT.md`, prints results, and appends a **progress** entry (`## YYYY-MM-DD HH:MM architecture-planning [arch + tests] progress`) with the exit code and the runner's summary lines to `handoff-log.md`. Use its output in your return.
 
 **Red-first tests.** When your invocation asks for tests that fail before the build — a bug-fix pass, or any "red first" request — a red suite is the goal, not a failure. Run it with `--expect-red`:
 
@@ -91,7 +91,7 @@ It logs the suite as *red as designed* and exits 0; a green suite exits 1, becau
 
 **Return entry — always yours.** The script never returns on your behalf. After it passes, append your return entry to `handoff-log.md`:
 ```
-## HH:MM architecture-planning → Coordinator [arch + tests] done
+## YYYY-MM-DD HH:MM architecture-planning → Coordinator [arch + tests] done
 Result: architecture and tests written. Coverage: [summary]. Gaps: [list].
 Artifacts: Arch: [path]. Tests: [paths]. AC-to-test map: [tech-plan path].
 Expected red: [red-first runs only — each red test and the missing behaviour it waits on; omit the line otherwise]
@@ -101,7 +101,7 @@ Why: [one line]
 
 **Progress entries — log as you go.** Append a `progress` entry to `handoff-log.md` when the architecture is decided but tests are not yet written, when the test suite is written but not yet run, and when coverage comes back with gaps you cannot close. No `→ Coordinator` arrow (you have not returned), no `Recommend:` line:
 ```
-## HH:MM architecture-planning [arch + tests] progress
+## YYYY-MM-DD HH:MM architecture-planning [arch + tests] progress
 Result: [what is now decided or measured]
 Artifacts: [paths]
 Next: [what you do next in this same run]

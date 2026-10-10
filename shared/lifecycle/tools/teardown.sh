@@ -13,7 +13,7 @@
 #      still matches; PROJECT.md is kept unless --full-clean.
 #   4. Strip the managed block from .gitignore.
 #   5. (--remove-submodule) Deinit the talaka submodule.
-#   6. (--full-clean) Sweep .tlk/scratch/ (ephemeral runtime files),
+#   6. (--full-clean) Sweep .tlk/scratch/ and .tlk/dashboard/ (rebuildable),
 #      offer to remove .tlk/PROJECT.md, and try to remove the .tlk/
 #      folder itself if nothing user-owned remains.
 #
@@ -49,7 +49,7 @@ talaka / teardown.sh
 
   FLAGS
     --remove-submodule   Also `git submodule deinit` and remove the kit submodule.
-    --full-clean         Sweep .tlk/scratch/, also remove .tlk/PROJECT.md
+    --full-clean         Sweep .tlk/scratch/ and .tlk/dashboard/, also remove .tlk/PROJECT.md
                          and the .tlk/ folder if empty.
     --yes, -y            Skip confirmation prompts. Aliases: --non-interactive, -n.
     --dry-run            Show what would be removed without doing it.
@@ -257,6 +257,13 @@ if $FULL_CLEAN; then
     $DRY_RUN || removed "$ARTEFACTS_NAME/scratch/"
   fi
 
+  # dashboard/ is a snapshot of the rest of the tree (dashboard/tools/snapshot.sh)
+  # and is rebuilt from it in one command, so it goes with scratch/.
+  if [ -d "$ARTEFACTS/dashboard" ]; then
+    kit_rm_rf "$ARTEFACTS/dashboard"
+    $DRY_RUN || removed "$ARTEFACTS_NAME/dashboard/"
+  fi
+
   # Try to remove the artefacts directory if empty (it usually still has
   # memory/, features/, archive/ — those are user state, not kit-managed).
   if [ -d "$ARTEFACTS" ] && ! $DRY_RUN; then
@@ -271,6 +278,12 @@ if $FULL_CLEAN; then
     rm "$KIT_CFG" && removed ".tlk/.talaka.cfg"
   elif [ -f "$KIT_CFG" ] && $DRY_RUN; then
     info "would remove: $ARTEFACTS_NAME/.talaka.cfg"
+  fi
+  # The migration ledger is kit bookkeeping like the cfg: a re-init starts it over.
+  if [ -f "$KIT_MIGRATIONS_LEDGER" ] && ! $DRY_RUN; then
+    rm "$KIT_MIGRATIONS_LEDGER" && removed "$ARTEFACTS_NAME/.migrations"
+  elif [ -f "$KIT_MIGRATIONS_LEDGER" ] && $DRY_RUN; then
+    info "would remove: $ARTEFACTS_NAME/.migrations"
   fi
 fi
 
