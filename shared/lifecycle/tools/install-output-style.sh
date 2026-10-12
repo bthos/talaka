@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Set "outputStyle": "Concise" in the target project's .claude/settings.json.
+# Set "outputStyle": "Concise" in the target project's .claude/settings.local.json
+# (personal — the team's .claude/settings.json is never written; a style set
+# there is respected, and one an older kit put there is moved out).
 #
 # Why: the kit runs a coordinator plus six agents and fourteen skills. Every one
 # of them narrates. Concise is the harness-level lever that trims the prose the
@@ -10,8 +12,8 @@
 #   --remove   Delete the key, but only when it is still "Concise" (ours)
 #   --dry-run  Print what would change; write nothing
 #
-# Idempotent. A user who has deliberately chosen another style keeps it unless
-# --force is passed.
+# Idempotent. A style chosen deliberately — yours in settings.local.json or the
+# team's in settings.json — is kept unless --force is passed.
 #
 # Requires: jq
 
@@ -33,55 +35,60 @@ for arg in "$@"; do
   esac
 done
 
-SETTINGS_DIR="$PROJECT_ROOT/.claude"
-SETTINGS_FILE="$SETTINGS_DIR/settings.json"
-
 if ! command -v jq >/dev/null 2>&1; then
   if $REMOVE; then
-    warn "jq not found — remove \"outputStyle\" from $SETTINGS_FILE manually."
+    warn "jq not found — remove \"outputStyle\" from $KIT_SETTINGS_REL manually."
     exit 0
   fi
-  warn "jq not found — skipping outputStyle. Add '\"outputStyle\": \"$STYLE\"' to .claude/settings.json manually."
+  warn "jq not found — skipping outputStyle. Add '\"outputStyle\": \"$STYLE\"' to $KIT_SETTINGS_REL manually."
   exit 0
 fi
 
-_current() {
-  [ -f "$SETTINGS_FILE" ] || { printf ''; return; }
-  jq -r '.outputStyle // ""' "$SETTINGS_FILE" 2>/dev/null || printf ''
+# Delete the key from FILE when it is still ours. Args: file, its label, the
+# function that reports it (default: removed).
+_drop_ours() {
+  local file="$1" rel="$2" say="${3:-removed}"
+  [ "$(kit_settings_get "$file" '.outputStyle // ""')" = "$STYLE" ] || return 1
+  if [ "$DRY_RUN" = "true" ]; then info "would remove outputStyle from $rel"; return 0; fi
+  kit_settings_jq "$file" 'del(.outputStyle)'
+  "$say" "outputStyle from $rel"
 }
 
-current="$(_current)"
-
 if $REMOVE; then
-  [ -f "$SETTINGS_FILE" ] || { info "no .claude/settings.json — nothing to remove"; exit 0; }
-  if [ -z "$current" ]; then skip "outputStyle not set in .claude/settings.json"; exit 0; fi
-  if [ "$current" != "$STYLE" ]; then skip "outputStyle is \"$current\", not the kit's — leaving it untouched"; exit 0; fi
-  if [ "$DRY_RUN" = "true" ]; then info "would remove outputStyle from $SETTINGS_FILE"; exit 0; fi
-  jq 'del(.outputStyle)' "$SETTINGS_FILE" > "$SETTINGS_FILE.tmp" && mv "$SETTINGS_FILE.tmp" "$SETTINGS_FILE"
-  removed "outputStyle from .claude/settings.json"
+  _found=false
+  _drop_ours "$KIT_SETTINGS_FILE" "$KIT_SETTINGS_REL" && _found=true
+  _drop_ours "$KIT_SETTINGS_SHARED" "$KIT_SETTINGS_SHARED_REL" && _found=true   # older kits wrote here
+  $_found || skip "outputStyle is not the kit's (or not set) — nothing to remove"
   exit 0
 fi
 
-if [ "$current" = "$STYLE" ]; then
+# An older kit wrote the key into the team's settings.json: move it out.
+_drop_ours "$KIT_SETTINGS_SHARED" "$KIT_SETTINGS_SHARED_REL (moving to $KIT_SETTINGS_REL)" info || true
+
+local_style="$(kit_settings_get "$KIT_SETTINGS_FILE" '.outputStyle // ""')"
+team_style="$(kit_settings_get "$KIT_SETTINGS_SHARED" '.outputStyle // ""')"
+[ "$team_style" = "$STYLE" ] && team_style=""   # ours, still there only under --dry-run
+
+if [ "$local_style" = "$STYLE" ]; then
   skip "outputStyle already \"$STYLE\""
   exit 0
 fi
 
-if [ -n "$current" ] && ! $FORCE; then
-  skip "outputStyle is \"$current\" — your choice, kept (use --force to set \"$STYLE\")"
-  exit 0
+if ! $FORCE; then
+  if [ -n "$local_style" ]; then
+    skip "outputStyle is \"$local_style\" — your choice, kept (use --force to set \"$STYLE\")"
+    exit 0
+  fi
+  if [ -n "$team_style" ]; then
+    skip "outputStyle is \"$team_style\" in $KIT_SETTINGS_SHARED_REL — the team's choice, kept (use --force to override it locally)"
+    exit 0
+  fi
 fi
 
 if [ "$DRY_RUN" = "true" ]; then
-  info "would set outputStyle=\"$STYLE\" in $SETTINGS_FILE"
+  info "would set outputStyle=\"$STYLE\" in $KIT_SETTINGS_REL"
   exit 0
 fi
 
-mkdir -p "$SETTINGS_DIR"
-if [ -f "$SETTINGS_FILE" ]; then
-  jq --arg s "$STYLE" '.outputStyle = $s' "$SETTINGS_FILE" > "$SETTINGS_FILE.tmp" && mv "$SETTINGS_FILE.tmp" "$SETTINGS_FILE"
-else
-  jq -n --arg s "$STYLE" '{ outputStyle: $s }' > "$SETTINGS_FILE"
-fi
-
-success "outputStyle → \"$STYLE\" (.claude/settings.json)"
+kit_settings_update --arg s "$STYLE" '.outputStyle = $s'
+success "outputStyle → \"$STYLE\" ($KIT_SETTINGS_REL)"

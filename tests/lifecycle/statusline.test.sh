@@ -13,7 +13,8 @@ _proj() {
   printf '%s' "$proj"
 }
 _sl() { ( cd "$1" && bash talaka/statusline/tools/install-statusline.sh "${@:2}" ); }
-_settings() { printf '%s/.claude/settings.json' "$1"; }
+_settings() { printf '%s/.claude/settings.local.json' "$1"; }
+_team() { printf '%s/.claude/settings.json' "$1"; }
 
 test_install_sets_statusline() {
   have_jq || { skip_test "jq absent"; return; }
@@ -30,8 +31,7 @@ test_remove_deletes_kit_statusline() {
   local proj; proj=$(_proj)
   _sl "$proj" >/dev/null 2>&1
   _sl "$proj" --remove >/dev/null 2>&1
-  local has; has=$(jq -r 'has("statusLine")' "$(_settings "$proj")")
-  assert_eq "false" "$has" "kit statusLine removed"
+  assert_file_absent "$(_settings "$proj")" "kit statusLine removed (and the kit-only file with it)"
 }
 
 test_remove_preserves_user_statusline() {
@@ -57,6 +57,28 @@ test_remove_preserves_other_settings() {
   assert_eq "true" "$kept" "unrelated hook preserved"
 }
 
+test_install_respects_a_team_statusline() {
+  # settings.local.json overrides settings.json, so writing ours would hide the team's.
+  have_jq || { skip_test "jq absent"; return; }
+  local proj; proj=$(_proj)
+  mkdir -p "$proj/.claude"
+  printf '{ "statusLine": { "type": "command", "command": "bash team-bar.sh" } }' > "$(_team "$proj")"
+  _sl "$proj" >/dev/null 2>&1
+  assert_file_absent "$(_settings "$proj")" "no local statusLine shadows the team's"
+  assert_eq "bash team-bar.sh" "$(jq -r '.statusLine.command' "$(_team "$proj")")" "team statusLine untouched"
+}
+
+test_install_moves_a_legacy_kit_statusline_out_of_team_settings() {
+  have_jq || { skip_test "jq absent"; return; }
+  local proj; proj=$(_proj)
+  mkdir -p "$proj/.claude"
+  printf '{ "model": "opus", "statusLine": { "type": "command", "command": "bash talaka/statusline/tools/statusline.sh" } }' > "$(_team "$proj")"
+  _sl "$proj" >/dev/null 2>&1
+  assert_eq "false" "$(jq -r 'has("statusLine")' "$(_team "$proj")")" "kit statusLine gone from settings.json"
+  assert_eq "opus" "$(jq -r '.model' "$(_team "$proj")")" "team settings kept"
+  assert_contains "$(jq -r '.statusLine.command' "$(_settings "$proj")")" "tools/statusline" "now in settings.local.json"
+}
+
 test_remove_without_settings_is_noop() {
   have_jq || { skip_test "jq absent"; return; }
   local proj; proj=$(_proj)
@@ -77,6 +99,53 @@ test_statusline_without_jq_prints_a_hint() {
   assert_eq "0" "$rc" "exits 0 so the bar is rendered"
   assert_contains "$out" "jq not found" "the bar says what is missing"
   assert_contains "$out" "jqlang.github.io" "and where to get it"
+}
+
+
+# _feature_bar PROJ — render the bar for PROJ with ANSI stripped
+_feature_bar() {
+  printf '{"workspace":{"project_dir":"%s"}}' "$1" \
+    | bash "$KIT_ROOT/statusline/tools/statusline.sh" 2>/dev/null \
+    | sed "s/$(printf '\033')\\[[0-9;]*m//g"
+}
+
+# _two_features PROJ — an older and a newer feature folder; the newer is what
+# the newest-folder fallback would pick.
+_two_features() {
+  mkdir -p "$1/.tlk/features/2026-10-05-f22-old" "$1/.tlk/features/2026-10-07-f25-newer"
+}
+
+test_statusline_resolves_active_feature_slug() {
+  # Issue #44: session.sh feature records a slug, which the bar tested with
+  # [ -d ] and so always fell back to the newest folder.
+  have_jq || { skip_test "jq absent"; return; }
+  local proj; proj=$(make_tmp_project)
+  _two_features "$proj"
+  ( cd "$proj" && bash "$KIT_ROOT/memory/tools/session.sh" feature f22-old >/dev/null )
+  local out; out=$(_feature_bar "$proj")
+  assert_contains "$out" "f22-old" "bar shows the active feature"
+  assert_not_contains "$out" "f25-newer" "not the newest folder"
+}
+
+test_statusline_resolves_active_feature_folder_name() {
+  have_jq || { skip_test "jq absent"; return; }
+  local proj; proj=$(make_tmp_project)
+  _two_features "$proj"
+  ( cd "$proj" && bash "$KIT_ROOT/memory/tools/session.sh" feature 2026-10-05-f22-old >/dev/null )
+  assert_contains "$(_feature_bar "$proj")" "f22-old" "exact folder name resolves"
+}
+
+test_statusline_falls_back_to_newest_feature() {
+  # Placeholder or an unknown slug: the newest folder, as before.
+  have_jq || { skip_test "jq absent"; return; }
+  local proj; proj=$(make_tmp_project)
+  _two_features "$proj"
+  ( cd "$proj" && bash "$KIT_ROOT/memory/tools/session.sh" show >/dev/null 2>&1 || true )
+  local out; out=$(_feature_bar "$proj")
+  assert_contains "$out" "f25-newer" "placeholder falls back to newest"
+  assert_not_contains "$out" "(none" "placeholders are not rendered as names"
+  ( cd "$proj" && bash "$KIT_ROOT/memory/tools/session.sh" feature no-such >/dev/null )
+  assert_contains "$(_feature_bar "$proj")" "f25-newer" "unknown slug falls back to newest"
 }
 
 run_tests "$@"

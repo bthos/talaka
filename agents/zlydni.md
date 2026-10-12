@@ -49,7 +49,7 @@ Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
 
 **Passing the message to git — use a file, never an inline heredoc.** On Windows the shell command line caps at ~8KB and `git commit -m "$(cat <<EOF…)"` aborts the session with `The command line is too long`. Always:
 
-1. Use the **Write** tool to put the message in `.tlk/scratch/commit-msg.txt` (the `.tlk/scratch/` dir is git-ignored by the kit's managed `.gitignore` block).
+1. Use the **Write** tool to put the message in `.tlk/scratch/commit-msg.txt` (the `.tlk/scratch/` dir is git-ignored by `.tlk/.gitignore`).
 2. Run `git commit -F .tlk/scratch/commit-msg.txt`.
 3. Delete the temp file after the commit succeeds; do not block on cleanup failures.
 

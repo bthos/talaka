@@ -27,30 +27,30 @@ test_creates_env_with_defaults() {
   _need_jq || return
   local p; p=$(_project_with_kit); cd "$p" || return
   bash "$(_tool)" >/dev/null 2>&1
-  assert_eq "900"   "$(jq -r '.env.TALAKA_MEMORY_PROMOTE_INTERVAL' .claude/settings.json)" "promote interval default"
-  assert_eq "86400" "$(jq -r '.env.TALAKA_METRICS_MAX_RUN' .claude/settings.json)" "metrics cap default"
+  assert_eq "900"   "$(jq -r '.env.TALAKA_MEMORY_PROMOTE_INTERVAL' .claude/settings.local.json)" "promote interval default"
+  assert_eq "86400" "$(jq -r '.env.TALAKA_METRICS_MAX_RUN' .claude/settings.local.json)" "metrics cap default"
 }
 
 test_keeps_a_value_the_user_changed() {
   _need_jq || return
   local p; p=$(_project_with_kit); cd "$p" || return
   mkdir -p .claude
-  printf '{"env":{"TALAKA_MEMORY_PROMOTE_INTERVAL":"60","OTHER":"x"}}\n' > .claude/settings.json
+  printf '{"env":{"TALAKA_MEMORY_PROMOTE_INTERVAL":"60","OTHER":"x"}}\n' > .claude/settings.local.json
   bash "$(_tool)" >/dev/null 2>&1
-  assert_eq "60"    "$(jq -r '.env.TALAKA_MEMORY_PROMOTE_INTERVAL' .claude/settings.json)" "user value kept"
-  assert_eq "86400" "$(jq -r '.env.TALAKA_METRICS_MAX_RUN' .claude/settings.json)" "missing key added"
-  assert_eq "x"     "$(jq -r '.env.OTHER' .claude/settings.json)" "foreign env key untouched"
+  assert_eq "60"    "$(jq -r '.env.TALAKA_MEMORY_PROMOTE_INTERVAL' .claude/settings.local.json)" "user value kept"
+  assert_eq "86400" "$(jq -r '.env.TALAKA_METRICS_MAX_RUN' .claude/settings.local.json)" "missing key added"
+  assert_eq "x"     "$(jq -r '.env.OTHER' .claude/settings.local.json)" "foreign env key untouched"
 }
 
 test_remove_takes_only_kit_keys() {
   _need_jq || return
   local p; p=$(_project_with_kit); cd "$p" || return
   mkdir -p .claude
-  printf '{"model":"opus","env":{"OTHER":"x"}}\n' > .claude/settings.json
+  printf '{"model":"opus","env":{"OTHER":"x"}}\n' > .claude/settings.local.json
   bash "$(_tool)" >/dev/null 2>&1
   bash "$(_tool)" --remove >/dev/null 2>&1
-  assert_eq '{"OTHER":"x"}' "$(jq -c '.env' .claude/settings.json)" "only TALAKA_* keys removed"
-  assert_eq "opus" "$(jq -r '.model' .claude/settings.json)" "other settings survive"
+  assert_eq '{"OTHER":"x"}' "$(jq -c '.env' .claude/settings.local.json)" "only TALAKA_* keys removed"
+  assert_eq "opus" "$(jq -r '.model' .claude/settings.local.json)" "other settings survive"
 }
 
 test_remove_drops_an_emptied_env_block() {
@@ -58,27 +58,38 @@ test_remove_drops_an_emptied_env_block() {
   local p; p=$(_project_with_kit); cd "$p" || return
   bash "$(_tool)" >/dev/null 2>&1
   bash "$(_tool)" --remove >/dev/null 2>&1
-  assert_eq "false" "$(jq -r 'has("env")' .claude/settings.json)" "empty env removed"
+  assert_file_absent ".claude/settings.local.json" "empty env (and the kit-only file) removed"
 }
 
 test_is_idempotent() {
   _need_jq || return
   local p; p=$(_project_with_kit); cd "$p" || return
   bash "$(_tool)" >/dev/null 2>&1
-  local first; first=$(cat .claude/settings.json)
+  local first; first=$(cat .claude/settings.local.json)
   bash "$(_tool)" >/dev/null 2>&1
-  assert_eq "$first" "$(cat .claude/settings.json)" "second run changes nothing"
+  assert_eq "$first" "$(cat .claude/settings.local.json)" "second run changes nothing"
+}
+
+test_moves_legacy_keys_out_of_team_settings_keeping_values() {
+  _need_jq || return
+  local p; p=$(_project_with_kit); cd "$p" || return
+  mkdir -p .claude
+  printf '{"env":{"TALAKA_MEMORY_PROMOTE_INTERVAL":"60","OTHER":"x"}}\n' > .claude/settings.json
+  bash "$(_tool)" >/dev/null 2>&1
+  assert_eq '{"env":{"OTHER":"x"}}' "$(jq -c . .claude/settings.json)" "only kit keys left settings.json"
+  assert_eq "60"    "$(jq -r '.env.TALAKA_MEMORY_PROMOTE_INTERVAL' .claude/settings.local.json)" "changed value moved, not reset"
+  assert_eq "86400" "$(jq -r '.env.TALAKA_METRICS_MAX_RUN' .claude/settings.local.json)" "missing key added"
 }
 
 test_dry_run_writes_nothing() {
   _need_jq || return
   local p; p=$(_project_with_kit); cd "$p" || return
   bash "$(_tool)" --dry-run >/dev/null 2>&1
-  assert_file_absent ".claude/settings.json" "dry run created no settings.json"
+  assert_file_absent ".claude/settings.local.json" "dry run created no settings file"
 }
 
 test_every_default_is_documented() {
-  # A setting written into users' settings.json must be explained somewhere.
+  # A setting written into users' settings must be explained somewhere.
   local name
   for name in $(grep -oE '"TALAKA_[A-Z_]+=' "$KIT_ROOT/shared/lifecycle/tools/install-env.sh" | tr -d '"='); do
     grep -q "$name" "$KIT_ROOT/README.md" || fail "README.md does not document $name"

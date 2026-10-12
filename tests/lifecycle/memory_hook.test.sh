@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests for memory/tools/memory-hook.sh — the opt-in Stop hook in .claude/settings.json.
+# Tests for memory/tools/memory-hook.sh — the opt-in Stop hook in .claude/settings.local.json.
 # Installs/removes only the kit's own hook; must preserve all other settings.
 # Requires jq (skips cleanly without it, mirroring the script's own degrade path).
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib.sh"
@@ -15,7 +15,8 @@ _proj() {
   printf '%s' "$proj"
 }
 _hook() { ( cd "$1" && bash talaka/memory/tools/memory-hook.sh "${@:2}" ); }
-_settings() { printf '%s/.claude/settings.json' "$1"; }
+_settings() { printf '%s/.claude/settings.local.json' "$1"; }
+_team() { printf '%s/.claude/settings.json' "$1"; }
 
 test_install_creates_hook() {
   have_jq || { skip_test "jq absent"; return; }
@@ -74,9 +75,32 @@ test_remove_when_sole_hook_cleans_up() {
   local proj; proj=$(_proj)
   _hook "$proj" >/dev/null 2>&1            # fresh file, only our hook
   _hook "$proj" --remove >/dev/null 2>&1
-  # hooks object should be gone (no dangling empty Stop array).
-  local hk; hk=$(jq 'has("hooks")' "$(_settings "$proj")")
-  assert_eq "false" "$hk" "empty hooks object cleaned up"
+  # Nothing but our hook was in it: no dangling {"hooks":{}} or {} left behind.
+  assert_file_absent "$(_settings "$proj")" "kit-only settings file cleaned up"
+}
+
+test_install_moves_a_legacy_hook_out_of_team_settings() {
+  # Older kits wrote the hook into the team's settings.json.
+  have_jq || { skip_test "jq absent"; return; }
+  local proj; proj=$(_proj)
+  mkdir -p "$proj/.claude"
+  cat > "$(_team "$proj")" <<'EOF'
+{ "hooks": { "Stop": [ { "hooks": [ { "type": "command", "command": "echo mine" } ] },
+                       { "hooks": [ { "type": "command", "command": "bash talaka/memory/tools/tick.sh" } ] } ] } }
+EOF
+  _hook "$proj" >/dev/null 2>&1
+  local t; t=$(_team "$proj")
+  assert_eq "false" "$(jq '[ .hooks.Stop[]?.hooks[]?.command ] | any(contains("tick.sh"))' "$t")" "kit hook gone from settings.json"
+  assert_eq "true"  "$(jq '[ .hooks.Stop[]?.hooks[]?.command ] | any(.=="echo mine")' "$t")" "team hook kept"
+  assert_eq "true"  "$(jq '[ .hooks.Stop[]?.hooks[]?.command ] | any(contains("tick.sh"))' "$(_settings "$proj")")" \
+    "kit hook now in settings.local.json"
+}
+
+test_install_never_writes_team_settings() {
+  have_jq || { skip_test "jq absent"; return; }
+  local proj; proj=$(_proj)
+  _hook "$proj" >/dev/null 2>&1
+  assert_file_absent "$(_team "$proj")" "settings.json not created"
 }
 
 test_remove_without_settings_is_noop() {

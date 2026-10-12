@@ -135,6 +135,16 @@ KIT_FILES_MANIFEST="$ARTEFACTS/.${KIT_SLUG}.files"
 KIT_BASE_DIR="$ARTEFACTS/.base"
 KIT_CONFLICTS_DIR="$ARTEFACTS/.conflicts"
 
+# Claude Code settings the kit writes (statusLine, outputStyle, the TALAKA_* env,
+# the opt-in memory hook) are personal, so they go in settings.local.json —
+# Claude Code's per-developer file, which takes precedence over the team's
+# settings.json. settings.json is only read: a value the team set there is
+# respected, and entries an older kit wrote there are moved out on install.
+KIT_SETTINGS_REL=".claude/settings.local.json"
+KIT_SETTINGS_FILE="$PROJECT_ROOT/$KIT_SETTINGS_REL"
+KIT_SETTINGS_SHARED_REL=".claude/settings.json"
+KIT_SETTINGS_SHARED="$PROJECT_ROOT/$KIT_SETTINGS_SHARED_REL"
+
 # One-time migration from older layouts (manifest + cfg at project root).
 kit_migrate_legacy_root_state() {
   mkdir -p "$ARTEFACTS"
@@ -730,43 +740,70 @@ talaka_block_append() {
 }
 
 # ---------------------------------------------------------------------------
-# Managed .gitignore block
+# Managed .gitignore blocks — one per directory the kit writes into
+#
+# talaka is a per-developer tool, not a team-sync mechanism: it installs into
+# the working tree but commits nothing of its own. So instead of editing the
+# project's root .gitignore (a tracked, team-owned file), each directory the
+# kit writes into gets its own .gitignore:
+#
+#   <artefacts>/.gitignore  `*` — the whole dir is personal state (and the
+#                           pattern covers the .gitignore itself)
+#   .claude/.gitignore      the kit-installed agent, skill and goal-loop
+#                           copies, enumerated by name so a team's own .claude/
+#                           content stays tracked, and settings.local.json
+#
+# Git honours a .gitignore whether or not it is tracked, so a file the kit
+# creates also ignores itself (`/.gitignore`) and never shows up in `git
+# status`. When the team already has a .claude/.gitignore, the block is added
+# to it without that line — the file is theirs.
 # ---------------------------------------------------------------------------
+TALAKA_GITIGNORE_SELF="/.gitignore"
+
+# talaka_gitignore_render SCOPE [SELF]
+#   SCOPE  artefacts | claude
+#   SELF   true → the kit owns the whole file: also ignore the .gitignore itself
 talaka_gitignore_render() {
-  # talaka is a per-developer tool, not a team-sync mechanism: it installs
-  # into the working tree but commits nothing of its own. The whole artefacts
-  # dir is personal state, and the kit-installed agent/skill copies are personal
-  # too (Veles ratchets them in place). Enumerate those copies by name so a
-  # team's own .claude/ content stays tracked while the kit's copies do not.
-  local claude_lines="" f name
-  for f in "$SCRIPT_DIR"/agents/*.md; do
-    [ -e "$f" ] || continue
-    name=${f##*/}
-    claude_lines+=".claude/agents/$name"$'\n'
-  done
-  for f in "$SCRIPT_DIR"/skills/*/; do
-    [ -d "$f" ] || continue
-    name=${f%/}; name=${name##*/}
-    claude_lines+=".claude/skills/$name/"$'\n'
-  done
-  [ -f "$SCRIPT_DIR/templates/loop.md.template" ] && claude_lines+=".claude/loop.md"$'\n'
+  local scope="$1" self="${2:-false}" lines="" f name
+  case "$scope" in
+    artefacts)
+      lines='# All of it: memory, features, PIPELINE.md, PROJECT.md, bookkeeping.'$'\n''*'$'\n'
+      ;;
+    claude)
+      [ "$self" = true ] && lines+="$TALAKA_GITIGNORE_SELF"$'\n'
+      for f in "$SCRIPT_DIR"/agents/*.md; do
+        [ -e "$f" ] || continue
+        name=${f##*/}
+        lines+="/agents/$name"$'\n'
+      done
+      for f in "$SCRIPT_DIR"/skills/*/; do
+        [ -d "$f" ] || continue
+        name=${f%/}; name=${name##*/}
+        lines+="/skills/$name/"$'\n'
+      done
+      [ -f "$SCRIPT_DIR/templates/loop.md.template" ] && lines+="/loop.md"$'\n'
+      # Where the kit writes its Claude Code settings — personal by definition.
+      lines+="/${KIT_SETTINGS_REL#.claude/}"$'\n'
+      ;;
+    *) return 2 ;;
+  esac
   cat <<EOF
 $TALAKA_GITIGNORE_BEGIN
-# Managed by talaka — a per-developer tool, NOT intended for team sync.
-# Re-run \`talaka/shared/lifecycle/tools/init.sh\` to refresh, or \`talaka/shared/lifecycle/tools/teardown.sh\`
-# to remove the whole block. Edits inside this block are overwritten on init.
-#
-# The kit commits nothing of its own: a teammate who does not use talaka
-# sees none of this, and a second kit user just re-runs init.sh to regenerate
-# it. Everything below is personal working state. (knowledge-curating's wiki/ lives at the
-# project root, outside this dir, precisely so it CAN be committed.)
-#
-# --- Artefacts: all per-developer pipeline state (memory, features, PIPELINE.md, PROJECT.md, …) ---
-$ARTEFACTS_NAME/
-#
-# --- Kit-installed agent, skill and goal-loop copies (personal; Veles ratchets these) ---
-${claude_lines}$TALAKA_GITIGNORE_END
+# Managed by talaka — a per-developer tool that commits nothing of its own.
+# Re-run \`talaka/shared/lifecycle/tools/init.sh\` to refresh, or
+# \`talaka/shared/lifecycle/tools/teardown.sh\` to remove. Edits inside this
+# block are overwritten on init.
+${lines}$TALAKA_GITIGNORE_END
 EOF
+}
+
+# True when the block in FILE was rendered as the owner of the whole file.
+talaka_gitignore_owns_file() {
+  local line
+  while IFS= read -r line; do
+    [ "${line%$'\r'}" = "$TALAKA_GITIGNORE_SELF" ] && return 0
+  done < <(talaka_gitignore_extract "$1" 2>/dev/null)
+  return 1
 }
 
 talaka_gitignore_present() { _kit_block_present "$1" "$TALAKA_GITIGNORE_BEGIN"; }
@@ -840,6 +877,33 @@ kit_rm_rf() {
   else
     rm -rf "$1"
   fi
+}
+
+# ---------------------------------------------------------------------------
+# Claude Code settings files (jq required — callers check for it)
+# ---------------------------------------------------------------------------
+# kit_settings_jq FILE [jq args…] FILTER — rewrite FILE through jq. A file left
+# as {} carried only kit entries and is removed.
+kit_settings_jq() {
+  local file="$1"; shift
+  jq "$@" "$file" > "$file.tmp" && mv "$file.tmp" "$file" || { rm -f "$file.tmp"; return 1; }
+  [ "$(jq -c . "$file" 2>/dev/null)" = "{}" ] && rm -f "$file"
+  return 0
+}
+
+# kit_settings_update [jq args…] FILTER — apply FILTER to the kit's settings
+# file, creating it first if absent.
+kit_settings_update() {
+  mkdir -p "${KIT_SETTINGS_FILE%/*}"
+  [ -f "$KIT_SETTINGS_FILE" ] || printf '{}\n' > "$KIT_SETTINGS_FILE"
+  kit_settings_jq "$KIT_SETTINGS_FILE" "$@"
+}
+
+# kit_settings_get FILE FILTER — print jq -r FILTER over FILE (empty when the
+# file is missing or unreadable).
+kit_settings_get() {
+  [ -f "$1" ] || return 0
+  jq -r "$2" "$1" 2>/dev/null || true
 }
 
 _manifest_drop() {

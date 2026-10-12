@@ -11,7 +11,8 @@
 #      .tlk/.talaka.files. Files you edited locally are kept.
 #   3. Remove the canonical pipeline copy at .tlk/PIPELINE.md when its hash
 #      still matches; PROJECT.md is kept unless --full-clean.
-#   4. Strip the managed block from .gitignore.
+#   4. Strip the managed block from .claude/.gitignore (and any legacy one an
+#      older kit left in the root .gitignore). .tlk/.gitignore stays.
 #   5. (--remove-submodule) Deinit the talaka submodule.
 #   6. (--full-clean) Sweep .tlk/scratch/ and .tlk/dashboard/ (rebuildable),
 #      offer to remove .tlk/PROJECT.md, and try to remove the .tlk/
@@ -81,39 +82,30 @@ info "project root: $PROJECT_ROOT"
 info "artefacts:    $ARTEFACTS_NAME/"
 $DRY_RUN && warn "Dry run — no files will be removed."
 
-# Strip the managed block from .gitignore.
+# Strip the managed block from a .gitignore; remove the file when nothing else
+# is left in it (the kit created it). Arg: path relative to the project root.
 teardown_gitignore_block() {
-  local rel=".gitignore"
+  local rel="$1"
   local abs="$PROJECT_ROOT/$rel"
 
-  if [ ! -f "$abs" ]; then
-    _manifest_drop "$rel"
-    info ".gitignore not present"
+  if [ ! -f "$abs" ] || ! talaka_gitignore_present "$abs"; then
     return 0
   fi
-
-  if talaka_gitignore_present "$abs"; then
-    if $DRY_RUN; then
-      info "would strip managed block from: $rel"
-      return 0
-    fi
-    if talaka_gitignore_strip "$abs"; then
-      _manifest_drop "$rel"
-      removed ".gitignore (managed block stripped, file kept)"
-      # If we just emptied .gitignore (file existed only because we created it
-      # for the block), remove it.
-      if [ ! -s "$abs" ]; then
-        kit_rm "$abs"
-        removed ".gitignore (was empty after strip)"
-      fi
-      return 0
-    fi
-    warn ".gitignore (failed to strip block — left as-is)"
-    return 1
+  if $DRY_RUN; then
+    info "would strip managed block from: $rel"
+    return 0
   fi
-
-  _manifest_drop "$rel"
-  skip ".gitignore (no managed block — leaving file alone)"
+  if talaka_gitignore_strip "$abs"; then
+    if [ ! -s "$abs" ]; then
+      kit_rm "$abs"
+      removed "$rel (kit-created, removed)"
+    else
+      removed "$rel (managed block stripped, file kept)"
+    fi
+    return 0
+  fi
+  warn "$rel (failed to strip block — left as-is)"
+  return 1
 }
 
 # Every removal below ends in `|| true`. The helpers return 1 when they KEEP a
@@ -156,6 +148,9 @@ fi
 # Goal loop — mirrors install_goal_loop in init.sh.
 header "Goal loop (.claude/loop.md)"
 kit_managed_file_remove ".claude/loop.md" || true
+
+header ".claude/.gitignore (managed block)"
+teardown_gitignore_block ".claude/.gitignore" || true
 if ! $DRY_RUN && [ -d "$PROJECT_ROOT/.claude" ] && [ -z "$(ls -A "$PROJECT_ROOT/.claude" 2>/dev/null)" ]; then
   rmdir "$PROJECT_ROOT/.claude" 2>/dev/null && removed ".claude/ (empty dir)" || true
 fi
@@ -167,13 +162,20 @@ header "$ARTEFACTS_NAME/ (canonical pipeline copy)"
 kit_managed_file_remove "$ARTEFACTS_NAME/PIPELINE.md" || true
 
 # ---------------------------------------------------------------------------
-# 4. Strip managed .gitignore block
+# 4. Legacy: a managed block an older kit left in the root .gitignore.
+#    $ARTEFACTS_NAME/.gitignore stays: what remains in that dir (memory,
+#    features, PROJECT.md) is still personal state. --full-clean removes it
+#    together with the dir.
 # ---------------------------------------------------------------------------
-header ".gitignore (managed block)"
-teardown_gitignore_block || true
+if talaka_gitignore_present "$PROJECT_ROOT/.gitignore"; then
+  header ".gitignore (legacy managed block)"
+  teardown_gitignore_block ".gitignore" || true
+fi
+_manifest_drop ".gitignore"
 
 # ---------------------------------------------------------------------------
-# 4b. Remove kit-added entries from .claude/settings.json — the opt-in memory
+# 4b. Remove kit-added entries from .claude/settings.local.json (and from
+#     .claude/settings.json, where older kits wrote them) — the opt-in memory
 #     Stop hook, the kit statusLine, outputStyle and the TALAKA_* env keys. All are no-ops if never
 #     installed, and each preserves everything else (user hooks, a custom
 #     statusLine, an outputStyle the user chose themselves).
@@ -183,11 +185,16 @@ _sl_remove="$SCRIPT_DIR/statusline/tools/install-statusline.sh"
 _os_remove="$SCRIPT_DIR/shared/lifecycle/tools/install-output-style.sh"
 _env_remove="$SCRIPT_DIR/shared/lifecycle/tools/install-env.sh"
 if [ -x "$_hook_remove" ] || [ -x "$_sl_remove" ] || [ -x "$_os_remove" ] || [ -x "$_env_remove" ]; then
-  header ".claude/settings.json (kit entries)"
+  header ".claude/settings (kit entries)"
   [ -x "$_hook_remove" ] && ( cd "$PROJECT_ROOT" && DRY_RUN="$DRY_RUN" "$_hook_remove" --remove ) || true
   [ -x "$_sl_remove" ]   && ( cd "$PROJECT_ROOT" && DRY_RUN="$DRY_RUN" "$_sl_remove" --remove ) || true
   [ -x "$_os_remove" ]   && ( cd "$PROJECT_ROOT" && DRY_RUN="$DRY_RUN" "$_os_remove" --remove ) || true
   [ -x "$_env_remove" ]  && ( cd "$PROJECT_ROOT" && DRY_RUN="$DRY_RUN" "$_env_remove" --remove ) || true
+fi
+# Settings files left empty are removed by the tools above; drop .claude/ if
+# that emptied it.
+if ! $DRY_RUN && [ -d "$PROJECT_ROOT/.claude" ] && [ -z "$(ls -A "$PROJECT_ROOT/.claude" 2>/dev/null)" ]; then
+  rmdir "$PROJECT_ROOT/.claude" 2>/dev/null && removed ".claude/ (empty dir)" || true
 fi
 
 # ---------------------------------------------------------------------------
@@ -266,7 +273,9 @@ if $FULL_CLEAN; then
 
   # Try to remove the artefacts directory if empty (it usually still has
   # memory/, features/, archive/ — those are user state, not kit-managed).
+  # Its .gitignore alone does not keep the dir: it only exists to hide the rest.
   if [ -d "$ARTEFACTS" ] && ! $DRY_RUN; then
+    [ "$(ls -A "$ARTEFACTS" 2>/dev/null)" = ".gitignore" ] && rm -f "$ARTEFACTS/.gitignore"
     rmdir "$ARTEFACTS" 2>/dev/null \
       && removed "$ARTEFACTS_NAME/ (empty dir)" \
       || info "$ARTEFACTS_NAME/ kept (still contains memory/features/archive — delete manually if desired)"

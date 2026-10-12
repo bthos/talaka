@@ -16,7 +16,7 @@
 # Override the artefacts directory with $ARTEFACTS_DIR (default: .tlk).
 # Run from project root.
 #
-# Example Claude Code hook (.claude/settings.json) — opt-in, add via /update-config:
+# Example Claude Code hook (.claude/settings.local.json) — opt-in; memory-hook.sh installs it:
 #   {
 #     "hooks": {
 #       "Stop": [

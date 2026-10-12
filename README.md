@@ -2,7 +2,7 @@
 
 A reusable AI development pipeline — 6 agents, 17 skills, and a coordinator-driven handoff protocol. Installs one Claude-shaped layout (`.claude/agents/`, `.claude/skills/`) with two entry-point files at the project root: **`CLAUDE.md`** (read natively by Claude Code) and **`AGENTS.md`** (the cross-IDE convention — read by any workspace-aware tool that follows the AGENTS.md spec). One install covers every IDE.
 
-The kit is **minimally invasive** and **per-developer** (it commits nothing of its own): every kit-touched path is either inside the git-ignored `.tlk/`, inside `.claude/`, the optional committed `wiki/`, or wrapped in a removable `<!-- talaka:start --> … <!-- talaka:end -->` block in `CLAUDE.md` / `AGENTS.md` / `.gitignore`. `teardown.sh` strips the block (or removes the file when its SHA-256 still matches the kit copy recorded in `.tlk/.talaka.files`), so manual edits are always preserved.
+The kit is **minimally invasive** and **per-developer** (it commits nothing of its own): every kit-touched path is either inside the git-ignored `.tlk/`, inside `.claude/`, the optional committed `wiki/`, or wrapped in a removable `<!-- talaka:start --> … <!-- talaka:end -->` block in `CLAUDE.md` / `AGENTS.md`. Your root `.gitignore` is never touched: each directory the kit writes into carries its own `.gitignore`. `teardown.sh` strips the block (or removes the file when its SHA-256 still matches the kit copy recorded in `.tlk/.talaka.files`), so manual edits are always preserved.
 
 Import as a git submodule in under a minute.
 
@@ -129,32 +129,34 @@ That's it.
 │   ├── dashboard/                            ← (on first use) snapshot + page for the dashboard
 │   ├── .talaka.cfg                      ← saved IDE + pipeline template SHA (gitignored)
 │   ├── .talaka.files                    ← SHA manifest for teardown (gitignored)
-│   └── .migrations                           ← layout migrations already applied (see Updating the kit)
+│   ├── .migrations                           ← layout migrations already applied (see Updating the kit)
+│   └── .gitignore                            ← `*` — hides all of .tlk/, itself included
 │
 ├── .claude/                                  ← agent + skill copies (kit copies git-ignored; Veles ratchets them)
-│   └── loop.md                               ← goal-loop protocol (default prompt of a bare /loop)
-│   (settings.json also gets statusLine + outputStyle: Concise + env: TALAKA_*)
+│   ├── loop.md                               ← goal-loop protocol (default prompt of a bare /loop)
+│   └── .gitignore                            ← kit-managed block hiding the kit's copies, settings.local.json (and itself, if the kit created it)
+│   (settings.local.json gets statusLine + outputStyle: Concise + env: TALAKA_* — your personal settings file, never the team's settings.json)
 │
 ├── wiki/                                      ← knowledge-curating knowledge wiki — committed knowledge (project root, outside .tlk/)
 │
 ├── CLAUDE.md                                 ← Claude Code entry-point with managed include block
-├── AGENTS.md                                 ← cross-IDE entry-point with the same managed block
-│
-└── .gitignore                                ← one kit-managed block (ignores all of .tlk/ + kit .claude/ copies)
+└── AGENTS.md                                 ← cross-IDE entry-point with the same managed block
 ```
 
 Shared shell helpers live in **`talaka/shared/lifecycle/tools/lib.sh`** (sourced by `init.sh` / `update.sh` / `teardown.sh`, not run by hand). For a guided launcher use **`talaka/kit.sh`** — a stage-aware menu that detects whether the kit is installed/configured and only offers actions that fit.
 
 The IDE entry-point files are **never overwritten**. The kit only manages the content between its `<!-- talaka:start -->` and `<!-- talaka:end -->` markers — anything you add above or below is yours and survives every `init.sh` / `update.sh` / `teardown.sh` cycle.
 
-### Managed `.gitignore` block
+### Per-directory `.gitignore` files
 
-Talaka is a **per-developer** tool, not a team-sync mechanism — it installs into your working tree but **commits nothing of its own**. `init.sh` appends **one** contiguous block delimited by `# >>> talaka (managed) >>>` … `# <<< talaka (managed) <<<` that ignores:
+Talaka is a **per-developer** tool, not a team-sync mechanism — it installs into your working tree but **commits nothing of its own**. So it leaves your root `.gitignore` alone and puts a `.gitignore` next to what it hides, as a block delimited by `# >>> talaka (managed) >>>` … `# <<< talaka (managed) <<<`:
 
-- **all of `.tlk/`** — memory, features, `PIPELINE.md`, `PROJECT.md`, bookkeeping. Every bit is personal working state; a second kit user just re-runs `init.sh` to regenerate it.
-- **the kit-installed `.claude/agents/*` and `.claude/skills/*` copies** — enumerated by name (so your own `.claude/` content stays tracked). These are per-developer because Veles ratchets them in place via AutoResearch.
+- **`.tlk/.gitignore`** — `*`: all of `.tlk/` (memory, features, `PIPELINE.md`, `PROJECT.md`, bookkeeping), the `.gitignore` itself included. Every bit is personal working state; a second kit user just re-runs `init.sh` to regenerate it.
+- **`.claude/.gitignore`** — the kit-installed `agents/*`, `skills/*` and `loop.md` copies, enumerated by name, plus `settings.local.json` (so your own `.claude/` content stays tracked). These are per-developer because Veles ratchets them in place via AutoResearch. When the kit creates this file it also lists `/.gitignore`, so the file hides itself; when your team already has a `.claude/.gitignore`, the block is appended to it and the file stays yours.
 
-`teardown.sh` strips the **whole** block in one pass. A teammate who does not use Talaka sees none of this; the committed `CLAUDE.md` / `AGENTS.md` include just points at `.tlk/PIPELINE.md`, which is a harmless no-op when that personal file isn't present.
+Git honours a `.gitignore` whether or not it is tracked, so after `init.sh` nothing under `.tlk/` or `.claude/` that the kit wrote shows up in `git status`. A managed block that an older kit left in the root `.gitignore` is stripped on the next `init.sh` / `update.sh` (commit that change).
+
+`teardown.sh` strips the `.claude/.gitignore` block (removing the file if the kit created it) and keeps `.tlk/.gitignore`, since what stays in `.tlk/` is still personal state. A teammate who does not use Talaka sees none of this; the committed `CLAUDE.md` / `AGENTS.md` include just points at `.tlk/PIPELINE.md`, which is a harmless no-op when that personal file isn't present.
 
 The one deliberate exception is **knowledge-curating's `wiki/`**, which lives at the **project root** (outside `.tlk/`) precisely so it *can* be committed — it is curated, shareable knowledge rather than per-developer scratch.
 
@@ -163,24 +165,26 @@ The one deliberate exception is **knowledge-curating's `wiki/`**, which lives at
 1. Creates `.tlk/` and copies the canonical pipeline doc + project config:
    - `.tlk/PIPELINE.md` ← from `talaka/templates/PIPELINE.md.template` (kit-managed; refreshed on `--force`)
    - `.tlk/PROJECT.md` ← from `talaka/templates/PROJECT.md.template` (your edits preserved unless `--force`)
-2. Adds the managed `.gitignore` block described above — ignores **all of `.tlk/`** (the kit commits nothing) plus the kit-installed `.claude/agents|skills` copies. knowledge-curating's root-level `wiki/` is intentionally left tracked.
+2. Writes the per-directory `.gitignore` files described above — `.tlk/.gitignore` ignores **all of `.tlk/`** (the kit commits nothing), `.claude/.gitignore` the kit-installed `.claude/agents|skills` copies. knowledge-curating's root-level `wiki/` is intentionally left tracked.
 3. After any fresh copy of `PROJECT.md`, optionally fills placeholders via **`claude -p`** (Claude Code). If stdin is not a TTY but `/dev/tty` exists, the Y/n prompt is read from `/dev/tty` so the step is not skipped silently in some IDE terminals.
 4. Copies `agents/*.md` → `.claude/agents/` (records SHA-256 in **`.tlk/.talaka.files`**).
 5. Copies `skills/*/` → `.claude/skills/` (same).
 6. Copies `templates/loop.md.template` → `.claude/loop.md` — the goal-loop protocol, which Claude Code's bundled `/loop` runs when given no prompt (same SHA tracking). The kit ships no `/goal` or `/loop` command of its own, so the built-ins are never shadowed.
-7. Sets `"outputStyle": "Concise"` in `.claude/settings.json`, but **only when the key is unset** — a style you chose yourself is never overwritten. Undo with `talaka/shared/lifecycle/tools/install-output-style.sh --remove`, or toggle it in `kit.sh` → *Manage components*.
-8. Adds the kit's settings to `"env"` in `.claude/settings.json` with their defaults — see [Environment variables](#environment-variables). **Only missing keys are added**; a value you changed is kept on every re-init. `teardown.sh` removes the `TALAKA_*` keys again. Toggle in `kit.sh` → *Manage components*, or run `talaka/shared/lifecycle/tools/install-env.sh [--remove]`.
+7. Sets `"outputStyle": "Concise"` in `.claude/settings.local.json`, but **only when the key is unset** there and in `.claude/settings.json` — a style you or your team chose is never overwritten. Undo with `talaka/shared/lifecycle/tools/install-output-style.sh --remove`, or toggle it in `kit.sh` → *Manage components*.
+8. Adds the kit's settings to `"env"` in `.claude/settings.local.json` with their defaults — see [Environment variables](#environment-variables). **Only missing keys are added**; a value you changed is kept on every re-init. `teardown.sh` removes the `TALAKA_*` keys again. Toggle in `kit.sh` → *Manage components*, or run `talaka/shared/lifecycle/tools/install-env.sh [--remove]`.
 9. Adds the managed include block to `CLAUDE.md` and `AGENTS.md` (creates a stub if absent; appends to existing file if present).
 
-**`.tlk/.talaka.files`** records SHA-256 per kit-managed path (paths are relative to the **project root**, e.g. `.claude/agents/bagnik.md`). It sits beside `.tlk/.talaka.cfg` and is listed in the managed `.gitignore` block so it stays local to each checkout.
+Every Claude Code setting the kit writes (steps 7–8, the statusline, the opt-in memory hook) goes into **`.claude/settings.local.json`** — Claude Code's per-developer settings file, which overrides `.claude/settings.json` and is git-ignored by `.claude/.gitignore`. The team's `.claude/settings.json` is only read: a `statusLine` or `outputStyle` set there is respected rather than shadowed, and kit entries an older kit wrote there are moved to `settings.local.json` on the next `init.sh` / `update.sh` (`TALAKA_*` values you changed come along).
+
+**`.tlk/.talaka.files`** records SHA-256 per kit-managed path (paths are relative to the **project root**, e.g. `.claude/agents/bagnik.md`). It sits beside `.tlk/.talaka.cfg` and is covered by `.tlk/.gitignore` so it stays local to each checkout.
 
 Shared scripts live under **`talaka/shared/<category>/tools/`** (lifecycle, project, learning, debug, deferred, audit), and component scripts under their component (e.g. `talaka/memory/tools/`, `talaka/statusline/tools/`) — run them from the **project root**, for example `talaka/shared/project/tools/validate-config.sh`.
 
-The script is **idempotent** — existing kit-managed files prompt for overwrite (or **s** / **o** / **a** / **r** as above). The managed blocks in `CLAUDE.md`, `AGENTS.md` and `.gitignore` never prompt: what sits between their markers is the kit's, so an identical block is left alone and a changed one is replaced in place, with the content around it untouched. For CI or scripts, use **`--force`** / **`--overwrite-all`** or **`--skip`** / **`--skip-all`** so nothing blocks on prompts. Each installed path's content hash is tracked in **`.tlk/.talaka.files`** for **`teardown.sh`** (remove only if unchanged). Managed include blocks are tracked with `block:<sha>` (block-only entries) or `stub:<sha>` (whole-file stubs we created from scratch).
+The script is **idempotent** — existing kit-managed files prompt for overwrite (or **s** / **o** / **a** / **r** as above). The managed blocks in `CLAUDE.md`, `AGENTS.md` and the `.gitignore` files never prompt: what sits between their markers is the kit's, so an identical block is left alone and a changed one is replaced in place, with the content around it untouched. For CI or scripts, use **`--force`** / **`--overwrite-all`** or **`--skip`** / **`--skip-all`** so nothing blocks on prompts. Each installed path's content hash is tracked in **`.tlk/.talaka.files`** for **`teardown.sh`** (remove only if unchanged). Managed include blocks are tracked with `block:<sha>` (block-only entries) or `stub:<sha>` (whole-file stubs we created from scratch).
 
 ## Environment variables
 
-Kit settings that are read from the environment carry a `TALAKA_` prefix. Agents run kit scripts in **separate shell calls**, so an `export` in one call is gone by the next: set them in the `"env"` block of `.claude/settings.json`, which Claude Code passes to every command it runs. `init.sh` writes the first group there with its defaults, so you edit the value in place:
+Kit settings that are read from the environment carry a `TALAKA_` prefix. Agents run kit scripts in **separate shell calls**, so an `export` in one call is gone by the next: set them in the `"env"` block of `.claude/settings.local.json` (or, team-wide, `.claude/settings.json`), which Claude Code passes to every command it runs. `init.sh` writes the first group there with its defaults, so you edit the value in place:
 
 ```json
 {
@@ -193,7 +197,7 @@ Kit settings that are read from the environment carry a `TALAKA_` prefix. Agents
 
 Names carry no unit suffix: **every duration is in seconds**, and each value's unit is stated below. Values in `"env"` are written as strings (`"900"`).
 
-**Written into `settings.json` by `init.sh`** — they change what agents' tool calls do:
+**Written into `settings.local.json` by `init.sh`** — they change what agents' tool calls do:
 
 | Variable | Default | Read by | Effect |
 |---|---|---|---|
@@ -276,7 +280,7 @@ cp talaka/agents/bagnik.md .claude/agents/bagnik.md   # optional: reset from kit
 ```bash
 # Strip managed blocks from CLAUDE.md and AGENTS.md, remove
 # kit-installed copies (only where SHA-256 still matches the manifest), strip the
-# managed .gitignore block, remove .tlk/PIPELINE.md.
+# .claude/.gitignore block, remove .tlk/PIPELINE.md.
 talaka/shared/lifecycle/tools/teardown.sh
 
 # Same plus: delete .tlk/PROJECT.md (after y/N confirmation)
@@ -293,7 +297,7 @@ talaka/shared/lifecycle/tools/teardown.sh --dry-run
 `teardown.sh` is conservative by design:
 
 - **Managed include blocks** — stripped from `CLAUDE.md` and `AGENTS.md`. If the file was a kit-created stub (manifest entry begins with `stub:`) and still matches that stub byte-for-byte, the whole file is removed. Otherwise the file is kept and only the marked block is excised — your custom content survives.
-- **Managed `.gitignore` block** — stripped using the same start/end markers; the rest of your `.gitignore` is untouched.
+- **`.claude/.gitignore`** — the managed block is stripped; the file is removed if nothing else is left in it (the kit created it), otherwise your entries are untouched. `.tlk/.gitignore` stays with the rest of `.tlk/` (`--full-clean` removes it with the directory). A legacy block in the root `.gitignore` is stripped too.
 - **Agent / skill copies** under `.claude/` — deleted only when the on-disk SHA-256 still matches the value recorded in `.tlk/.talaka.files`. Files you edited by hand are left alone (the script reports them as "modified locally").
 - **`.tlk/PIPELINE.md`** — same SHA-256 check.
 - **`.tlk/PROJECT.md`** — kept by default (it has your project config); removed only with `--full-clean` (and only after a y/N prompt unless `--yes` is passed).
@@ -417,7 +421,7 @@ Two things benefit from running on a schedule. **`promote.sh`** already runs fro
 
 Pick **one** of the options below — they are alternatives, not all required. Each runs from the **project root** and honours `ARTEFACTS_DIR`.
 
-**Option 1 — Claude Code hook (no OS scheduler).** Runs the tick whenever a session/subagent stops. Add to `.claude/settings.json` (or via the `/update-config` skill):
+**Option 1 — Claude Code hook (no OS scheduler).** Runs the tick whenever a session/subagent stops. Install it with `talaka/memory/tools/memory-hook.sh` (it lands in `.claude/settings.local.json`), or add it by hand there (or via the `/update-config` skill):
 
 ```json
 {
@@ -541,7 +545,7 @@ The skill is design-only and plugs into the normal pipeline: it bootstraps `.tlk
 
 The feature pipeline answers *build this thing*. The goal loop answers everything else the kit can do and rarely gets asked to — and that gap is the point: mapping, drift audits, assumption challenges, pre-planning research and the Veles ratchet are the techniques that sit unused because no one thinks to invoke them by name.
 
-The entry point is Claude Code's bundled **`/loop`**. Given no prompt — `/loop` (self-paced) or `/loop 30m` (fixed interval) — it runs **`.claude/loop.md`** on every iteration; `/loop <prompt>` ignores the file. `init.sh` installs only that protocol file and defines no `/loop` or `/goal` command of its own, so the built-ins are never shadowed. (`/goal <condition>` is a separate built-in: it keeps a session working until a condition holds and does not read `loop.md`.) The loop first settles which goal to work: it resumes the one open goal under `.tlk/goals/` — one with no `summary.md`, or whose `summary.md` says `Status: paused` (a stall, a spent budget or a blocker stops the loop without finishing the goal; only `Status: done` closes it) — asks which one when there are several, and asks for an objective when there are none (*improve this codebase — nothing above P2 left in the audit*, *find the architecture gaps, stop at a plan*, *ratchet the agents — one Veles round, then report*). One goal in, many iterations out; each iteration is *assess → pick ONE technique → invoke it → read the return entry → log → decide*. Artifacts land in `.tlk/goals/<date>-<slug>/` (`goal.md`, `handoff-log.md`, `summary.md`, `metrics.jsonl`), which the managed `.gitignore` block already covers.
+The entry point is Claude Code's bundled **`/loop`**. Given no prompt — `/loop` (self-paced) or `/loop 30m` (fixed interval) — it runs **`.claude/loop.md`** on every iteration; `/loop <prompt>` ignores the file. `init.sh` installs only that protocol file and defines no `/loop` or `/goal` command of its own, so the built-ins are never shadowed. (`/goal <condition>` is a separate built-in: it keeps a session working until a condition holds and does not read `loop.md`.) The loop first settles which goal to work: it resumes the one open goal under `.tlk/goals/` — one with no `summary.md`, or whose `summary.md` says `Status: paused` (a stall, a spent budget or a blocker stops the loop without finishing the goal; only `Status: done` closes it) — asks which one when there are several, and asks for an objective when there are none (*improve this codebase — nothing above P2 left in the audit*, *find the architecture gaps, stop at a plan*, *ratchet the agents — one Veles round, then report*). One goal in, many iterations out; each iteration is *assess → pick ONE technique → invoke it → read the return entry → log → decide*. Artifacts land in `.tlk/goals/<date>-<slug>/` (`goal.md`, `handoff-log.md`, `summary.md`, `metrics.jsonl`), which `.tlk/.gitignore` already covers.
 
 It obeys the same routing rule as the pipeline — the coordinator invokes, workers return — and it cannot write code except through `@cmok` → `@bagnik` → `@zlydni`. Stop conditions are explicit: definition of done met, budget spent, two iterations with nothing new, or the same finding failing twice.
 
@@ -656,9 +660,9 @@ Each skill bundles its own script. Shared scripts live under `talaka/shared/<cat
 | Script | What it does |
 |--------|-------------|
 | `kit.sh` | **Recommended human entry point.** Stage-aware interactive launcher. Detects install state (not installed / needs config / ready) and surfaces only actions that make sense at the current stage: `init`, `probe`, edit + `validate` `PROJECT.md`, `update`, `teardown`, feature `status`, the `dashboard`, memory `search`, version `bump`, memory `rollover` / `promote`, `distill` lessons, apply `patches`. Press `h` inside the menu for one-line descriptions. |
-| `shared/lifecycle/tools/init.sh` | Sets up `.tlk/`; copies agents to `.claude/agents/` and skills to `.claude/skills/`; manages include blocks in `CLAUDE.md` and `AGENTS.md`; manages the `.gitignore` block; maintains **`.tlk/.talaka.files`**. |
+| `shared/lifecycle/tools/init.sh` | Sets up `.tlk/`; copies agents to `.claude/agents/` and skills to `.claude/skills/`; manages include blocks in `CLAUDE.md` and `AGENTS.md`; writes `.tlk/.gitignore` and `.claude/.gitignore`; maintains **`.tlk/.talaka.files`**. |
 | `shared/lifecycle/tools/update.sh` | `git submodule update --remote` for the kit, then re-runs `shared/lifecycle/tools/init.sh` with the same arguments you pass (optional `--no-pull` to skip the fetch). Warns once if `.cursor/` or `.github/` copies from a pre-Claude-only install are still present (it does not remove them — see [Leftovers from old installs](#leftovers-from-old-installs)). Warns if `templates/PIPELINE.md.template` drifted since last init. |
-| `shared/lifecycle/tools/teardown.sh` | Strips managed include blocks from `CLAUDE.md` and `AGENTS.md`; strips the managed `.gitignore` block; removes kit-installed copies when SHA-256 matches **`.tlk/.talaka.files`**. `--full-clean` also removes `.tlk/PROJECT.md`, `.tlk/.talaka.cfg`, and `.tlk/scratch/`; `--remove-submodule` deinits git. |
+| `shared/lifecycle/tools/teardown.sh` | Strips managed include blocks from `CLAUDE.md` and `AGENTS.md`; strips the `.claude/.gitignore` block; removes kit-installed copies when SHA-256 matches **`.tlk/.talaka.files`**. `--full-clean` also removes `.tlk/PROJECT.md`, `.tlk/.talaka.cfg`, and `.tlk/scratch/`; `--remove-submodule` deinits git. |
 | `talaka/shared/lifecycle/tools/lib.sh` | Shared helpers (colors, paths, managed blocks, `.gitignore` renderer) — sourced by `shared/lifecycle/tools/init.sh`, `shared/lifecycle/tools/update.sh`, `shared/lifecycle/tools/teardown.sh`, and some tools; not run directly. |
 
 ## Coordinator protocol
@@ -674,11 +678,10 @@ What you *can* commit is a small, deliberate surface that is harmless to non-kit
 ```bash
 git add talaka .gitmodules            # pin the kit version for those who opt in
 git add CLAUDE.md AGENTS.md                # include block; a no-op when .tlk/PIPELINE.md is absent
-git add .gitignore                         # the managed block (keeps everyone's .tlk/ out of git)
 git add wiki/                              # knowledge-curating's committed knowledge (if you use it)
 git commit -m "chore: add talaka submodule"
 ```
 
-Everything else — `.tlk/**`, the kit-installed `.claude/agents|skills` copies, `.talaka.cfg` / `.talaka.files` — is per-developer and stays out of git via the managed block. A teammate who does not use the kit sees only the dangling (no-op) include and the submodule pointer.
+Everything else — `.tlk/**`, the kit-installed `.claude/agents|skills` copies, `.talaka.cfg` / `.talaka.files` — is per-developer and stays out of git via the kit's own `.gitignore` files, which hide themselves too. A teammate who does not use the kit sees only the dangling (no-op) include and the submodule pointer.
 
 Kit users clone with `git clone --recurse-submodules` (or `git submodule update --init`), then run `talaka/shared/lifecycle/tools/init.sh`.

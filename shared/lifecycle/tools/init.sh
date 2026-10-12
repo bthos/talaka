@@ -19,13 +19,17 @@
 #       Block delimiters: <!-- talaka:start --> ... <!-- talaka:end -->
 #       Existing user content above/below the markers is preserved verbatim.
 #
-#   4.  Adds a managed block to .gitignore. talaka is a per-developer tool:
-#       it commits nothing of its own. The block ignores ALL of .tlk/ (memory,
-#       features, PIPELINE.md, PROJECT.md, bookkeeping — every bit is personal
-#       working state) plus the kit-installed .claude/agents|skills copies. A
-#       second kit user just re-runs this script to regenerate it all; a
-#       teammate who does not use the kit sees none of it. (knowledge-curating's wiki/ lives
-#       at the project root, outside .tlk/, so it CAN be committed.)
+#   4.  Writes a .gitignore into each directory it installs into — never the
+#       project's root one. talaka is a per-developer tool: it commits nothing
+#       of its own. .tlk/.gitignore ignores ALL of .tlk/ (memory, features,
+#       PIPELINE.md, PROJECT.md, bookkeeping — every bit is personal working
+#       state); .claude/.gitignore ignores the kit-installed agent, skill and
+#       goal-loop copies. A file the kit creates ignores itself too, so nothing
+#       shows up in `git status`. A second kit user just re-runs this script to
+#       regenerate it all; a teammate who does not use the kit sees none of it.
+#       (knowledge-curating's wiki/ lives at the project root, outside .tlk/,
+#       so it CAN be committed.) A managed block left in the root .gitignore
+#       by an older kit is stripped.
 #
 # Flags:
 #   --force, --overwrite-all   Overwrite all existing kit-managed paths without prompting
@@ -77,8 +81,9 @@ show_help() {
     2. Copies agents to .claude/agents/ and skills to .claude/skills/.
     3. Adds a managed include block to CLAUDE.md and AGENTS.md, both pointing
        at .tlk/PIPELINE.md. Existing user content is preserved verbatim.
-    4. Adds a managed .gitignore block. The kit is per-developer and commits
-       nothing: the block ignores all of .tlk/ plus the kit's .claude/ copies.
+    4. Writes .tlk/.gitignore and .claude/.gitignore (never the root one). The
+       kit is per-developer and commits nothing: they ignore all of .tlk/ plus
+       the kit's .claude/ copies, and themselves.
        (knowledge-curating's wiki/ lives at the project root so it stays committable.)
 
   CROSS-IDE
@@ -416,34 +421,64 @@ setup_artefacts_dir() {
 }
 
 # ---------------------------------------------------------------------------
-# .gitignore (managed block at the end of the file — never touches user entries)
+# .gitignore — one per directory the kit writes into (see lib.sh). The
+# project's root .gitignore is never touched.
+#
+# Behaviour matrix (per file):
+#   file missing                → create it; the block also ignores the file
+#   file present, block missing → append the block (the file is the team's)
+#   file present, block present → refresh the block in place when it differs
 # ---------------------------------------------------------------------------
-setup_gitignore() {
-  header ".gitignore (managed block)"
-  local file="$PROJECT_ROOT/.gitignore"
-  local action="appended"
+install_nested_gitignore() {
+  local label="$1" file="$2" scope="$3" self=false
 
   if [ -f "$file" ] && talaka_gitignore_present "$file"; then
-    refresh_managed_block ".gitignore" "$file" talaka_gitignore_extract talaka_gitignore_replace \
-      talaka_gitignore_render
-    manifest_set_hash ".gitignore" "block:$(kit_sha256_string "$(talaka_gitignore_render)")"
+    talaka_gitignore_owns_file "$file" && self=true
+    refresh_managed_block "$label" "$file" talaka_gitignore_extract talaka_gitignore_replace \
+      talaka_gitignore_render "$scope" "$self"
     return 0
-  elif [ ! -f "$file" ]; then
-    action="created"
   fi
 
-  if [ -s "$file" ]; then
-    local last_byte
-    last_byte=$(tail -c1 "$file" 2>/dev/null || true)
-    [ "$last_byte" != $'\n' ] && printf '\n' >> "$file"
-    printf '\n' >> "$file"
+  mkdir -p "$(dirname "$file")"
+  if [ -f "$file" ]; then
+    if [ -s "$file" ]; then
+      local last_byte
+      last_byte=$(tail -c1 "$file" 2>/dev/null || true)
+      [ "$last_byte" != $'\n' ] && printf '\n' >> "$file"
+      printf '\n' >> "$file"
+    fi
+    talaka_gitignore_render "$scope" false >> "$file"
+    success "$label (managed block appended; existing entries kept)"
+  else
+    talaka_gitignore_render "$scope" true > "$file"
+    success "$label (created)"
   fi
-  talaka_gitignore_render >> "$file"
-  manifest_set_hash ".gitignore" "block:$(kit_sha256_string "$(talaka_gitignore_render)")"
-  case "$action" in
-    created)   success ".gitignore (created with managed block)" ;;
-    *)         success ".gitignore (managed block appended)" ;;
-  esac
+}
+
+# Older kits kept one managed block in the project's root .gitignore. Strip it:
+# the nested files above replace it.
+migrate_root_gitignore() {
+  local file="$PROJECT_ROOT/.gitignore"
+  manifest_remove_entry ".gitignore"
+  [ -f "$file" ] && talaka_gitignore_present "$file" || return 0
+  if talaka_gitignore_strip "$file"; then
+    if [ ! -s "$file" ]; then
+      rm -f "$file"
+      success ".gitignore (legacy managed block removed; the file held nothing else, so it is gone)"
+    else
+      success ".gitignore (legacy managed block removed; your entries kept)"
+    fi
+    info "The root .gitignore changed — commit that, or discard it if the block was never committed."
+  else
+    warn ".gitignore: could not strip the legacy managed block — remove it by hand."
+  fi
+}
+
+setup_gitignore() {
+  header ".gitignore (per-directory, managed)"
+  install_nested_gitignore "$ARTEFACTS_NAME/.gitignore" "$ARTEFACTS/.gitignore" artefacts
+  install_nested_gitignore ".claude/.gitignore" "$PROJECT_ROOT/.claude/.gitignore" claude
+  migrate_root_gitignore
 }
 
 # ---------------------------------------------------------------------------
@@ -635,16 +670,15 @@ fi
 # ---------------------------------------------------------------------------
 # Memory maintenance hook (opt-in): a Claude Code Stop hook that runs
 # memory/tools/tick.sh (promote + rollover) so the memory tree stays fresh
-# without a cron job. We never edit settings.json silently — it's a choice.
+# without a cron job. We never add the hook silently — it's a choice.
 # ---------------------------------------------------------------------------
 _hook_install="$SCRIPT_DIR/memory/tools/memory-hook.sh"
-_settings_file="$PROJECT_ROOT/.claude/settings.json"
 _do_hook=false
 if [ "$MEMORY_HOOK" = "yes" ]; then
   _do_hook=true
 elif [ "$MEMORY_HOOK" = "no" ]; then
   _do_hook=false
-elif [ -f "$_settings_file" ] && grep -q "memory/tools/tick.sh" "$_settings_file" 2>/dev/null; then
+elif grep -qs "memory/tools/tick.sh" "$KIT_SETTINGS_FILE" "$KIT_SETTINGS_SHARED"; then
   _do_hook=true   # already installed — memory-hook.sh will idempotently skip
 else
   if $NON_INTERACTIVE; then
@@ -690,7 +724,7 @@ if [ -x "$_os_install" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Kit settings: the TALAKA_* variables go into settings.json "env", the one
+# Kit settings: the TALAKA_* variables go into settings.local.json "env", the one
 # place a setting reaches every agent tool call (shell state does not survive
 # between calls). Only missing keys are added — a value you changed is kept.
 # ---------------------------------------------------------------------------
@@ -721,9 +755,9 @@ printf "  ${DIM}%-38s${RESET} %s\n" "Entry points:"      "${CYAN}CLAUDE.md, AGEN
 printf "  ${DIM}%-38s${RESET} %s\n" "Agents installed:"  "${CYAN}.claude/agents/${RESET}"
 printf "  ${DIM}%-38s${RESET} %s\n" "Skills installed:"  "${CYAN}.claude/skills/${RESET}"
 printf "  ${DIM}%-38s${RESET} %s\n" "Goal loop:"         "${CYAN}.claude/loop.md${RESET} (default prompt of a bare ${CYAN}/loop${RESET})"
-printf "  ${DIM}%-38s${RESET} %s\n" "Statusline:"        "${CYAN}.claude/settings.json (statusLine)${RESET}"
-printf "  ${DIM}%-38s${RESET} %s\n" "Output style:"      "${CYAN}.claude/settings.json (outputStyle: Concise)${RESET}"
-printf "  ${DIM}%-38s${RESET} %s\n" "Kit settings:"      "${CYAN}.claude/settings.json (env: TALAKA_*)${RESET}"
+printf "  ${DIM}%-38s${RESET} %s\n" "Statusline:"        "${CYAN}.claude/settings.local.json (statusLine)${RESET}"
+printf "  ${DIM}%-38s${RESET} %s\n" "Output style:"      "${CYAN}.claude/settings.local.json (outputStyle: Concise)${RESET}"
+printf "  ${DIM}%-38s${RESET} %s\n" "Kit settings:"      "${CYAN}.claude/settings.local.json (env: TALAKA_*)${RESET}"
 
 printf "\n  ${BOLD}Next steps${RESET}\n"
 printf "  ${DIM}%-38s${RESET} %s\n" "Start a feature:"       "${CYAN}/requirements-eliciting${RESET}"
