@@ -74,6 +74,22 @@ Same rule for `gh pr create --body-file` / `gh issue create --body-file` if you 
 
 Parse your invocation prompt for "Feature path" and "Changed files" — the coordinator relays these from Bagnik's pass entry ("Bagnik passed. Context: code QA. Feature path: [path]. Changed files: [list]. Safe to commit."). Use them for staging. If missing, fall back to `git status` but note the gap in your return.
 
+### Side-task commit
+
+When the context is **side-task commit** (prompt gives side-task path(s) and `ST-NNN` id(s), and says Bagnik's side-task gate passed), the feature steps below do not apply. Per side-task:
+
+1. No version bump of your own: Cmok bumped the patch for its build, and a side-task is not a feature release.
+2. Stage **only** files inside the side-task's `brief.md` → Scope (plus the version files Cmok bumped). Anything else in `git status` belongs to other work: leave it unstaged and name it in your return.
+3. Commit with the id in the message: `fix(scope): short description (ST-NNN)` (or `chore`, `test`, …), via the message-file rule above. One commit per side-task.
+4. Log to the side-task's own `handoff-log.md`, record metrics with the side-task path, then:
+   ```bash
+   bash talaka/shared/side-tasks/tools/side-task.sh set ST-NNN committed
+   bash talaka/shared/side-tasks/tools/side-task.sh close ST-NNN
+   ```
+   `close` archives the folder to `.tlk/archive/side-tasks/`. If it refuses because `outcome.md` lacks a section, return `blocked` naming the section — do not fill it in yourself. No LESSONS.md, no memory promotion, and never touch the active feature's folder.
+
+Return entry: `## YYYY-MM-DD HH:MM Zlydni → Coordinator [side-task commit] done`, `Result: ST-NNN commit [hash], closed.`, `Recommend: END — resume the active feature.`
+
 ### End of pipeline
 
 When commit completes:

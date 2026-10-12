@@ -416,7 +416,7 @@ const CTX_STAGE={spec:"spec",ux:"ux",mockups:"mockups",uat:"mockups","arch + tes
 const SKILL_STAGE={"requirements-eliciting":"spec","ux-designing":"ux","mockups-creating":"mockups","architecture-planning":"arch"};
 
 /* ============================================================ data sources */
-window.TLK={_m:null,_w:new Map(),manifest(m){TLK._m=m},chunk(p,t){const w=TLK._w.get(p);if(w){TLK._w.delete(p);w(t)}}};
+window.TLK={_m:null,_p:null,_w:new Map(),manifest(m){TLK._m=m},params(p){TLK._p=p},chunk(p,t){const w=TLK._w.get(p);if(w){TLK._w.delete(p);w(t)}}};
 function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement("script");s.src=src;s.charset="utf-8";
   s.onload=()=>{s.remove();res()};s.onerror=()=>{s.remove();rej(new Error("could not load "+src))};document.head.append(s)})}
 const ART_DIRS=["features","archive","goals","audits","maps","debug","memory","proposed-patches",".conflicts","autoresearch/runs"];
@@ -671,6 +671,7 @@ const VIEWS=[
   ["research","AutoResearch",'<path d="M3 17l5-5 4 3 8-9"/><path d="M15 6h5v5"/>'],
   ["wiki","Wiki",'<path d="M5 4h10l4 4v12H5z"/><path d="M15 4v4h4M8 13h8M8 17h5"/>'],
   ["map","Map",'<rect x="3" y="3" width="7" height="6" rx="1.5"/><rect x="14" y="5" width="7" height="6" rx="1.5"/><rect x="7" y="15" width="8" height="6" rx="1.5"/><path d="M10 6h4M7 9v6M17 11l-3 4"/>'],
+  ["settings","Settings",'<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>'],
   ["files","Files",'<path d="M3 6h7l2 2h9v11H3z"/>'],
 ];
 const main=$("#main");
@@ -783,7 +784,7 @@ function mountGraph(host,{nodes,links,draw,onClick,labelK=1.25,seed,len,charge})
 /* ============================================================ views */
 function route(){closeDrawer();closePal();const v=(location.hash||"#today").slice(1);S.view=VIEWS.some(x=>x[0]===v)?v:"today";renderRail();renderTop();
   if(!M)return;pendingData=false;$("#newData").hidden=true;
-  main.className="main";main.scrollTop=0;({today:vToday,work:vWork,cost:vCost,memory:vMemory,research:vResearch,wiki:vWiki,map:vMap,files:vFiles})[S.view]()}
+  main.className="main";main.scrollTop=0;({today:vToday,work:vWork,cost:vCost,memory:vMemory,research:vResearch,wiki:vWiki,map:vMap,settings:vSettings,files:vFiles})[S.view]()}
 addEventListener("hashchange",route);
 let rz;addEventListener("resize",()=>{clearTimeout(rz);rz=setTimeout(()=>{if(M&&["today","cost","work","research"].includes(S.view))route()},180)});
 
@@ -990,6 +991,50 @@ function smallMult(t){const rs=M.rounds.filter(r=>r.target===t&&r.prop!=null);co
     s+=r.accepted?`<circle cx="${x(i)}" cy="${y(r.prop)}" r="4.5" fill="var(--good)" stroke="var(--panel)" stroke-width="1.5" data-tip="${esc(tp)}"/>`:`<g data-tip="${esc(tp)}"><circle cx="${x(i)}" cy="${y(r.prop)}" r="7" fill="transparent"/><path d="M${x(i)-3.5},${y(r.prop)-3.5}L${x(i)+3.5},${y(r.prop)+3.5}M${x(i)+3.5},${y(r.prop)-3.5}L${x(i)-3.5},${y(r.prop)+3.5}" stroke="var(--crit)" stroke-width="1.8"/></g>`});
   s+=`<text class="ax" x="${pl}" y="${H-4}">first</text><text class="ax" x="${W-pr}" y="${H-4}" text-anchor="end">latest</text></svg>`;
   return `<section class="panel" style="cursor:pointer" ${oa("target",t)}>${head}<span class="r num" style="font-size:12.5px;color:${gain>0?"var(--good-ink)":"var(--muted)"}">${gain>0?"+":""}${gain.toFixed(3)}</span></div><div class="pb" style="padding:8px 10px">${s}<div class="muted num" style="font-size:12px">${rs.filter(r=>r.accepted).length} ✓ · ${rs.filter(r=>!r.accepted).length} ✗ · last ${dsh(rs[rs.length-1].ts)}</div></div></section>`}
+
+/* ---------- Settings
+   Every knob the kit reads, from the registry in shared/config/parameters.tsv
+   (written to params.js by snapshot.sh, with the values found for its
+   environment settings in .claude/settings*.json). PROJECT.md and program.md
+   values are read here, from the files themselves, so they are live in Live mode. */
+let setQ="",setKind=store.get("setkind","all");
+const SET_AREAS=["Pipeline","Side-tasks","Memory","Metrics & cost","AutoResearch","Pace & statusline","Kit issues","Dashboard","Wiki","Design","Install"];
+const SET_KIND={env:["env","Environment — .claude/settings.local.json → env"],project:["PROJECT.md","A line in .tlk/PROJECT.md"],file:["file","A value in another file"],flag:["flag","A command-line default"],constant:["fixed","Built into the kit — changing it means editing the kit"]};
+async function loadParams(){TLK._p=null;try{await loadScript("params.js?t="+Date.now())}catch(e){}return TLK._p}
+function resolveParam(r,P){const [name,kind,def,unit,area,setIn,readBy,effect,match]=r;let value=def,source="default";
+  if(kind==="env"){const e=(P.env||{})[name];if(e){value=e.value;source=e.source}}
+  else if(kind==="project"){const t=txt(META.art+"/PROJECT.md");if(t==null)source="no PROJECT.md";else{const lab=name.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+    const m=t.match(new RegExp("^\\s*-\\s+\\*\\*"+lab+":\\*\\*\\s*`([^`]*)`","m"));if(!m)source="not in PROJECT.md";else if(m[1].startsWith("<"))source="placeholder";else{value=m[1];source="PROJECT.md"}}}
+  else if(kind==="file"&&match){const rel=setIn.replace(/^\.tlk\//,"");const t=txt(META.art+"/"+rel);
+    if(t!=null){try{const m=t.match(new RegExp(match,"m"));if(m){value=m[1];source=setIn}}catch(e){}}}
+  else if(kind==="constant")source="fixed";
+  // "required" has no default to differ from: filling it in is not a change.
+  const changed=def!=="required"&&source!=="default"&&source!=="fixed"&&source!=="placeholder"&&!source.startsWith("no")&&!source.startsWith("not")&&String(value)!==String(def);
+  return{name,kind,def,unit,area,setIn,readBy,effect,value,source,changed}}
+async function vSettings(){main.className="main";
+  const P=await loadParams();if(S.view!=="settings")return;
+  if(!P||!Array.isArray(P.rows)){main.innerHTML=`<div class="wrap"><div class="head"><div><h1>Settings</h1></div></div><section class="panel">${empty("No parameter list in this snapshot","The snapshot writes params.js from the kit's parameter registry. Run it again with the current kit.",`bash ${META.kit}/dashboard/tools/snapshot.sh`)}</section></div>`;return}
+  const all=P.rows.slice(1).map(r=>resolveParam(r,P));const draw=()=>{
+    const q=setQ.trim().toLowerCase();
+    const shown=all.filter(p=>(setKind==="all"||(setKind==="changed"?p.changed:setKind==="fixed"?p.kind==="constant":p.kind!=="constant"))&&(!q||[p.name,p.area,p.effect,p.readBy,p.setIn,String(p.value)].join(" ").toLowerCase().includes(q)));
+    const areas=[...new Set(shown.map(p=>p.area))].sort((a,b)=>{const i=x=>{const k=SET_AREAS.indexOf(x);return k<0?99:k};return i(a)-i(b)});
+    const src=p=>p.source==="default"?`<span class="muted" data-tip="Not set anywhere — the kit's default applies">default</span>`:p.source==="fixed"?`<span class="muted">fixed in the kit</span>`:p.source==="placeholder"||p.source.startsWith("no")||p.source.startsWith("not")?`<span class="muted" data-tip="${esc(p.source)}">${esc(p.source)} → default</span>`:`<span class="mono" style="font-size:12px">${esc(p.source)}</span>`;
+    $("#setBody").innerHTML=areas.length?areas.map(a=>`<section class="panel" style="margin-bottom:14px"><div class="ph"><h2>${esc(a)}</h2><span class="r muted" style="font-size:12px">${shown.filter(p=>p.area===a).length}</span></div><div class="tw"><table class="tbl" style="table-layout:fixed;min-width:860px"><colgroup><col style="width:38%"><col style="width:18%"><col style="width:12%"><col style="width:16%"><col style="width:16%"></colgroup><thead><tr><th>Parameter</th><th>Value</th><th>Default</th><th>Where to change</th><th>Read by</th></tr></thead><tbody>
+      ${shown.filter(p=>p.area===a).map(p=>`<tr><td style="white-space:normal"><span class="mono" style="font-weight:600;overflow-wrap:anywhere">${esc(p.name)}</span> <span class="chip" data-tip="${esc(SET_KIND[p.kind]?SET_KIND[p.kind][1]:p.kind)}">${esc(SET_KIND[p.kind]?SET_KIND[p.kind][0]:p.kind)}</span><div class="muted" style="font-size:12.5px;margin-top:3px;white-space:normal">${esc(p.effect)}</div></td>
+        <td style="white-space:normal;overflow-wrap:anywhere"><span class="mono num" style="font-weight:600">${esc(p.value)}</span>${p.unit&&p.unit!=="—"?` <span class="muted" style="font-size:12px">${esc(p.unit)}</span>`:""}${p.changed?` <span class="badge b-warn" data-tip="Differs from the kit's default">changed</span>`:""}<div style="margin-top:3px">${src(p)}</div></td>
+        <td class="mono" style="font-size:12.5px;white-space:normal;overflow-wrap:anywhere">${esc(p.def)}</td><td style="font-size:12.5px;white-space:normal">${esc(p.setIn)}</td><td class="mono" style="font-size:12px;white-space:normal;overflow-wrap:anywhere">${esc(p.readBy)}</td></tr>`).join("")}</tbody></table></div></section>`).join(""):`<section class="panel">${empty("Nothing matches","Clear the search or pick another filter.")}</section>`;
+    $$("[data-k]",main).forEach(b=>b.classList.toggle("on",b.dataset.k===setKind))};
+  const n=all.length,ch=all.filter(p=>p.changed).length,fixed=all.filter(p=>p.kind==="constant").length;
+  main.innerHTML=`<div class="wrap"><div class="head"><div><h1>Settings</h1><p>Every parameter and built-in assumption the kit works with: its value here, the default, and where to change it. ${SRC&&SRC.kind==="live"?"Environment values are as of the last snapshot; PROJECT.md values are live.":""}</p></div><span class="spacer"></span>
+    <div class="seg">${[["all","All"],["changeable","Changeable"],["changed","Changed"],["fixed","Fixed"]].map(([k,l])=>`<button data-k="${k}">${l}</button>`).join("")}</div></div>
+  <div class="kpis"><div class="panel kpi"><span class="l">Parameters</span><span class="v num">${n}</span><span class="s">${n-fixed} changeable · ${fixed} fixed in the kit</span></div>
+    <div class="panel kpi"><span class="l">Changed here</span><span class="v num">${ch}</span><span class="s">${ch?"differ from the kit's default":"everything at its default"}</span></div>
+    <div class="panel kpi"><span class="l">Registry</span><span class="v" style="font-size:15px"><span class="mono">shared/config/parameters.tsv</span></span><span class="s">a lint test keeps it in step with the code</span></div></div>
+  <div style="margin-bottom:14px"><input id="setQ" type="search" placeholder="Filter by name, area, effect, file…" value="${esc(setQ)}" style="width:100%;max-width:520px;padding:8px 10px;border:1px solid var(--line-2);border-radius:8px;background:var(--panel);color:var(--ink);font:inherit"></div>
+  <div id="setBody"></div></div>`;
+  $("#setQ").oninput=e=>{setQ=e.target.value;draw()};
+  $$("[data-k]",main).forEach(b=>b.onclick=()=>{setKind=b.dataset.k;store.set("setkind",setKind);draw()});
+  draw()}
 
 /* ---------- Wiki */
 let wikiSel=null,wikiG=null;

@@ -306,6 +306,31 @@ if [ -d "$AKT/debug" ]; then
   fi
 fi
 
+# --- Alert: side-tasks — small tracked work outside any feature (issue #45) ---
+# "ST: 2 open · 1 uncommitted": open/in-progress/blocked count as open, verified
+# (Bagnik passed, Zlydni not yet) as uncommitted. Read with builtins — no forks.
+if [ -d "$AKT/side-tasks" ]; then
+  ST_OPEN=0; ST_UNCOMMITTED=0
+  for st_brief in "$AKT/side-tasks/"*/brief.md; do
+    [ -f "$st_brief" ] || continue
+    while IFS= read -r st_line || [ -n "$st_line" ]; do
+      case "$st_line" in
+        "- **Status:** "*)
+          case "${st_line#- \*\*Status:\*\* }" in
+            open*|in-progress*|blocked*) ST_OPEN=$((ST_OPEN + 1)) ;;
+            verified*)                   ST_UNCOMMITTED=$((ST_UNCOMMITTED + 1)) ;;
+          esac
+          break ;;
+      esac
+    done < "$st_brief"
+  done
+  if [ "$ST_OPEN" -gt 0 ] || [ "$ST_UNCOMMITTED" -gt 0 ]; then
+    ST_BADGE="ST: ${ST_OPEN} open"
+    [ "$ST_UNCOMMITTED" -gt 0 ] && ST_BADGE+=" · ${ST_UNCOMMITTED} uncommitted"
+    ALERTS+=("${C}${ST_BADGE}${Z}")
+  fi
+fi
+
 # --- Alert: Autoresearch ratchet status ---
 RATCHET_LOG="$AKT/autoresearch/runs/ratchet.jsonl"
 REJECTED_LOG="$AKT/autoresearch/runs/rejected.jsonl"

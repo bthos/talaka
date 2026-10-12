@@ -1,0 +1,33 @@
+name	kind	default	unit	area	set_in	read_by	effect	match
+TALAKA_MEMORY_PROMOTE_INTERVAL	env	900	s	Memory	.claude/settings.local.json → env	memory/tools/log.sh	Seconds between full promote.sh runs triggered by memory writes. A high-confidence entry still reaches L3 at once (promote.sh --single-shot); only the L4 index waits. 0 runs a full promote on every write (slow on Git Bash).	
+TALAKA_METRICS_MAX_RUN	env	86400	s	Metrics & cost	.claude/settings.local.json → env	record-metrics.sh	Longest plausible worker run. A --since older than this, or a --wall-ms above it, is recorded as null rather than as a measurement.	
+TALAKA_COST_PER_TOKEN	env	unset	$/token	Metrics & cost	.claude/settings.local.json → env	record-metrics.sh	Flat rate for rows passed --tokens without a measurement. Unset on purpose: an invented rate makes an unmeasured row look priced. Measured rows are priced from pricing.json.	
+TALAKA_COST_PER_MIN	env	0	$/min	Metrics & cost	.claude/settings.local.json → env	record-metrics.sh	Wall-clock price added to cost_usd. The API bills tokens, not time — set it only if your team prices agent minutes.	
+TALAKA_WIKI_DIR	env	wiki	path	Wiki	.claude/settings.local.json → env	knowledge-curating/new-wiki.sh, dashboard/tools/snapshot.sh	Where the committed knowledge wiki lives, relative to the project root.	
+TALAKA_ISSUES_REPO	env	bthos/talaka	owner/repo	Kit issues	.claude/settings.local.json → env	shared/feedback/tools/kit-issue.sh	Repository field reports are filed on — point it at your fork.	
+TALAKA_PROMPT_TIMEOUT	env	15	s	Install	terminal (export before init.sh)	shared/lifecycle/tools/init.sh	How long init.sh waits for an answer at its interactive prompts.	
+PACE_SNAPSHOT_REFRESH	env	30	s	Pace & statusline	.claude/settings.local.json → env	statusline/tools/pace.sh	The statusline rewrites .tlk/usage.env only when the numbers change, or after this many seconds to keep captured_at fresh.	
+ARTEFACTS_DIR	env	.tlk	path	Install	terminal / .claude/settings.local.json → env	every kit script	Relocates the whole artefacts tree.	
+Test command	project	required	command	Pipeline	.tlk/PROJECT.md	Bagnik, check-coverage.sh	Full regression suite. Bagnik's gates always run it.	
+Focused test command	project	Cmok filters the test command	command	Pipeline	.tlk/PROJECT.md	Cmok	Runs a subset; Cmok appends a path or pattern for the tests covering what it changed.	
+Build command	project	none	command	Pipeline	.tlk/PROJECT.md	Cmok, Bagnik	Run on every build and before every code QA. Unset: the Build line says so.	
+Version files	project	none	files	Pipeline	.tlk/PROJECT.md	shared/project/tools/bump-version.sh	Files whose X.Y.Z is bumped: patch by Cmok, minor by Zlydni.	
+Artifacts directory	project	.tlk/	path	Install	.tlk/PROJECT.md	agents	Where agents look for the artefacts tree. Keep in step with ARTEFACTS_DIR.	
+Design system directory	project	design-system/	path	Design	.tlk/PROJECT.md	design-generating, mockups-creating	Where the extracted design system lives.	
+Judge command	project	claude -p --allowedTools none	command	AutoResearch	.tlk/PROJECT.md	autoresearch/tools/judge.sh	CLI for the LLM-as-judge.	
+Judge samples	project	3	samples	AutoResearch	.tlk/PROJECT.md	autoresearch/tools/judge.sh	Times the judge is asked per verdict. Strict: 1 only if every sample says 1.	
+Generator command	project	claude -p --output-format json	command	AutoResearch	.tlk/PROJECT.md	autoresearch/tools/generate.sh	CLI the ratchet runs each variant with. Plain-text output leaves the cost term unmeasured.	
+Side-task promotion	project	files=5 areas=2 gaps=3	count	Side-tasks	.tlk/PROJECT.md	coordinator (PIPELINE.md → Side-tasks)	A side-task touching more files or top-level areas, or leaving more open known gaps, is promoted to a feature.	
+Pace thresholds	project	slow5h=-15 slow7d=-10 push5h=20 push7d=10 stop5h=90 stop7d=95	points / %	Pace & statusline	.tlk/PROJECT.md	statusline/tools/pace.sh	Surplus (points) at which a usage window means slow-down or speed-up, and used % at which it means stop.	
+λ (cost weight)	file	0.3	—	AutoResearch	.tlk/autoresearch/program.md	autoresearch/tools/ratchet.sh	composite = accuracy − λ·cost. Higher λ makes Veles prefer cheaper prompts over more accurate ones.	^λ\s*=\s*([0-9.]+)
+decay-variants.sh --days	flag	90	days	AutoResearch	command line	autoresearch/tools/decay-variants.sh	Rejected variants older than this are pruned.	
+Feature STUCK alert	constant	48	h	Pace & statusline	kit code (statusline.sh / .ps1)	statusline	A feature whose handoff-log has not changed for this long shows STUCK.	
+mem:stale alert	constant	24	h	Pace & statusline	kit code (statusline.sh / .ps1)	statusline	SESSION-STATE.md untouched for this long shows mem:stale.	
+Usage-limit alert	constant	80 / 95	%	Pace & statusline	kit code (statusline.sh / .ps1)	statusline	A usage window at or above 80% is named on line 2 (yellow); at 95% in red.	
+SESSION in-flight clear	constant	24	h	Memory	kit code (memory/tools/rollover.sh)	rollover.sh (via tick.sh)	In-flight decisions in SESSION-STATE.md are emptied once it is older than this.	
+L2 compaction age	constant	7	days	Memory	kit code (memory/tools/rollover.sh)	rollover.sh (via tick.sh)	Daily memory files older than this are compacted into a weekly stub.	
+Ratchet stop after rejects	constant	3	rounds	AutoResearch	kit code (autoresearch/run.sh)	autoresearch/run.sh	Three consecutive rejected rounds end the run.	
+Kit-issue evidence kept	constant	60 / 200	lines	Kit issues	kit code (kit-issue.sh)	shared/feedback/tools/kit-issue.sh	--evidence-file keeps a log's last 60 lines, an idea's first 200, and says how many were left out.	
+Kit-issue duplicate match	constant	3, or 2 = half	key words	Kit issues	kit code (kit-issue.sh)	shared/feedback/tools/kit-issue.sh	Titles sharing 3 key words, or 2 that make up half the shorter title, are flagged as likely duplicates.	
+Dashboard refresh	constant	30 / 5	s	Dashboard	kit code (dashboard/viewer.html)	dashboard	The open page re-reads the snapshot every 30 s; Live mode reads the folder every 5 s.	
+Fix-loop breaking	constant	no limit; stop after 3 identical fails	cycles	Pipeline	PIPELINE.md → Loop breaking	coordinator	Bagnik ⇄ Cmok fix loops have no iteration limit; the same check failing twice surfaces Yaga, three cycles with no change stop and report.	

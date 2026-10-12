@@ -148,4 +148,28 @@ test_statusline_falls_back_to_newest_feature() {
   assert_contains "$(_feature_bar "$proj")" "f25-newer" "unknown slug falls back to newest"
 }
 
+# _side_task PROJ DIR STATUS — a side-task brief with that status
+_side_task() {
+  mkdir -p "$1/.tlk/side-tasks/$2"
+  printf '# ST\n\n- **Id:** ST-001\n- **Status:** %s\n' "$3" > "$1/.tlk/side-tasks/$2/brief.md"
+}
+
+test_statusline_counts_open_and_uncommitted_side_tasks() {
+  # Issue #45: "ST: 2 open · 1 uncommitted".
+  have_jq || { skip_test "jq absent"; return; }
+  local proj; proj=$(make_tmp_project)
+  _side_task "$proj" 2026-10-12-a open
+  _side_task "$proj" 2026-10-12-b blocked
+  _side_task "$proj" 2026-10-12-c verified
+  _side_task "$proj" 2026-10-12-d committed
+  assert_contains "$(_feature_bar "$proj")" "ST: 2 open · 1 uncommitted"
+}
+
+test_statusline_shows_no_side_task_badge_when_none_are_live() {
+  have_jq || { skip_test "jq absent"; return; }
+  local proj; proj=$(make_tmp_project)
+  _side_task "$proj" 2026-10-12-d committed
+  assert_not_contains "$(_feature_bar "$proj")" "ST:"
+}
+
 run_tests "$@"

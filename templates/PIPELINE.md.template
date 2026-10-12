@@ -61,6 +61,10 @@ Idea → requirements-eliciting (spec) → ux-designing (UX) + Mokash (docs, par
     [side-loop] Yaga — invoked ad-hoc on hard bugs:
        /bugs-diagnosing (hypothesis) → @yaga (instrument + observe) → @cmok (fix)
        → @bagnik (gate) → @yaga (strip instrumentation) → @zlydni
+
+    [side-task] small work that belongs to no feature (see Side-tasks below):
+       side-task.sh new → @cmok (fix, focused tests) → @bagnik (side-task gate,
+       one full run per batch) → @zlydni (scoped commit) → side-task.sh close
 ```
 
 Every `→` above is a **coordinator decision**, not a call one agent makes to another. Agents never see each other; they see the coordinator.
@@ -269,6 +273,11 @@ The coordinator's decision function. Keyed on the last return entry.
 | screenshots-testing | visual | changes | — | **STOP** — user accepts or rejects each diff, then `/screenshots-testing accept <ids>` |
 | screenshots-testing | visual | fail | `@cmok` (fix the rejected regressions) | — |
 | cli-designing / patterns-adapting / tasks-researching | design / brief | done | `/architecture-planning` | — |
+| *(user, mid-feature)* request unrelated to the active feature | — | — | `side-task.sh new` first, say so in one line; then `@cmok` (or `/bugs-diagnosing` + `@yaga` if the cause is not obvious) | — |
+| Cmok | side-task | done | Check *promotion*; else `@bagnik` (side-task gate — batch it with other side-tasks Cmok has finished) | — |
+| Bagnik | side-task gate | pass | `@zlydni` (side-task commit) | — |
+| Bagnik | side-task gate | fail | `@cmok` (fix that side-task) | — |
+| Zlydni | side-task commit | done | — (`side-task.sh close` already ran; resume the active feature) | — |
 
 **Parallel docs (Mokash):** Mokash is the only worker the coordinator launches alongside another. Launch it with `background: true` in Claude Code; in IDEs without a background flag, launch it in the same turn with the same context. Mokash returns to the coordinator like everyone else and routes nowhere.
 
@@ -343,6 +352,7 @@ What the coordinator must include when launching each worker:
 **→ Cmok (build):** Feature path. Spec, UX, tech plan paths. Bagnik's test-gate result, with its Expected red tests. Say so explicitly if you want a full-suite run instead of Cmok's focused set — otherwise it runs focused tests only.
 **→ Cmok (fix):** Feature path. Failed check. Error output. Affected files. Suggested fix. Prior fix attempts. The exact failing test names — Cmok re-runs those plus its focused set, not the whole suite.
 **→ Zlydni:** Feature path. Changed files. Confirmation that Bagnik's code QA passed.
+**→ Cmok / Bagnik / Zlydni (side-task):** Side-task path(s) and id(s) instead of a feature path, plus the brief's Scope. Bagnik: **state the context explicitly — "side-task gate"**, and list every side-task in the batch. Zlydni: confirmation that Bagnik's side-task gate passed.
 **→ Yaga:** Bug description. Investigation dir (if `/bugs-diagnosing` created one). Failing repro/test command. Affected files.
 
 **Bagnik context is set by the coordinator, not inferred.** Bagnik has two roles — test gate and code QA — and no longer has a caller to infer them from. The coordinator states which one in the invocation prompt. Fix loops repeat until Bagnik passes, subject to *Loop breaking* above.
@@ -386,6 +396,52 @@ Running the full suite on every build and every fix-loop iteration is the single
 A project with no Build command (placeholder left in `.tlk/PROJECT.md`) skips the column, and the `Build:` line says so — it is never silently omitted.
 
 Cmok runs the full suite in exactly two cases: the change is cross-cutting (shared config, build tooling, dependency bump, wide rename) so no meaningful subset exists, or the coordinator asked for it in the invocation prompt. Cmok's return entry names which tests it ran — a Cmok "done" never means "regression is green".
+
+## Side-tasks
+
+Work has three homes. A **feature** runs the whole pipeline. The **Yaga side-loop** takes hard bugs the user authorises. A **side-task** takes the rest: a small bug raised mid-feature, a one-file fix, a stale test, a chore, a live-session investigation — work too small for a spec, too real to do silently inside whatever feature is open.
+
+Without it, such work is done inside the active feature and logged, if at all, in that feature's handoff-log: misattributed, archived with an unrelated feature (root cause and known gaps included), invisible to `feature-status.sh`, and ambiguous for Bagnik and Zlydni, who cannot tell which files belong to which item.
+
+```bash
+bash talaka/shared/side-tasks/tools/side-task.sh new <slug> --kind bug|chore|test|investigation|ops \
+     --title "…" [--related <active-feature>] [--trigger "what the user asked"]
+bash talaka/shared/side-tasks/tools/side-task.sh status      # open · verified-uncommitted · open known gaps
+bash talaka/shared/side-tasks/tools/side-task.sh set ST-001 in-progress|verified|committed|blocked
+bash talaka/shared/side-tasks/tools/side-task.sh close ST-001 [--no-commit]
+bash talaka/shared/side-tasks/tools/side-task.sh promote ST-001 <feature-slug>
+```
+
+Each side-task is a folder, `.tlk/side-tasks/<YYYY-MM-DD>-<slug>/`, with an id `ST-NNN`:
+
+- **`brief.md`** — one screen, replacing spec, UX and tech plan: kind, status, trigger, related feature (a link, not containment), **Scope** (the files and areas it may touch), acceptance, non-goals.
+- **`handoff-log.md`** — the same entry format as a feature's. Workers log here, not in the related feature's log, which gets at most a one-line pointer.
+- **`outcome.md`** — root cause, verification, known gaps (`- [ ] …`, ticked when dealt with). `close` refuses until all three are written.
+
+`.tlk/side-tasks/INDEX.md` is regenerated on every change. Closed and promoted side-tasks move to `.tlk/archive/side-tasks/` — never into a feature, so archiving a feature moves or hides none of them. `status` keeps listing a closed task's open known gaps: a gap outlives its task.
+
+**Intake rule (coordinator).** When the user's message is unrelated to the active feature, open a side-task **before** acting, and say so in one line (`Opened ST-004 (bug): stale login test — .tlk/side-tasks/2026-10-12-stale-login-test/`). A mid-feature interjection is never a silent edit to the active feature. Questions, and work that is part of the active feature, are not side-tasks.
+
+**Route.** No spec, UX, mockup or architecture phase — the brief replaces them.
+
+1. `side-task.sh new`, then fill the brief's Scope and Acceptance from the request.
+2. `@cmok` with the side-task path. Cmok runs focused tests, writes root cause and known gaps into `outcome.md`, and logs to the side-task's log. If the cause is not obvious, the Yaga side-loop applies (user authorises) before Cmok.
+3. **Check promotion** (below) on every Cmok return.
+4. `@bagnik`, context **side-task gate**: the build, then the full suite **once for the whole batch** — every side-task Cmok has finished since the last gate. Bagnik records the verdict in each side-task's log and `outcome.md` → Verification, and sets each passing one `verified`. A fail names which side-task broke what; route that one back to Cmok.
+5. `@zlydni`, context **side-task commit**: one commit per side-task, staging only the files in its Scope, with `ST-NNN` in the message; no minor bump (Cmok's patch bump stands), no LESSONS.md. Then `side-task.sh set … committed` and `side-task.sh close …`. A close refused for a missing outcome section is a `blocked` return naming the section.
+
+An `investigation` or `ops` side-task that changes no code skips 4–5 and closes with `close --no-commit`.
+
+**Promotion rule.** Promote to a feature — `side-task.sh promote ST-NNN <slug>`, then `/requirements-eliciting` on the new feature path — when the side-task:
+
+- changes a public, storage or message contract, adds a persisted field, or adds an optional interface;
+- needs UX;
+- touches more files or top-level areas than **Side-task promotion** in `.tlk/PROJECT.md` allows (default `files=5 areas=2`);
+- or leaves more open known gaps than it allows (default `gaps=3`).
+
+Promotion seeds the new feature with the brief (`side-task-brief.md`), the outcome so far and the side-task's log entries, so requirements-eliciting starts from what is known. The side-task is archived with `Status: promoted` and a `Promoted to:` link.
+
+**Metrics.** A side-task path is a `--feature` for `record-metrics.sh`, so its cost is measured like a feature's.
 
 ## Goal loop
 

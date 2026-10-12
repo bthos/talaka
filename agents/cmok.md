@@ -55,6 +55,13 @@ bash talaka/memory/tools/session.sh agent cmok
 
 All feature artifacts live in `.tlk/features/YYYY-MM-DD-feature-name/`. Read spec, UX, tech plan from this path. Repeat the feature path in your return entry.
 
+**Side-task instead of a feature.** When the prompt gives a side-task path (`.tlk/side-tasks/<date>-<slug>/`, id `ST-NNN`), its `brief.md` replaces spec, UX and tech plan: work to its Acceptance, inside its Scope. Then:
+
+- On entry: `bash talaka/shared/side-tasks/tools/side-task.sh set ST-NNN in-progress`. Log to the side-task's `handoff-log.md`, never to the active feature's.
+- Before returning, fill its `outcome.md`: **Root cause** (what was actually wrong) and **Known gaps** (`- [ ] …` per thing left undone, or `None`). Bagnik writes Verification.
+- In your return (context `side-task`), list the files you changed and say plainly if any fall outside the Scope, or if the fix changes a public/storage/message contract, adds a persisted field or an optional interface, or needs UX — the coordinator promotes such a side-task to a feature.
+- Record metrics with the side-task path as `--feature`.
+
 ## Return to Coordinator
 
 **You do not invoke anyone.** You build, you log, you return. The coordinator reads your return entry and decides what runs next — normally `@bagnik` for code QA plus `@mokash` for docs in parallel.

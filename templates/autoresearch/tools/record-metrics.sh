@@ -49,9 +49,11 @@
 #
 # --feature must name a directory that already exists. A bare slug
 # (2026-04-30-foo) is resolved against .tlk/features, .tlk/archive/features,
-# .tlk/audits and .tlk/goals; a .tlk/features/<slug> path whose feature has
-# already been archived falls back to .tlk/archive/features/<slug>. An unresolvable --feature is an
-# error — the row is never written to a freshly created directory.
+# .tlk/side-tasks, .tlk/archive/side-tasks, .tlk/audits and .tlk/goals; a
+# .tlk/features/<slug> (or .tlk/side-tasks/<slug>) path already archived falls
+# back to its .tlk/archive/ counterpart. A side-task path is a --feature like any
+# other, so its cost stays measured. An unresolvable --feature is an error — the
+# row is never written to a freshly created directory.
 #
 # Anything missing is recorded as null. Run from project root.
 
@@ -119,7 +121,7 @@ while [ $# -gt 0 ]; do
     --cost-per-token) cost_per_tok="$2"; shift 2 ;;
     --log-file=*) LOG_FILE="${1#--log-file=}"; shift ;;
     --log-file) LOG_FILE="${2:-}"; shift 2 ;;
-    -h|--help)        sed -n '2,56p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help)        sed -n '2,58p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "Unknown arg: $1" >&2; exit 2 ;;
   esac
 done
@@ -190,13 +192,17 @@ fi
 #
 #   1. the path as given, if it is a directory
 #   2. archive race: .tlk/features/<slug> already moved to .tlk/archive/features/<slug>
+#      (likewise .tlk/side-tasks/<slug> → .tlk/archive/side-tasks/<slug>)
 #   3. bare slug: look it up under the known artefact roots
 # ---------------------------------------------------------------------------
 resolved=""
 if [ -d "$feature" ]; then
   resolved="$feature"
 else
-  archived="${feature/\/features\//\/archive\/features\/}"
+  case "$feature" in
+    */side-tasks/*) archived="${feature/\/side-tasks\//\/archive\/side-tasks\/}" ;;
+    *)              archived="${feature/\/features\//\/archive\/features\/}" ;;
+  esac
   if [ "$archived" != "$feature" ] && [ -d "$archived" ]; then
     echo "record-metrics: '$feature' not found — feature already archived; appending to '$archived'" >&2
     resolved="$archived"
@@ -209,6 +215,7 @@ else
       "$PROJECT_ROOT"/*) art_prefix="${ARTEFACTS#"$PROJECT_ROOT"/}" ;;
     esac
     for candidate in "$art_prefix/features/$feature" "$art_prefix/archive/features/$feature" \
+                     "$art_prefix/side-tasks/$feature" "$art_prefix/archive/side-tasks/$feature" \
                      "$art_prefix/audits/$feature" "$art_prefix/goals/$feature"; do
       [ -d "$candidate" ] || continue
       resolved="$candidate"
@@ -221,7 +228,7 @@ if [ -z "$resolved" ]; then
   {
     echo "record-metrics: --feature '$feature' does not resolve to an existing directory."
     echo "  Tried: '$feature', its /archive/ counterpart, and"
-    echo "         ${art_prefix:-$ARTEFACTS}/{features,archive/features,audits,goals}/$feature"
+    echo "         ${art_prefix:-$ARTEFACTS}/{features,archive/features,side-tasks,archive/side-tasks,audits,goals}/$feature"
     echo "  Pass a real feature path (e.g. .tlk/features/<slug>) — refusing to create it,"
     echo "  because an invented path orphans this row where nothing will ever read it."
   } >&2

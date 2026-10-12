@@ -126,6 +126,8 @@ That's it.
 │   ├── features/<slug>/                      ← active feature (spec, UX, tech plan, handoffs)
 │   ├── archive/features/<slug>/              ← completed features (moved by Zlydni)
 │   ├── archive/debug/<slug>/                 ← closed investigations (moved by Yaga)
+│   ├── side-tasks/<date>-<slug>/             ← small tracked work outside any feature (brief, log, outcome)
+│   ├── archive/side-tasks/<date>-<slug>/     ← closed and promoted side-tasks
 │   ├── dashboard/                            ← (on first use) snapshot + page for the dashboard
 │   ├── .talaka.cfg                      ← saved IDE + pipeline template SHA (gitignored)
 │   ├── .talaka.files                    ← SHA manifest for teardown (gitignored)
@@ -213,6 +215,8 @@ Names carry no unit suffix: **every duration is in seconds**, and each value's u
 | `TALAKA_WIKI_DIR` | `wiki` | `knowledge-curating/new-wiki.sh` | Where the committed knowledge wiki lives, relative to the project root. |
 | `TALAKA_ISSUES_REPO` | `bthos/talaka` | `shared/feedback/tools/kit-issue.sh` | Repository field reports are filed on — point it at your fork. |
 | `TALAKA_PROMPT_TIMEOUT` | `15` s | `shared/lifecycle/tools/init.sh` | Seconds `init.sh` waits for an answer at its interactive prompts. Set it in your terminal, not `settings.json`. |
+
+Every one of these, plus `PROJECT.md`'s fields and the kit's fixed thresholds, is listed in `shared/config/parameters.tsv` and shown with its current value in the dashboard's **Settings** view. `PACE_SNAPSHOT_REFRESH` (`30` s, `statusline/tools/pace.sh`) sets how often the statusline rewrites `.tlk/usage.env` when nothing changed.
 
 `COST_PER_TOKEN`, `COST_PER_MIN` and `BELUN_WIKI_DIR` are the pre-prefix names and are still honoured. Two related knobs are **not** environment variables: the ratchet's cost weight λ lives in `.tlk/autoresearch/program.md` (`λ = 0.3`), and `ARTEFACTS_DIR` (default `.tlk`) relocates the whole artefacts tree for every kit script.
 
@@ -322,6 +326,7 @@ bash talaka/dashboard/tools/snapshot.sh --open      # or: talaka/kit.sh dashboar
 | **AutoResearch** | Composite per round for each ratcheted target, accepted and rejected rounds with their reason. |
 | **Wiki** | The `[[wikilink]]` graph with orphans and broken links, and a reader with backlinks. |
 | **Map** | One canvas across all of it: which feature produced which decision, which decision hardened into which agent prompt, which wiki page explains it. |
+| **Settings** | Every parameter and built-in assumption the kit works with — environment settings, `PROJECT.md` fields, values in other files (λ), command-line defaults and fixed thresholds (STUCK after 48 h, `mem:stale` after 24 h, L2 compaction after 7 days, …) — grouped by area, with the value in effect here, where it comes from, the default, a *changed* mark, where to change it and what reads it. Filter: all / changeable / changed / fixed. |
 | **Files** | Every file in the snapshot, unparsed. Nothing the kit writes is out of reach. |
 
 Any object opens the same side panel, and everything in it links onward. `Ctrl K` searches titles, facts, wiki pages and file paths, and on request the text of every file.
@@ -329,6 +334,8 @@ Any object opens the same side panel, and everything in it links onward. `Ctrl K
 **How it stays current.** `snapshot.sh` writes `.tlk/dashboard/`: the page, a `manifest.js` listing every file, and one `data/c<N>.js` per text file holding that file verbatim (escaped for a JS string, never truncated or summarised). A browser opening a page from disk cannot read the files next to it, but it can load scripts; that is the whole trick. Runs are incremental — only files whose size or mtime changed are rewritten — and once the snapshot exists, `memory/tools/tick.sh` (the memory Stop hook) refreshes it after every session. The open page re-reads the manifest every 30 seconds.
 
 **Live mode.** In Chrome or Edge, *Snapshot* in the top bar switches to reading the project folder directly through the File System Access API: pick the project root once, and the page re-reads it every 5 seconds. The folder handle and a text cache keyed by path, size and mtime live in the browser's IndexedDB; both are rebuilt from the files whenever they are missing.
+
+**Where Settings comes from.** The kit's knobs live in one registry, **`shared/config/parameters.tsv`**: name, kind, default, unit, area, where to change it, what reads it, and its effect. `snapshot.sh` writes it to `params.js`, together with the values of its environment settings found in `.claude/settings.local.json`, then `.claude/settings.json`, then the snapshot's own environment. Only registered names are read from those files, so nothing else in them (an API token in `"env"`, say) reaches the page. `PROJECT.md` and `program.md` values are read by the page itself, so they are live in Live mode. A lint test (`tests/lint/parameters.test.sh`) fails when the code reads a `TALAKA_*` setting, or `PROJECT.md` gains a field, that the registry does not list.
 
 **What it never does.** It is read-only: every action is a command to copy. It makes no network requests; every style, script and chart is inside `dashboard/viewer.html`. It does not estimate: a number shown is a number some file contains.
 
@@ -585,6 +592,29 @@ The archive keeps one folder per kind, and the kit's tools read only this layout
 
 requirements-eliciting creates the feature folder automatically when starting a new spec.
 
+## Side-tasks
+
+A small bug raised mid-feature, a stale test, a chore, a live-session investigation: work too small for a spec, too real to do silently inside whatever feature is open. Done inside the active feature, it was misattributed, archived with an unrelated feature (root cause and known gaps included), invisible to `feature-status.sh`, and ambiguous for Bagnik and Zlydni. A side-task gives it a lane of its own:
+
+```
+.tlk/
+├── side-tasks/
+│   ├── INDEX.md                       ← regenerated: id, status, kind, related feature, open gaps
+│   └── YYYY-MM-DD-slug/               ← ST-NNN
+│       ├── brief.md                   ← one screen: kind, status, trigger, scope, acceptance, non-goals
+│       ├── handoff-log.md             ← the pipeline's entry format
+│       └── outcome.md                 ← root cause, verification, known gaps — required to close
+└── archive/side-tasks/YYYY-MM-DD-slug/   ← closed or promoted; never inside a feature
+```
+
+- **Intake.** When you ask for something unrelated to the active feature, the coordinator opens a side-task before acting and says so in one line. The feature's log gets at most a one-line pointer.
+- **Route.** `@cmok` (focused tests, writes root cause and known gaps) → `@bagnik` *side-task gate* (build plus **one** full-suite run for a whole batch of side-tasks, verdict recorded on each) → `@zlydni` (one commit per side-task, staging only its Scope, `ST-NNN` in the message) → `close`. No spec, UX or architecture phase: the brief replaces them.
+- **Close** refuses until the task is committed (or `--no-commit` for an investigation) and `outcome.md` has a root cause, a verification and a known-gaps section.
+- **Promotion.** A side-task that changes a contract, needs UX, or outgrows the **Side-task promotion** thresholds in `PROJECT.md` (default `files=5 areas=2 gaps=3`) becomes a feature with `side-task.sh promote ST-NNN <slug>`, seeded with the brief, outcome and log.
+- **Visibility.** `side-task.sh status` (also `kit.sh` → *Side-tasks*) lists open and verified-but-uncommitted tasks and every open known gap, closed tasks included. The statusline shows `ST: 2 open · 1 uncommitted`, and `feature-status.sh` says when side-tasks are in flight. A side-task path is a valid `record-metrics.sh --feature`, so its cost is measured.
+
+Full protocol: `.tlk/PIPELINE.md` → *Side-tasks*.
+
 ## Invocation reference
 
 | What | How |
@@ -648,6 +678,7 @@ Each skill bundles its own script. Shared scripts live under `talaka/shared/<cat
 | `talaka/shared/project/tools/bump-version.sh patch\|minor` | Bumps version in all files listed in `.tlk/PROJECT.md` (Cmok uses `patch`, Zlydni uses `minor`) — run from project root |
 | `talaka/shared/project/tools/validate-config.sh` | Checks `.tlk/PROJECT.md` for unfilled `<placeholder>` values — run after `init.sh` |
 | `talaka/shared/project/tools/feature-status.sh` | Shows pipeline status for active features in `.tlk/features/` |
+| `talaka/shared/side-tasks/tools/side-task.sh new\|status\|set\|close\|promote\|path\|index` | Side-tasks — small tracked work outside any feature in `.tlk/side-tasks/`. See *Side-tasks* above. |
 | `talaka/dashboard/tools/snapshot.sh [--open] [--full] [--quiet]` | Writes the dashboard snapshot to `.tlk/dashboard/` (incremental; `--full` rewrites every chunk) and optionally opens it. See *Dashboard* above. |
 | `talaka/statusline/tools/pace.sh [--delay]` | Usage-limit pace for the coordinator: `mode=speed-up\|normal\|slow-down\|stop` from the snapshot the statusline writes (`.tlk/usage.env`); `--delay` prints a `/loop` wake delay for that mode. Exit 4 = not measured, run at normal. See `PIPELINE.md` → *Pace*. |
 | `talaka/shared/feedback/tools/kit-issue.sh add\|list\|show\|submit\|link\|dismiss` | Field reports about the kit itself: agents record slow/hanging scripts, fabrication pressure, misplaced artifacts in `.tlk/kit-issues.md`; `submit` previews, `submit --confirm` files a GitHub issue after the user agrees. See *Kit issues* above. |

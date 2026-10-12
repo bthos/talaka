@@ -246,4 +246,47 @@ test_viewer_makes_no_external_requests() {
   assert_eq "" "$hits" "no external requests in viewer.html"
 }
 
+# --- params.js: the kit's parameter registry for the Settings view ----------
+
+# _params PROJ EXPR → evaluate EXPR (with `p` = the TLK.params payload) in node.
+_params() {
+  node -e '
+    let p; global.TLK = { params: x => { p = x } };
+    require(process.argv[1]);
+    console.log(eval(process.argv[2]));
+  ' "$1/.tlk/dashboard/params.js" "$2"
+}
+
+test_params_js_carries_every_registry_row() {
+  command -v node >/dev/null 2>&1 || { skip_test "node absent"; return; }
+  local proj; proj=$(_proj)
+  _snap "$proj" >/dev/null 2>&1
+  assert_file_exists "$proj/.tlk/dashboard/params.js"
+  local want; want=$(grep -c . "$KIT_ROOT/shared/config/parameters.tsv")
+  assert_eq "$want" "$(_params "$proj" 'p.rows.length')" "header plus one row per parameter"
+  assert_eq "9" "$(_params "$proj" 'Math.min(...p.rows.map(r=>r.length))')" "no row lost a field"
+}
+
+test_params_env_values_follow_settings_precedence() {
+  command -v node >/dev/null 2>&1 || { skip_test "node absent"; return; }
+  local proj; proj=$(_proj)
+  mkdir -p "$proj/.claude"
+  printf '{"env":{"TALAKA_MEMORY_PROMOTE_INTERVAL":"300","API_TOKEN":"sk-secret"}}' > "$proj/.claude/settings.local.json"
+  printf '{"env":{"TALAKA_MEMORY_PROMOTE_INTERVAL":"900","TALAKA_METRICS_MAX_RUN":7200}}' > "$proj/.claude/settings.json"
+  ( cd "$proj" && TALAKA_ISSUES_REPO=me/fork bash "$SNAP" >/dev/null 2>&1 )
+  assert_eq "300 .claude/settings.local.json" \
+    "$(_params "$proj" 'p.env.TALAKA_MEMORY_PROMOTE_INTERVAL.value+" "+p.env.TALAKA_MEMORY_PROMOTE_INTERVAL.source')" \
+    "settings.local.json wins over settings.json"
+  assert_eq "7200 .claude/settings.json" \
+    "$(_params "$proj" 'p.env.TALAKA_METRICS_MAX_RUN.value+" "+p.env.TALAKA_METRICS_MAX_RUN.source')" "a bare number is read too"
+  assert_eq "me/fork environment" \
+    "$(_params "$proj" 'p.env.TALAKA_ISSUES_REPO.value+" "+p.env.TALAKA_ISSUES_REPO.source')" "then the snapshot's environment"
+  assert_file_not_contains "$proj/.tlk/dashboard/params.js" "sk-secret" "unregistered keys never reach the page"
+}
+
+test_viewer_has_a_settings_view() {
+  assert_file_contains "$KIT_ROOT/dashboard/viewer.html" '["settings","Settings",'
+  assert_file_contains "$KIT_ROOT/dashboard/viewer.html" 'settings:vSettings'
+}
+
 run_tests "$@"
