@@ -10,6 +10,17 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Changed — `tasks-researching` is now `research-briefing`
+
+- The skill is named for what it produces, `research-brief.md`, and starts with "research".
+  Invoke it as `/research-briefing`; the bootstrap is
+  `.claude/skills/research-briefing/new-research.sh`. Metrics rows and log entries written under
+  the old name keep it.
+- **Renamed kit copies are cleaned up.** `init.sh` / `update.sh` remove an installed copy under an
+  old name when it is still exactly what the kit installed (manifest SHA-256), and keep an edited
+  one with a warning naming the new path; `teardown.sh` does the same. Renames are listed in
+  `KIT_RENAMED_COPIES` in `shared/lifecycle/tools/lib.sh`.
+
 ### Added — dashboard *Settings*: every parameter and built-in assumption in one place
 
 - **The problem.** The kit's knobs were spread over environment variables, `PROJECT.md` fields,

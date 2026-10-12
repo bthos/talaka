@@ -333,6 +333,7 @@ link_claude_skills() {
     rel=".claude/skills/$name"
     install_kit_copy_tree ".claude/skills/$name" "$rel" "$src_dir" || true
   done
+  kit_retire_renamed_copies
 }
 
 # ---------------------------------------------------------------------------

@@ -1002,6 +1002,37 @@ kit_managed_tree_remove() {
   return 1
 }
 
+# ---------------------------------------------------------------------------
+# Kit copies the kit has renamed: "old:new", project-relative. Without this an
+# update installs the new copy and leaves the old one beside it — the same skill
+# twice, the old one no longer refreshed or git-ignored.
+# ---------------------------------------------------------------------------
+KIT_RENAMED_COPIES=(
+  ".claude/skills/tasks-researching:.claude/skills/research-briefing"
+)
+
+# Remove each old copy that is still exactly what the kit installed (manifest
+# SHA). One with local edits is kept, with a warning naming where it went.
+kit_retire_renamed_copies() {
+  local pair old new
+  for pair in "${KIT_RENAMED_COPIES[@]}"; do
+    old=${pair%%:*}; new=${pair#*:}
+    # Only once the kit itself no longer ships the old name.
+    [ -e "$SCRIPT_DIR/${old#.claude/}" ] && continue
+    if [ ! -e "$PROJECT_ROOT/$old" ] && [ ! -L "$PROJECT_ROOT/$old" ]; then
+      _manifest_drop "$old"
+      continue
+    fi
+    if [ -d "$PROJECT_ROOT/$old" ] && [ ! -L "$PROJECT_ROOT/$old" ]; then
+      kit_managed_tree_remove "$old" "" && continue
+    else
+      kit_managed_file_remove "$old" && continue
+    fi
+    warn "$old is now $new, but your copy has local edits — kept. Carry the edits over to $new, then delete $old (it is no longer git-ignored)."
+  done
+  return 0
+}
+
 # Strip the kit-managed include block from $rel (a project-relative path).
 # Behaviour:
 #   * if the manifest entry says "stub:<sha>" and the file still matches that

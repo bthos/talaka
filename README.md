@@ -53,7 +53,7 @@ This keeps routing observable and interruptible: the coordinator holds the whole
 | codebase-mapping | Codebase onboarding — structured map of an unfamiliar repo (tree, entry points, invocation edges, conventions) |
 | consistency-auditing | Cross-corpus drift audit — hardcoded values, contradictions, terminology drift, gaps; ranked + located, hands fixes to Cmok |
 | patterns-adapting | External pattern → project fit — research a gist/repo/tool, extract the core insight, design the adaptation |
-| tasks-researching | Pre-planning research — reads codebase + external sources, verified findings only, converges on ONE approach in `research-brief.md`, hands off to architecture-planning |
+| research-briefing | Pre-planning research — reads codebase + external sources, verified findings only, converges on ONE approach in `research-brief.md`, hands off to architecture-planning |
 | prompts-building | Prompt engineering — Builder/Tester loop that authors and validates agent/skill prompts against the kit's own conventions |
 | assumptions-challenging | Critical-thinking side-loop — challenges assumptions and stress-tests an approach before it's committed (advisory, read-only) |
 
@@ -254,6 +254,10 @@ git commit -m "chore: update talaka"
 - Paths you keep via **`--skip`** / **`--skip-all`** during updates — unchanged until you overwrite
 
 **Team members:** after pulling, run `git submodule update --init` to sync the submodule to the committed version (no `--remote` needed — that's only for the person pulling the new release).
+
+### Renamed agents and skills
+
+When the kit renames an agent or skill, `init.sh` (so every `update.sh`) installs the new copy and removes the old one, provided it is still exactly what the kit installed (its SHA-256 in `.tlk/.talaka.files`). A copy you edited is kept, with a warning naming the new path: carry your edits over, then delete the old copy — it is no longer git-ignored. `teardown.sh` applies the same rule. The list lives in `KIT_RENAMED_COPIES` in `shared/lifecycle/tools/lib.sh`; so far: `tasks-researching` → `research-briefing`.
 
 ### Leftovers from old installs
 
@@ -640,7 +644,7 @@ Full protocol: `.tlk/PIPELINE.md` → *Side-tasks*.
 | Map an unfamiliar codebase | `/codebase-mapping` |
 | Audit a file corpus for consistency drift | `/consistency-auditing` |
 | Adapt an external pattern into the project | `/patterns-adapting` |
-| Research a task before planning it | `/tasks-researching` |
+| Research a task before planning it | `/research-briefing` |
 | Build or improve an agent/skill prompt | `/prompts-building` |
 | Stress-test an approach / challenge assumptions | `/assumptions-challenging` |
 | Commit | `@zlydni` |
@@ -669,7 +673,7 @@ Each skill bundles its own script. Shared scripts live under `talaka/shared/<cat
 | `.claude/skills/data-mocking/detect-stack.sh [dir]` | data-mocking | Prints `key=value` facts that decide the mock tool: languages, package manager, UI, frameworks, test runners, API clients, protocols, contracts (OpenAPI / GraphQL / proto / AsyncAPI / WSDL), mock tools already present, Docker |
 | `.claude/skills/consistency-auditing/new-audit.sh <slug>` | consistency-auditing | Creates `.tlk/audits/YYYY-MM-DD-<slug>/` with `audit.md` (ranked, located findings + recommended fixes) and `handoff-log.md` |
 | `.claude/skills/patterns-adapting/new-adaptation.sh <slug>` | patterns-adapting | Creates `.tlk/features/YYYY-MM-DD-adapt-<slug>/` with `research-brief.md`, `adaptation.md`, `handoff-log.md` skeletons |
-| `.claude/skills/tasks-researching/new-research.sh <slug>` | tasks-researching | Creates `.tlk/features/YYYY-MM-DD-research-<slug>/` with `research-brief.md` (verified findings + single recommended approach) and `handoff-log.md` |
+| `.claude/skills/research-briefing/new-research.sh <slug>` | research-briefing | Creates `.tlk/features/YYYY-MM-DD-research-<slug>/` with `research-brief.md` (verified findings + single recommended approach) and `handoff-log.md` |
 
 ### Shared tools
 
