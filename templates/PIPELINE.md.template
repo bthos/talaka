@@ -113,7 +113,7 @@ Concretely, in every agent and skill prompt in this kit:
 | codebase-mapping | Codebase onboarding — structured map of an unfamiliar repo |
 | consistency-auditing | Cross-corpus drift audit — ranked, located findings → Cmok |
 | patterns-adapting | External pattern → project fit — research, extract, adapt |
-| tasks-researching | Pre-planning research — verified findings, converge on one approach |
+| research-briefing | Pre-planning research — verified findings, converge on one approach |
 | prompts-building | Build & validate agent/skill prompts (Builder/Tester loop) |
 | assumptions-challenging | Critical-thinking side-loop — challenge assumptions before commit |
 | prose-auditing | Docs phrasing audit — stock LLM phrasing in a docs diff, listed not fixed (opt-in) |
@@ -122,7 +122,7 @@ Concretely, in every agent and skill prompt in this kit:
 
 | Kind | Names |
 |------|--------|
-| Skills | `/requirements-eliciting`, `/ux-designing`, `/architecture-planning`, `/mockups-creating`, `/design-generating`, `/storybook-generating`, `/screenshots-testing`, `/data-mocking`, `/bugs-diagnosing`, `/knowledge-curating`, `/cli-designing`, `/codebase-mapping`, `/consistency-auditing`, `/patterns-adapting`, `/tasks-researching`, `/prompts-building`, `/assumptions-challenging`, `/prose-auditing` |
+| Skills | `/requirements-eliciting`, `/ux-designing`, `/architecture-planning`, `/mockups-creating`, `/design-generating`, `/storybook-generating`, `/screenshots-testing`, `/data-mocking`, `/bugs-diagnosing`, `/knowledge-curating`, `/cli-designing`, `/codebase-mapping`, `/consistency-auditing`, `/patterns-adapting`, `/research-briefing`, `/prompts-building`, `/assumptions-challenging`, `/prose-auditing` |
 | Agents | `@bagnik`, `@cmok` (build), `@mokash`, `@veles`, `@yaga`, `@zlydni` |
 
 The build implementation after Bagnik passes is the `@cmok` agent. The mockup phase uses the `/mockups-creating` skill. They are distinct roles: the build agent keeps the mythology name `cmok`, while skills use purpose-based names.
@@ -274,7 +274,7 @@ The coordinator's decision function. Keyed on the last return entry.
 | screenshots-testing | visual | pass | continue where the pipeline was (normally `@bagnik` code QA) | — |
 | screenshots-testing | visual | changes | — | **STOP** — user accepts or rejects each diff, then `/screenshots-testing accept <ids>` |
 | screenshots-testing | visual | fail | `@cmok` (fix the rejected regressions) | — |
-| cli-designing / patterns-adapting / tasks-researching | design / brief | done | `/architecture-planning` | — |
+| cli-designing / patterns-adapting / research-briefing | design / brief | done | `/architecture-planning` | — |
 | *(user asks)* lenses challenge | — | — | `/assumptions-challenging` once per lens (`lens: <name>`, parallel, same brief) | — |
 | assumptions-challenging | lens seats | all returned | `/assumptions-challenging` with `cruxes:` and the cards | — |
 | assumptions-challenging | challenge / cruxes | done | the worker whose decision was challenged, carrying the questions | — |

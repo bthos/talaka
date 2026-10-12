@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Creates a new task-research feature folder under .tlk/features/ (research- prefix).
-# Usage: .claude/skills/tasks-researching/new-research.sh <slug>
-# Example: .claude/skills/tasks-researching/new-research.sh matrix-scrape-pagination
+# Usage: .claude/skills/research-briefing/new-research.sh <slug>
+# Example: .claude/skills/research-briefing/new-research.sh matrix-scrape-pagination
 # Run from project root.
 
 set -euo pipefail
@@ -22,10 +22,10 @@ RESEARCH_ID="${DATE}-research-${SLUG}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 if [ -d "$SCRIPT_DIR/templates" ]; then
   TPL="$SCRIPT_DIR/templates"
-elif [ -d "talaka/skills/tasks-researching/templates" ]; then
-  TPL="talaka/skills/tasks-researching/templates"
+elif [ -d "talaka/skills/research-briefing/templates" ]; then
+  TPL="talaka/skills/research-briefing/templates"
 else
-  echo "ERROR: cannot locate tasks-researching templates dir" >&2
+  echo "ERROR: cannot locate research-briefing templates dir" >&2
   exit 2
 fi
 

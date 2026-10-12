@@ -1,10 +1,10 @@
 ---
-name: tasks-researching
+name: research-briefing
 description: Pre-planning research. Reads the codebase and external sources, records only verified findings — never assumptions — weighs alternatives, and converges on ONE approach in research-brief.md. Read-only; hands off to /architecture-planning. Use before planning a non-trivial feature when the right approach is not yet obvious.
 disable-model-invocation: false
 ---
 
-# Researching Tasks — Evidence-Based Research (skill)
+# Research Briefing — Evidence-Based Research (skill)
 
 You do the reading so the pipeline doesn't guess. You investigate a task deeply — the codebase, the docs, prior art — and write down **only what you verified by actually running a tool**, never what you assumed. You evaluate the real alternatives, then converge on a single recommended approach. You do **not** edit code, write tests, or plan the build. The output is `research-brief.md`: durable, cited context that `/architecture-planning` reads instead of re-deriving.
 
@@ -12,15 +12,15 @@ This is the talaka-native adaptation of the Microsoft edge-ai *task-researcher* 
 
 ## When to Use
 
-- `/tasks-researching <topic>` — research a task before planning it.
-- `/tasks-researching <topic> --feature <feature-path>` — attach research to an existing feature (write the brief into that folder instead of a new one).
+- `/research-briefing <topic>` — research a task before planning it.
+- `/research-briefing <topic> --feature <feature-path>` — attach research to an existing feature (write the brief into that folder instead of a new one).
 - Before `/architecture-planning` when the approach is genuinely uncertain (new library, unfamiliar API, competing patterns, a scraping/data-shape question).
 - **Skip it** for tasks whose approach is already obvious — go straight to `/requirements-eliciting` or `/architecture-planning`. Research is for reducing real uncertainty, not ceremony.
 
 ## Bootstrap
 
 ```bash
-bash .claude/skills/tasks-researching/new-research.sh <slug>
+bash .claude/skills/research-briefing/new-research.sh <slug>
 ```
 
 The slug is topic-shaped (`matrix-scrape-pagination`, `offline-html-embed`, `weight-progression-algo`). Creates `.tlk/features/YYYY-MM-DD-research-<slug>/` with `research-brief.md` and `handoff-log.md`. If you were given `--feature <path>`, skip the bootstrap and write `research-brief.md` into that existing feature folder.
@@ -28,7 +28,7 @@ The slug is topic-shaped (`matrix-scrape-pagination`, `offline-html-embed`, `wei
 Set the L1 hot state once the folder exists:
 
 ```bash
-bash talaka/memory/tools/session.sh agent tasks-researching
+bash talaka/memory/tools/session.sh agent research-briefing
 bash talaka/memory/tools/session.sh feature research-<slug>   # only if you originated the folder
 ```
 
@@ -41,7 +41,7 @@ bash talaka/memory/tools/session.sh feature research-<slug>   # only if you orig
 5. **Evaluate alternatives.** When several approaches exist, document each with its real trade-offs, then **converge on ONE**. Present the alternatives to the user, get their pick, and delete the non-selected approaches from the brief — the final document describes a single path.
 6. **Consolidate ruthlessly.** Merge duplicate findings; delete superseded information the moment you find something newer. A research brief with two half-answers is worse than one with a decided answer.
 7. **Fill `research-brief.md`** using the template. Park anything unresolved under *Open questions* — never disguise a guess as a finding.
-8. **Log and return.** Append your return entry to `handoff-log.md`, citing the brief path, and recommend `/architecture-planning`. The coordinator routes from there. Along the way append `## YYYY-MM-DD HH:MM tasks-researching [research] progress` entries (`Result:` / `Artifacts:` / `Next:`, no arrow, no `Recommend:`) — one when the sources are gathered but unverified, one when an approach is eliminated. Eliminations are results; they keep the next run from re-walking the same dead end.
+8. **Log and return.** Append your return entry to `handoff-log.md`, citing the brief path, and recommend `/architecture-planning`. The coordinator routes from there. Along the way append `## YYYY-MM-DD HH:MM research-briefing [research] progress` entries (`Result:` / `Artifacts:` / `Next:`, no arrow, no `Recommend:`) — one when the sources are gathered but unverified, one when an approach is eliminated. Eliminations are results; they keep the next run from re-walking the same dead end.
 
 ## Research quality bar
 
@@ -59,7 +59,7 @@ A good brief is:
 Append to `handoff-log.md`:
 
 ```
-## YYYY-MM-DD HH:MM tasks-researching → Coordinator [research] done
+## YYYY-MM-DD HH:MM research-briefing → Coordinator [research] done
 Result: converged on one approach — [one line].
 Artifacts: <feature-path>/research-brief.md
 Open questions: ...
@@ -70,7 +70,7 @@ Why: the approach is settled; planning can start from a verified brief.
 Note the start time on entry, before you read anything — the recording call measures what this run actually spent from it. It is written to a file, because shell variables do not survive between tool calls:
 
 ```bash
-bash .tlk/autoresearch/tools/record-metrics.sh --mark-start --agent tasks-researching 2>/dev/null || true
+bash .tlk/autoresearch/tools/record-metrics.sh --mark-start --agent research-briefing 2>/dev/null || true
 ```
 
 Record metrics before returning (skip silently if the script is absent):
@@ -78,7 +78,7 @@ Record metrics before returning (skip silently if the script is absent):
 ```bash
 bash .tlk/autoresearch/tools/record-metrics.sh \
   --feature <feature-path> \
-  --agent tasks-researching
+  --agent research-briefing
 ```
 
 ## Guardrails

@@ -79,7 +79,7 @@ Never run two techniques in one iteration "to save time". The whole value of the
 | Orientation in unfamiliar code | `/codebase-mapping` | `map.md` — tree, entry points, invocation edges, conventions |
 | Drift, contradictions, hardcoded values found | `/consistency-auditing` | ranked `audit.md`, every finding with `file:line` |
 | The approach stress-tested before it is locked | `/assumptions-challenging` | blind spots, advisory, read-only |
-| Verified facts before planning | `/tasks-researching` | `research-brief.md`, converged on ONE approach |
+| Verified facts before planning | `/research-briefing` | `research-brief.md`, converged on ONE approach |
 | An outside pattern brought in | `/patterns-adapting` | `adaptation.md` |
 | Requirements made explicit | `/requirements-eliciting` | `spec.md` with testable acceptance criteria |
 | Architecture + tests designed | `/architecture-planning` | tech plan, tests, AC-to-test map |
@@ -101,7 +101,7 @@ Recipes, not rails. Re-decide after every iteration.
 Done when no finding above the severity named in `goal.md` remains.
 
 **"Find the architecture gaps."**
-`/codebase-mapping` → `/assumptions-challenging` against the map → `/tasks-researching` on the weakest seam → `/architecture-planning`. Stop at the plan; ask before building.
+`/codebase-mapping` → `/assumptions-challenging` against the map → `/research-briefing` on the weakest seam → `/architecture-planning`. Stop at the plan; ask before building.
 
 **"Make the kit cheaper / the agents better."**
 `bash .tlk/autoresearch/tools/analyze-metrics.sh --report` first — it ranks every agent and skill by *measured* cost and names the one with composite headroom. Then `@veles` with a round budget against that target. This is the nightly mode below.

@@ -141,6 +141,7 @@ for skill_dir in "$SCRIPT_DIR/skills/"*/; do
   name=$(basename "$skill_dir")
   kit_managed_tree_remove ".claude/skills/$name" "${skill_dir%/}" || true
 done
+kit_retire_renamed_copies
 if ! $DRY_RUN && [ -d "$PROJECT_ROOT/.claude/skills" ] && [ -z "$(ls -A "$PROJECT_ROOT/.claude/skills" 2>/dev/null)" ]; then
   rmdir "$PROJECT_ROOT/.claude/skills" 2>/dev/null && removed ".claude/skills/ (empty dir)" || true
 fi
