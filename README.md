@@ -216,6 +216,8 @@ Names carry no unit suffix: **every duration is in seconds**, and each value's u
 | `TALAKA_ISSUES_REPO` | `bthos/talaka` | `shared/feedback/tools/kit-issue.sh` | Repository field reports are filed on — point it at your fork. |
 | `TALAKA_PROMPT_TIMEOUT` | `15` s | `shared/lifecycle/tools/init.sh` | Seconds `init.sh` waits for an answer at its interactive prompts. Set it in your terminal, not `settings.json`. |
 
+Every one of these, plus `PROJECT.md`'s fields and the kit's fixed thresholds, is listed in `shared/config/parameters.tsv` and shown with its current value in the dashboard's **Settings** view. `PACE_SNAPSHOT_REFRESH` (`30` s, `statusline/tools/pace.sh`) sets how often the statusline rewrites `.tlk/usage.env` when nothing changed.
+
 `COST_PER_TOKEN`, `COST_PER_MIN` and `BELUN_WIKI_DIR` are the pre-prefix names and are still honoured. Two related knobs are **not** environment variables: the ratchet's cost weight λ lives in `.tlk/autoresearch/program.md` (`λ = 0.3`), and `ARTEFACTS_DIR` (default `.tlk`) relocates the whole artefacts tree for every kit script.
 
 ## Updating the kit
@@ -324,6 +326,7 @@ bash talaka/dashboard/tools/snapshot.sh --open      # or: talaka/kit.sh dashboar
 | **AutoResearch** | Composite per round for each ratcheted target, accepted and rejected rounds with their reason. |
 | **Wiki** | The `[[wikilink]]` graph with orphans and broken links, and a reader with backlinks. |
 | **Map** | One canvas across all of it: which feature produced which decision, which decision hardened into which agent prompt, which wiki page explains it. |
+| **Settings** | Every parameter and built-in assumption the kit works with — environment settings, `PROJECT.md` fields, values in other files (λ), command-line defaults and fixed thresholds (STUCK after 48 h, `mem:stale` after 24 h, L2 compaction after 7 days, …) — grouped by area, with the value in effect here, where it comes from, the default, a *changed* mark, where to change it and what reads it. Filter: all / changeable / changed / fixed. |
 | **Files** | Every file in the snapshot, unparsed. Nothing the kit writes is out of reach. |
 
 Any object opens the same side panel, and everything in it links onward. `Ctrl K` searches titles, facts, wiki pages and file paths, and on request the text of every file.
@@ -331,6 +334,8 @@ Any object opens the same side panel, and everything in it links onward. `Ctrl K
 **How it stays current.** `snapshot.sh` writes `.tlk/dashboard/`: the page, a `manifest.js` listing every file, and one `data/c<N>.js` per text file holding that file verbatim (escaped for a JS string, never truncated or summarised). A browser opening a page from disk cannot read the files next to it, but it can load scripts; that is the whole trick. Runs are incremental — only files whose size or mtime changed are rewritten — and once the snapshot exists, `memory/tools/tick.sh` (the memory Stop hook) refreshes it after every session. The open page re-reads the manifest every 30 seconds.
 
 **Live mode.** In Chrome or Edge, *Snapshot* in the top bar switches to reading the project folder directly through the File System Access API: pick the project root once, and the page re-reads it every 5 seconds. The folder handle and a text cache keyed by path, size and mtime live in the browser's IndexedDB; both are rebuilt from the files whenever they are missing.
+
+**Where Settings comes from.** The kit's knobs live in one registry, **`shared/config/parameters.tsv`**: name, kind, default, unit, area, where to change it, what reads it, and its effect. `snapshot.sh` writes it to `params.js`, together with the values of its environment settings found in `.claude/settings.local.json`, then `.claude/settings.json`, then the snapshot's own environment. Only registered names are read from those files, so nothing else in them (an API token in `"env"`, say) reaches the page. `PROJECT.md` and `program.md` values are read by the page itself, so they are live in Live mode. A lint test (`tests/lint/parameters.test.sh`) fails when the code reads a `TALAKA_*` setting, or `PROJECT.md` gains a field, that the registry does not list.
 
 **What it never does.** It is read-only: every action is a command to copy. It makes no network requests; every style, script and chart is inside `dashboard/viewer.html`. It does not estimate: a number shown is a number some file contains.
 

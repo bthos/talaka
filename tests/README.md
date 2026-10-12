@@ -27,7 +27,7 @@ Exit status is non-zero if any file fails. Requires **bash ≥ 4** (macOS ships
 | `tests/skills/` | Skill-bundled scripts — `knowledge-curating` (`new-wiki.sh`), `cli-designing` (`new-cli.sh`): tree bootstrap, idempotency, output contract. |
 | `tests/deferred/` | `shared/deferred/tools/defer.sh` — DD-NNN numbering across heading forms. |
 | `tests/side-tasks/` | `shared/side-tasks/tools/side-task.sh` — ST ids, close preconditions, archive, promotion, known gaps. |
-| `tests/lint/` | Structural guards: frontmatter, no-plugin-dependency, block markers, `bash -n` syntax. |
+| `tests/lint/` | Structural guards: frontmatter, no-plugin-dependency, block markers, `bash -n` syntax; `parameters.test.sh` keeps `shared/config/parameters.tsv` in step with the code. |
 
 `memory/tools/test-search-parity.sh` (py-vs-bash search parity) is also picked
 up by the runner.

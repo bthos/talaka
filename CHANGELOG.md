@@ -10,6 +10,25 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Added — dashboard *Settings*: every parameter and built-in assumption in one place
+
+- **The problem.** The kit's knobs were spread over environment variables, `PROJECT.md` fields,
+  values in other files and thresholds fixed in code — some documented in README, some only in a
+  script's header, some nowhere (`PACE_SNAPSHOT_REFRESH`, STUCK after 48 h, L2 compaction after 7
+  days). Nothing showed what was actually in effect in a project.
+- **`shared/config/parameters.tsv`** — one registry: name, kind (`env`, `project`, `file`,
+  `flag`, `constant`), default, unit, area, where to change it, what reads it, effect.
+- **Settings view** in the dashboard: grouped by area, the value in effect and where it comes
+  from, the default, a *changed* mark, where to change it and what reads it; filter all /
+  changeable / changed / fixed, and search.
+- **`snapshot.sh`** writes `params.js`: the registry plus the values of registered environment
+  settings found in `.claude/settings.local.json`, `.claude/settings.json` or the snapshot's
+  environment — registered names only, so no other key from those files reaches the page.
+  `PROJECT.md` and `program.md` values are read by the page, live in Live mode.
+- **`tests/lint/parameters.test.sh`** fails when the code reads a `TALAKA_*` setting, or
+  `PROJECT.md` gains a configuration field, that the registry does not list — and when a
+  registered environment setting is no longer read anywhere.
+
 ### Added — side-tasks: a tracked lane for small work outside any feature (#45)
 
 - **The problem.** A small bug raised mid-feature, a stale test, a chore or a live-session

@@ -8,6 +8,11 @@
 #   index.html     a copy of the kit's viewer.html
 #   manifest.js    TLK.manifest({...})       every file: path, size, mtime, chunk id
 #   data/c<N>.js   TLK.chunk("<path>",`…`)   one per text file, content verbatim
+#   params.js      TLK.params({...})         the kit's parameter registry
+#                  (shared/config/parameters.tsv) and the values of its
+#                  environment settings found in .claude/settings.local.json and
+#                  .claude/settings.json — registered names only, so no other key
+#                  in those files (an API token in "env") reaches the page
 #   .state         path → chunk id, size, mtime (what the next run compares)
 #
 # Nothing is truncated or summarised: a chunk is the whole file, escaped for a
@@ -53,7 +58,7 @@ while [ $# -gt 0 ]; do
     --out)      [ $# -ge 2 ] || { echo "snapshot: --out needs a directory" >&2; exit 2; }
                 OUT="${2%/}"; shift ;;
     --out=*)    OUT="${1#--out=}"; OUT="${OUT%/}" ;;
-    -h|--help)  sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help)  sed -n '2,37p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *)          echo "snapshot: unknown option: $1 (see --help)" >&2; exit 2 ;;
   esac
   shift
@@ -262,6 +267,53 @@ relpath "$kit_dir"; jstr "$REPLY"; j_kit=$REPLY
   printf ']});\n'
 } > "$OUT/manifest.js.tmp"
 mv -f "$OUT/manifest.js.tmp" "$OUT/manifest.js"
+
+# ---------------------------------------------------------------------------
+# Parameters: the registry rows, plus where each environment setting is set.
+# Builtins only — this runs on every Stop hook.
+REGISTRY="$SELF_DIR/../../shared/config/parameters.tsv"
+settings_value() {  # settings_value FILE-TEXT NAME → REPLY = value, or 1
+  local re="\"$2\"[[:space:]]*:[[:space:]]*(\"([^\"]*)\"|(-?[0-9.]+))"
+  [[ $1 =~ $re ]] || return 1
+  REPLY="${BASH_REMATCH[2]}${BASH_REMATCH[3]}"
+}
+if [ -f "$REGISTRY" ]; then
+  declare -A SETTINGS_TXT=()
+  for sf in .claude/settings.local.json .claude/settings.json; do
+    txt=""
+    [ -f "$sf" ] && { IFS= read -r -d '' txt < "$sf" || true; }
+    SETTINGS_TXT["$sf"]=$txt
+  done
+  rows="" envs="" sep="" esep=""
+  while IFS= read -r line || [ -n "$line" ]; do
+    line=${line%$'\r'}
+    [ -n "$line" ] || continue
+    # Split on tabs by hand: tab is IFS whitespace, so `read -a` would collapse
+    # an empty field and shift the ones after it.
+    cells="" csep="" rest=$line
+    while :; do
+      cell=${rest%%$'\t'*}
+      jstr "$cell"; cells+="$csep$REPLY"; csep=","
+      [ "$cell" = "$rest" ] && break
+      rest=${rest#*$'\t'}
+    done
+    rows+="${sep}[${cells}]"; sep=$',\n'
+    name=${line%%$'\t'*}; kind=${line#*$'\t'}; kind=${kind%%$'\t'*}
+    [ "$kind" = env ] || continue
+    for sf in .claude/settings.local.json .claude/settings.json; do
+      if settings_value "${SETTINGS_TXT[$sf]}" "$name"; then
+        jstr "$REPLY"; v=$REPLY; jstr "$sf"
+        envs+="$esep\"$name\":{\"value\":$v,\"source\":$REPLY}"; esep=","
+        continue 2
+      fi
+    done
+    if [ -n "${!name+x}" ]; then   # set in the environment the snapshot ran in
+      jstr "${!name}"; envs+="$esep\"$name\":{\"value\":$REPLY,\"source\":\"environment\"}"; esep=","
+    fi
+  done < "$REGISTRY"
+  printf 'TLK.params({"v":1,"rows":[\n%s],\n"env":{%s}});\n' "$rows" "$envs" > "$OUT/params.js.tmp"
+  mv -f "$OUT/params.js.tmp" "$OUT/params.js"
+fi
 
 # The page itself: refreshed when the kit's copy is newer (a kit update).
 if $FULL || [ ! -f "$OUT/index.html" ] || [ "$VIEWER" -nt "$OUT/index.html" ]; then
