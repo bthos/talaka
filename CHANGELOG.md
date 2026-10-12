@@ -10,6 +10,26 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Changed — the kit no longer edits the project's root `.gitignore`
+
+- **Each directory the kit writes into carries its own `.gitignore`** instead of one managed
+  block in the root `.gitignore`. The root file is tracked and team-owned, so editing it was the
+  one change the "commits nothing" kit still pushed onto the repo. Now:
+  - `.tlk/.gitignore` holds `*` — all of `.tlk/`, the `.gitignore` itself included. It also
+    works for any `ARTEFACTS_DIR`, with no path to keep in sync.
+  - `.claude/.gitignore` lists the kit-installed `agents/*`, `skills/*` and `loop.md` copies by
+    name. When the kit creates the file it also lists `/.gitignore`, so it hides itself; when
+    the team already has one, the block is appended and the file stays theirs.
+  Git honours an untracked `.gitignore`, so nothing the kit wrote under `.tlk/` or `.claude/`
+  shows up in `git status`.
+- **Migration:** `init.sh` / `update.sh` strip the old block from the root `.gitignore` (and remove
+  the file if the block was all it held). Commit that change.
+- **`teardown.sh`** strips the `.claude/.gitignore` block (removing the file when the kit created
+  it), still strips a legacy root block, and keeps `.tlk/.gitignore` — what stays in `.tlk/` is
+  still personal state. `--full-clean` removes it with the directory.
+- **Internal lib API:** `talaka_gitignore_render` now takes a scope (`artefacts` | `claude`) and
+  whether the kit owns the whole file; new `talaka_gitignore_owns_file`.
+
 ### Fixed — memory writes and `defer.sh` no longer take 10–25 s on Git Bash (#8)
 
 - **`log.sh --confidence high` no longer runs a full `promote.sh`** (~30 processes) on every write.

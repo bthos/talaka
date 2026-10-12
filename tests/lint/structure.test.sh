@@ -356,7 +356,7 @@ test_managed_block_markers_are_balanced() {
   local out; out=$(talaka_block_render ".tlk/PIPELINE.md")
   assert_contains "$out" "$TALAKA_BLOCK_BEGIN"
   assert_contains "$out" "$TALAKA_BLOCK_END"
-  out=$(talaka_gitignore_render)
+  out=$(talaka_gitignore_render claude)
   assert_contains "$out" "$TALAKA_GITIGNORE_BEGIN"
   assert_contains "$out" "$TALAKA_GITIGNORE_END"
 }

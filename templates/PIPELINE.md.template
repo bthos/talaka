@@ -29,11 +29,10 @@ project root/
 │   └── scratch/                   ← ephemeral runtime files (auto-managed)
 ├── CLAUDE.md                      ← Claude Code entry-point with managed include block
 ├── AGENTS.md                      ← cross-IDE entry-point with the same include block
-├── .claude/                       ← agent + skill copies
-└── .gitignore                     ← managed block ignores .tlk/{memory,features,archive,scratch,…}
+└── .claude/                       ← agent + skill copies (.claude/.gitignore hides the kit's)
 ```
 
-Everything kit-touched is either inside `.tlk/`, inside `.claude/`, or wrapped in a removable `<!-- talaka:start --> … <!-- talaka:end -->` block in `CLAUDE.md` / `AGENTS.md` / `.gitignore`. `talaka/shared/lifecycle/tools/teardown.sh` either strips the block or removes the file when its SHA-256 still matches the kit copy.
+Everything kit-touched is either inside `.tlk/`, inside `.claude/`, or wrapped in a removable `<!-- talaka:start --> … <!-- talaka:end -->` block in `CLAUDE.md` / `AGENTS.md`. `.tlk/` and `.claude/` each carry their own kit-managed `.gitignore`; the root `.gitignore` is never touched. `talaka/shared/lifecycle/tools/teardown.sh` either strips the block or removes the file when its SHA-256 still matches the kit copy.
 
 **What `init.sh` produces:**
 
@@ -470,7 +469,7 @@ It appends to `.tlk/kit-issues.md`. The same title again bumps that entry's `See
 | `gh issue create --body "<long>"` | `--body-file` with a temp file under `.tlk/scratch/` |
 | `echo "<large json>" \| curl -d @-` | Write to `.tlk/scratch/payload.json`, then `curl -d @.tlk/scratch/payload.json` |
 
-Use the **Write** tool to produce the temp file (it does not go through the shell). The `.tlk/scratch/` directory is git-ignored by the kit's managed `.gitignore` block. Clean files up after the command succeeds, but do not block on cleanup failures.
+Use the **Write** tool to produce the temp file (it does not go through the shell). The `.tlk/scratch/` directory is git-ignored by `.tlk/.gitignore`. Clean files up after the command succeeds, but do not block on cleanup failures.
 
 This applies to every agent (Zlydni commits, Mokash PR/issue bodies, Cmok large patches) and every IDE.
 
@@ -519,7 +518,7 @@ and a later run loses nothing. Reserve `high` for facts you'd treat as a rule.
 
 `/knowledge-curating` maintains an LLM-owned wiki at `wiki/` (project root; Karpathy's LLM-wiki pattern): `sources/` (raw, immutable) → `pages/` + `index.md` + `log.md` (LLM-owned, interlinked) → `SCHEMA.md` (conventions). Operations: `ingest` (land a source, update 10–15 cross-linked pages + index + log), `query` (answer from the wiki with citations; persist nontrivial synthesis), `lint` (contradictions, stale claims, orphans, broken wikilinks). Bootstrap: `.claude/skills/knowledge-curating/new-wiki.sh`.
 
-Boundary with memory: the **wiki** holds knowledge distilled from *sources* (papers, docs, articles); the **memory tree** holds facts about *this project and how to work on it*. The wiki is committed to git — it is deliberately outside the kit's managed `.gitignore` block.
+Boundary with memory: the **wiki** holds knowledge distilled from *sources* (papers, docs, articles); the **memory tree** holds facts about *this project and how to work on it*. The wiki is committed to git — it deliberately lives outside `.tlk/`, which `.tlk/.gitignore` hides wholesale.
 
 ## CLI factory (cli-designing)
 

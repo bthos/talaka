@@ -18,7 +18,7 @@ The pattern is Andrej Karpathy's LLM-wiki (gist `442a6bf5…`): *the tedious par
 | **The wiki** | `wiki/pages/`, `index.md`, `log.md` | Yours. Summaries, entity pages, concept pages, synthesis — all interlinked. |
 | **The schema** | `wiki/SCHEMA.md` | The conventions you follow. Read it before every operation; it may carry project-specific amendments. |
 
-The wiki is **committed to git** — it is the durable product, not scratch. It lives at the project root (`wiki/`), deliberately **outside** the per-developer `.tlk/` tree (which the kit's managed `.gitignore` ignores wholesale), so shared knowledge can compound in version control.
+The wiki is **committed to git** — it is the durable product, not scratch. It lives at the project root (`wiki/`), deliberately **outside** the per-developer `.tlk/` tree (which the kit's `.tlk/.gitignore` ignores wholesale), so shared knowledge can compound in version control.
 
 ## When to Use
 

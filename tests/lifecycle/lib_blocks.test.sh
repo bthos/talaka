@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Unit tests for the managed-block helpers in shared/lifecycle/tools/lib.sh
-# (CLAUDE.md / AGENTS.md include block + .gitignore block).
+# (CLAUDE.md / AGENTS.md include block + nested .gitignore blocks).
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib.sh"
 source "$KIT_ROOT/shared/lifecycle/tools/lib.sh"
 
@@ -77,18 +77,32 @@ test_strip_trims_trailing_blank_lines() {
 test_gitignore_render_strip_roundtrip() {
   local proj; proj=$(make_tmp_project)
   local gi="$proj/.gitignore"
-  printf 'node_modules/\n' > "$gi"
-  talaka_gitignore_render >> "$gi"
+  printf 'settings.local.json\n' > "$gi"
+  talaka_gitignore_render claude >> "$gi"
   assert_ok talaka_gitignore_present "$gi"
-  # The whole artefacts dir is ignored (per-developer state), not a path list.
-  assert_file_contains "$gi" ".tlk/"
-  # Kit-installed agent copies are enumerated so they stay out of git.
-  assert_file_contains "$gi" ".claude/agents/cmok.md"
+  # Kit-installed copies are enumerated, relative to .claude/.
+  assert_file_contains "$gi" "/agents/cmok.md"
+  assert_fail talaka_gitignore_owns_file "$gi"
 
   talaka_gitignore_strip "$gi"
   assert_fail talaka_gitignore_present "$gi"
   assert_file_not_contains "$gi" "$TALAKA_GITIGNORE_BEGIN"
-  assert_file_contains "$gi" "node_modules/"   "user ignore lines preserved"
+  assert_file_contains "$gi" "settings.local.json"   "user ignore lines preserved"
+}
+
+test_gitignore_render_artefacts_ignores_everything() {
+  local out; out=$(talaka_gitignore_render artefacts true)
+  assert_contains "$out" $'\n*\n' "the whole artefacts dir is ignored"
+}
+
+test_gitignore_owned_file_ignores_itself() {
+  local proj; proj=$(make_tmp_project)
+  local gi="$proj/.gitignore"
+  talaka_gitignore_render claude true > "$gi"
+  assert_ok talaka_gitignore_owns_file "$gi"
+  if talaka_gitignore_render claude false | grep -qx '/.gitignore'; then
+    fail "a block added to someone else's file must not ignore that file"
+  fi
 }
 
 test_extract_returns_the_block_with_markers() {
@@ -119,16 +133,6 @@ test_replace_leaves_unterminated_block_alone() {
   before=$(cat "$f")
   assert_fail talaka_block_replace "$f" "$new"
   assert_eq "$before" "$(cat "$f")" "file untouched when markers are unbalanced"
-}
-
-test_gitignore_honours_artefacts_dir_override() {
-  # ARTEFACTS_NAME is captured at source time from ARTEFACTS_DIR; render reads
-  # the live ARTEFACTS_NAME global, so overriding it changes the output.
-  local saved="$ARTEFACTS_NAME"
-  ARTEFACTS_NAME=".kit-state"
-  local out; out=$(talaka_gitignore_render)
-  assert_contains "$out" ".kit-state/" "override reflected in gitignore"
-  ARTEFACTS_NAME="$saved"
 }
 
 run_tests "$@"

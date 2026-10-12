@@ -684,43 +684,68 @@ talaka_block_append() {
 }
 
 # ---------------------------------------------------------------------------
-# Managed .gitignore block
+# Managed .gitignore blocks — one per directory the kit writes into
+#
+# talaka is a per-developer tool, not a team-sync mechanism: it installs into
+# the working tree but commits nothing of its own. So instead of editing the
+# project's root .gitignore (a tracked, team-owned file), each directory the
+# kit writes into gets its own .gitignore:
+#
+#   <artefacts>/.gitignore  `*` — the whole dir is personal state (and the
+#                           pattern covers the .gitignore itself)
+#   .claude/.gitignore      the kit-installed agent, skill and goal-loop
+#                           copies, enumerated by name so a team's own .claude/
+#                           content stays tracked
+#
+# Git honours a .gitignore whether or not it is tracked, so a file the kit
+# creates also ignores itself (`/.gitignore`) and never shows up in `git
+# status`. When the team already has a .claude/.gitignore, the block is added
+# to it without that line — the file is theirs.
 # ---------------------------------------------------------------------------
+TALAKA_GITIGNORE_SELF="/.gitignore"
+
+# talaka_gitignore_render SCOPE [SELF]
+#   SCOPE  artefacts | claude
+#   SELF   true → the kit owns the whole file: also ignore the .gitignore itself
 talaka_gitignore_render() {
-  # talaka is a per-developer tool, not a team-sync mechanism: it installs
-  # into the working tree but commits nothing of its own. The whole artefacts
-  # dir is personal state, and the kit-installed agent/skill copies are personal
-  # too (Veles ratchets them in place). Enumerate those copies by name so a
-  # team's own .claude/ content stays tracked while the kit's copies do not.
-  local claude_lines="" f name
-  for f in "$SCRIPT_DIR"/agents/*.md; do
-    [ -e "$f" ] || continue
-    name=${f##*/}
-    claude_lines+=".claude/agents/$name"$'\n'
-  done
-  for f in "$SCRIPT_DIR"/skills/*/; do
-    [ -d "$f" ] || continue
-    name=${f%/}; name=${name##*/}
-    claude_lines+=".claude/skills/$name/"$'\n'
-  done
-  [ -f "$SCRIPT_DIR/templates/loop.md.template" ] && claude_lines+=".claude/loop.md"$'\n'
+  local scope="$1" self="${2:-false}" lines="" f name
+  case "$scope" in
+    artefacts)
+      lines='# All of it: memory, features, PIPELINE.md, PROJECT.md, bookkeeping.'$'\n''*'$'\n'
+      ;;
+    claude)
+      [ "$self" = true ] && lines+="$TALAKA_GITIGNORE_SELF"$'\n'
+      for f in "$SCRIPT_DIR"/agents/*.md; do
+        [ -e "$f" ] || continue
+        name=${f##*/}
+        lines+="/agents/$name"$'\n'
+      done
+      for f in "$SCRIPT_DIR"/skills/*/; do
+        [ -d "$f" ] || continue
+        name=${f%/}; name=${name##*/}
+        lines+="/skills/$name/"$'\n'
+      done
+      [ -f "$SCRIPT_DIR/templates/loop.md.template" ] && lines+="/loop.md"$'\n'
+      ;;
+    *) return 2 ;;
+  esac
   cat <<EOF
 $TALAKA_GITIGNORE_BEGIN
-# Managed by talaka — a per-developer tool, NOT intended for team sync.
-# Re-run \`talaka/shared/lifecycle/tools/init.sh\` to refresh, or \`talaka/shared/lifecycle/tools/teardown.sh\`
-# to remove the whole block. Edits inside this block are overwritten on init.
-#
-# The kit commits nothing of its own: a teammate who does not use talaka
-# sees none of this, and a second kit user just re-runs init.sh to regenerate
-# it. Everything below is personal working state. (knowledge-curating's wiki/ lives at the
-# project root, outside this dir, precisely so it CAN be committed.)
-#
-# --- Artefacts: all per-developer pipeline state (memory, features, PIPELINE.md, PROJECT.md, …) ---
-$ARTEFACTS_NAME/
-#
-# --- Kit-installed agent, skill and goal-loop copies (personal; Veles ratchets these) ---
-${claude_lines}$TALAKA_GITIGNORE_END
+# Managed by talaka — a per-developer tool that commits nothing of its own.
+# Re-run \`talaka/shared/lifecycle/tools/init.sh\` to refresh, or
+# \`talaka/shared/lifecycle/tools/teardown.sh\` to remove. Edits inside this
+# block are overwritten on init.
+${lines}$TALAKA_GITIGNORE_END
 EOF
+}
+
+# True when the block in FILE was rendered as the owner of the whole file.
+talaka_gitignore_owns_file() {
+  local line
+  while IFS= read -r line; do
+    [ "${line%$'\r'}" = "$TALAKA_GITIGNORE_SELF" ] && return 0
+  done < <(talaka_gitignore_extract "$1" 2>/dev/null)
+  return 1
 }
 
 talaka_gitignore_present() { _kit_block_present "$1" "$TALAKA_GITIGNORE_BEGIN"; }

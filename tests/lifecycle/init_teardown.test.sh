@@ -39,7 +39,10 @@ test_init_creates_full_layout() {
 
   assert_file_contains "$proj/CLAUDE.md" "<!-- talaka:start -->"
   assert_file_contains "$proj/AGENTS.md" "<!-- talaka:start -->"
-  assert_file_contains "$proj/.gitignore" "# >>> talaka (managed) >>>"
+  # Ignores live next to what they hide; the root .gitignore is the team's.
+  assert_file_absent "$proj/.gitignore" "root .gitignore not created"
+  assert_file_contains "$proj/.tlk/.gitignore" "# >>> talaka (managed) >>>"
+  assert_file_contains "$proj/.claude/.gitignore" "/agents/cmok.md"
   # Manifest records the installed agent so teardown can verify it later.
   assert_file_contains "$proj/.tlk/.talaka.files" ".claude/agents/cmok.md"
 
@@ -74,14 +77,16 @@ test_reinit_reports_unchanged_blocks_as_up_to_date() {
   out=$( cd "$proj" && bash talaka/shared/lifecycle/tools/init.sh --no-tune </dev/null 2>&1 )
   assert_contains "$out" "CLAUDE.md (managed block up to date)" "CLAUDE.md block not prompted"
   assert_contains "$out" "AGENTS.md (managed block up to date)" "AGENTS.md block not prompted"
-  assert_contains "$out" ".gitignore (managed block up to date)" ".gitignore block not prompted"
+  assert_contains "$out" ".tlk/.gitignore (managed block up to date)" ".tlk/.gitignore block not prompted"
+  assert_contains "$out" ".claude/.gitignore (managed block up to date)" ".claude/.gitignore block not prompted"
 }
 
 test_reinit_refreshes_stale_block_in_place() {
   # Even under --skip: the block is the kit's. User content on both sides stays put.
   local proj; proj=$(_make_project_with_kit)
   printf '# Mine\n\nAbove.\n\n<!-- talaka:start -->\nold kit text\n<!-- talaka:end -->\n\nBelow.\n' > "$proj/CLAUDE.md"
-  printf '/node_modules\n\n# >>> talaka (managed) >>>\n.old\n# <<< talaka (managed) <<<\n\n/dist\n' > "$proj/.gitignore"
+  mkdir -p "$proj/.claude"
+  printf '/node_modules\n\n# >>> talaka (managed) >>>\n.old\n# <<< talaka (managed) <<<\n\n/dist\n' > "$proj/.claude/.gitignore"
   ( cd "$proj" && bash talaka/shared/lifecycle/tools/init.sh --skip --no-tune </dev/null ) >/dev/null 2>&1 \
     || fail "init.sh --skip failed"
   assert_file_not_contains "$proj/CLAUDE.md" "old kit text" "stale block replaced"
@@ -92,9 +97,10 @@ test_reinit_refreshes_stale_block_in_place() {
   below=$(grep -n "^Below.$" "$proj/CLAUDE.md" | cut -d: -f1)
   [ -n "$above" ] && [ -n "$below" ] && [ "$above" -lt "$block" ] && [ "$block" -lt "$below" ] \
     || fail "block refreshed where it stood (above=$above block=$block below=$below)"
-  assert_file_not_contains "$proj/.gitignore" ".old" "stale .gitignore block replaced"
-  assert_file_contains "$proj/.gitignore" "/dist" "user .gitignore entries kept"
-  [ "$(tail -n1 "$proj/.gitignore")" = "/dist" ] || fail ".gitignore block refreshed in place, not moved to the end"
+  assert_file_not_contains "$proj/.claude/.gitignore" ".old" "stale .gitignore block replaced"
+  assert_file_contains "$proj/.claude/.gitignore" "/agents/cmok.md" "current .gitignore block written"
+  assert_file_contains "$proj/.claude/.gitignore" "/dist" "user .gitignore entries kept"
+  [ "$(tail -n1 "$proj/.claude/.gitignore")" = "/dist" ] || fail ".gitignore block refreshed in place, not moved to the end"
 }
 
 test_project_md_kept_on_reinit_without_force() {
@@ -115,6 +121,43 @@ test_project_md_kept_on_reinit_without_force() {
   assert_file_not_contains "$proj/.tlk/PROJECT.md" "MY PROJECT CONFIG EDIT" "--force resets PROJECT.md from template"
 }
 
+test_kit_files_stay_out_of_git_status() {
+  # The whole point: after init, git sees nothing of the kit's — not even the
+  # .gitignore files that hide it. CLAUDE.md / AGENTS.md (the include block) and
+  # .claude/settings.json (kit entries merged into a team-owned file) are the
+  # kit-touched paths left visible, by design.
+  command -v git >/dev/null 2>&1 || { skip_test "git not installed"; return; }
+  local proj; proj=$(_make_project_with_kit)
+  ( cd "$proj" && git init -q . && bash talaka/shared/lifecycle/tools/init.sh --non-interactive ) >/dev/null 2>&1 \
+    || fail "init.sh exited non-zero"
+  local status; status=$(cd "$proj" && git status --porcelain --untracked-files=all -- .tlk .claude ':!.claude/settings.json')
+  assert_eq "" "$status" "nothing under .tlk/ or .claude/ is visible to git"
+}
+
+test_existing_claude_gitignore_is_appended_not_owned() {
+  # A team's own .claude/.gitignore gets the block but stays visible to git.
+  local proj; proj=$(_make_project_with_kit)
+  mkdir -p "$proj/.claude"
+  printf 'settings.local.json\n' > "$proj/.claude/.gitignore"
+  ( cd "$proj" && bash talaka/shared/lifecycle/tools/init.sh --non-interactive ) >/dev/null 2>&1
+  assert_file_contains "$proj/.claude/.gitignore" "settings.local.json" "team entries kept"
+  assert_file_contains "$proj/.claude/.gitignore" "/agents/cmok.md" "block appended"
+  if grep -qx '/.gitignore' "$proj/.claude/.gitignore"; then
+    fail "a team-owned .gitignore must not ignore itself"
+  fi
+  ( cd "$proj" && bash talaka/shared/lifecycle/tools/teardown.sh --yes ) >/dev/null 2>&1
+  assert_eq "settings.local.json" "$(cat "$proj/.claude/.gitignore")" "teardown leaves the team's file as it was"
+}
+
+test_init_strips_legacy_root_gitignore_block() {
+  # Older kits kept one block in the root .gitignore; init moves off it.
+  local proj; proj=$(_make_project_with_kit)
+  printf '/node_modules\n\n# >>> talaka (managed) >>>\n.tlk/\n# <<< talaka (managed) <<<\n' > "$proj/.gitignore"
+  ( cd "$proj" && bash talaka/shared/lifecycle/tools/init.sh --non-interactive ) >/dev/null 2>&1
+  assert_eq "/node_modules" "$(cat "$proj/.gitignore")" "legacy block stripped, user entries kept"
+  assert_file_exists "$proj/.tlk/.gitignore" "replaced by the nested file"
+}
+
 test_teardown_reverses_install() {
   local proj; proj=$(_make_project_with_kit)
   ( cd "$proj" && bash talaka/shared/lifecycle/tools/init.sh --non-interactive ) >/dev/null 2>&1
@@ -122,7 +165,9 @@ test_teardown_reverses_install() {
     || fail "teardown.sh exited non-zero"
 
   assert_file_not_contains "$proj/CLAUDE.md" "<!-- talaka:start -->" "block stripped from CLAUDE.md"
-  assert_file_not_contains "$proj/.gitignore" "# >>> talaka (managed) >>>" "gitignore block stripped"
+  assert_file_absent "$proj/.claude/.gitignore" "kit-created .claude/.gitignore removed"
+  # What stays in .tlk/ is still personal state — keep hiding it.
+  assert_file_exists "$proj/.tlk/.gitignore" ".tlk/.gitignore kept"
   assert_file_absent "$proj/.claude/agents/cmok.md" "installed agent removed (hash matched)"
   assert_file_absent "$proj/.claude/loop.md"          "goal-loop protocol removed (hash matched)"
   assert_file_absent "$proj/.tlk/PIPELINE.md" "PIPELINE.md removed"
@@ -145,7 +190,7 @@ test_teardown_preserves_locally_edited_agent() {
   # Keeping one file must not end the teardown: later steps still run.
   assert_file_absent "$proj/.claude/skills/requirements-eliciting/SKILL.md" "skills still removed after a kept agent"
   assert_file_absent "$proj/.claude/loop.md" "goal loop still removed after a kept agent"
-  assert_file_not_contains "$proj/.gitignore" "# >>> talaka (managed) >>>" "gitignore block still stripped after a kept agent"
+  assert_file_absent "$proj/.claude/.gitignore" ".claude/.gitignore still removed after a kept agent"
 }
 
 test_teardown_leaves_cursor_and_copilot_dirs_alone() {

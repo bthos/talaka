@@ -150,7 +150,7 @@ register_actions() {
   add() { ACTIONS+=("$1|$2|$3|$4|$5|$6"); }
 
   # ---- setup ----
-  add init     0 setup "Install / refresh kit"           "Run init.sh — copy agents, skills, IDE entry-point block, .gitignore block. Safe to re-run; your edits are preserved." \
+  add init     0 setup "Install / refresh kit"           "Run init.sh — copy agents, skills, IDE entry-point block, .tlk/ + .claude/ .gitignore files. Safe to re-run; your edits are preserved." \
        "$KIT/shared/lifecycle/tools/init.sh"
   add probe    1 setup "Probe project (--tune)"          "Inspect repo (package.json, pyproject.toml, Cargo.toml, …) and write $ARTEFACTS_NAME/PROJECT_PROFILE.md so agents self-tune." \
        "$KIT/shared/project/tools/probe-project.sh::--force"
