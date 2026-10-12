@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Install or remove the talaka memory maintenance hook in
-# .claude/settings.json. The hook runs `memory/tools/tick.sh` (promote +
+# .claude/settings.local.json (personal — the team's .claude/settings.json is
+# never written; the kit's hook an older kit put there is moved out). The hook runs `memory/tools/tick.sh` (promote +
 # rollover) when a Claude Code session or subagent stops, so the memory tree
 # stays fresh without a cron job.
 #
@@ -40,8 +41,6 @@ for arg in "$@"; do
   _prev="$arg"
 done
 
-SETTINGS_DIR="$PROJECT_ROOT/.claude"
-SETTINGS_FILE="$SETTINGS_DIR/settings.json"
 MARKER="memory/tools/tick.sh"
 HOOK_CMD="bash ${SUBMODULE_DIR}/memory/tools/tick.sh >/dev/null 2>&1 || true"
 
@@ -49,34 +48,28 @@ HOOK_CMD="bash ${SUBMODULE_DIR}/memory/tools/tick.sh >/dev/null 2>&1 || true"
 # hook is opt-in) with a clear manual instruction rather than failing the caller.
 if ! command -v jq &>/dev/null; then
   if $REMOVE; then
-    warn "jq not found — remove the \"$MARKER\" hook from $SETTINGS_FILE manually."
+    warn "jq not found — remove the \"$MARKER\" hook from $KIT_SETTINGS_REL manually."
   else
     warn "jq not found — cannot install the memory hook automatically."
-    info "Install jq, or add a Stop hook running \`$HOOK_CMD\` to $SETTINGS_FILE."
+    info "Install jq, or add a Stop hook running \`$HOOK_CMD\` to $KIT_SETTINGS_REL."
   fi
   exit 0
 fi
 
-# ---------------------------------------------------------------------------
-# Remove
-# ---------------------------------------------------------------------------
-if $REMOVE; then
-  [ -f "$SETTINGS_FILE" ] || { info "no .claude/settings.json — nothing to remove"; exit 0; }
+# Is our hook in FILE, under any event?
+_has_hook() {
+  [ "$(kit_settings_get "$1" '
+    [ (.hooks // {}) | to_entries[] | .value[]? | (.hooks // [])[]? | (.command // "") | contains("'"$MARKER"'") ] | any
+  ')" = "true" ]
+}
 
-  # Does our hook exist under any event?
-  present=$(jq --arg m "$MARKER" '
-    [ (.hooks // {}) | to_entries[] | .value[]? | (.hooks // [])[]? | (.command // "") | contains($m) ] | any
-  ' "$SETTINGS_FILE" 2>/dev/null || echo false)
-  if [ "$present" != "true" ]; then
-    skip "memory hook not present in .claude/settings.json"
-    exit 0
-  fi
-  if [ "$DRY_RUN" = "true" ]; then
-    info "would remove the memory hook ($MARKER) from $SETTINGS_FILE"
-    exit 0
-  fi
-
-  jq --arg m "$MARKER" '
+# Delete our hook from FILE. Args: file, its label, the function that reports
+# it (default: removed).
+_drop_hook() {
+  local file="$1" rel="$2" say="${3:-removed}"
+  _has_hook "$file" || return 1
+  if [ "$DRY_RUN" = "true" ]; then info "would remove the memory hook ($MARKER) from $rel"; return 0; fi
+  kit_settings_jq "$file" --arg m "$MARKER" '
     # Drop any hook-group (under every event) that runs our command.
     if (.hooks | type) == "object" then
       .hooks |= ( to_entries
@@ -85,41 +78,39 @@ if $REMOVE; then
         | from_entries )
     else . end
     | if (.hooks // {}) == {} then del(.hooks) else . end
-  ' "$SETTINGS_FILE" > "$SETTINGS_FILE.tmp" && mv "$SETTINGS_FILE.tmp" "$SETTINGS_FILE"
-  removed "memory hook ($MARKER) from .claude/settings.json"
+  '
+  "$say" "memory hook ($MARKER) from $rel"
+}
+
+# ---------------------------------------------------------------------------
+# Remove
+# ---------------------------------------------------------------------------
+if $REMOVE; then
+  _found=false
+  _drop_hook "$KIT_SETTINGS_FILE" "$KIT_SETTINGS_REL" && _found=true
+  _drop_hook "$KIT_SETTINGS_SHARED" "$KIT_SETTINGS_SHARED_REL" && _found=true   # older kits wrote here
+  $_found || skip "memory hook not configured — nothing to remove"
   exit 0
 fi
 
 # ---------------------------------------------------------------------------
 # Install
 # ---------------------------------------------------------------------------
-mkdir -p "$SETTINGS_DIR"
+# An older kit wrote it into the team's settings.json: move it out.
+_drop_hook "$KIT_SETTINGS_SHARED" "$KIT_SETTINGS_SHARED_REL (moving to $KIT_SETTINGS_REL)" info || true
 
-if [ -f "$SETTINGS_FILE" ]; then
-  already=$(jq --arg m "$MARKER" '
-    [ (.hooks // {}) | to_entries[] | .value[]? | (.hooks // [])[]? | (.command // "") | contains($m) ] | any
-  ' "$SETTINGS_FILE" 2>/dev/null || echo false)
-  if [ "$already" = "true" ]; then
-    skip "memory hook already configured in .claude/settings.json"
-    exit 0
-  fi
-  if [ "$DRY_RUN" = "true" ]; then
-    info "would add a $EVENT hook running \`$HOOK_CMD\` to $SETTINGS_FILE"
-    exit 0
-  fi
-  jq --arg ev "$EVENT" --arg cmd "$HOOK_CMD" '
-    .hooks //= {} |
-    .hooks[$ev] //= [] |
-    .hooks[$ev] += [ { hooks: [ { type: "command", command: $cmd } ] } ]
-  ' "$SETTINGS_FILE" > "$SETTINGS_FILE.tmp" && mv "$SETTINGS_FILE.tmp" "$SETTINGS_FILE"
-else
-  if [ "$DRY_RUN" = "true" ]; then
-    info "would create $SETTINGS_FILE with a $EVENT memory hook"
-    exit 0
-  fi
-  jq -n --arg ev "$EVENT" --arg cmd "$HOOK_CMD" '
-    { hooks: { ($ev): [ { hooks: [ { type: "command", command: $cmd } ] } ] } }
-  ' > "$SETTINGS_FILE"
+if _has_hook "$KIT_SETTINGS_FILE"; then
+  skip "memory hook already configured in $KIT_SETTINGS_REL"
+  exit 0
 fi
-success "memory $EVENT hook configured → $HOOK_CMD"
+if [ "$DRY_RUN" = "true" ]; then
+  info "would add a $EVENT hook running \`$HOOK_CMD\` to $KIT_SETTINGS_REL"
+  exit 0
+fi
+kit_settings_update --arg ev "$EVENT" --arg cmd "$HOOK_CMD" '
+  .hooks //= {} |
+  .hooks[$ev] //= [] |
+  .hooks[$ev] += [ { hooks: [ { type: "command", command: $cmd } ] } ]
+'
+success "memory $EVENT hook configured → $HOOK_CMD ($KIT_SETTINGS_REL)"
 info "Runs promote + rollover when a session/subagent stops. Remove with: $SUBMODULE_DIR/memory/tools/memory-hook.sh --remove"

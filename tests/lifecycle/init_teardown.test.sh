@@ -123,14 +123,13 @@ test_project_md_kept_on_reinit_without_force() {
 
 test_kit_files_stay_out_of_git_status() {
   # The whole point: after init, git sees nothing of the kit's — not even the
-  # .gitignore files that hide it. CLAUDE.md / AGENTS.md (the include block) and
-  # .claude/settings.json (kit entries merged into a team-owned file) are the
-  # kit-touched paths left visible, by design.
+  # .gitignore files that hide it, nor its settings.local.json. CLAUDE.md /
+  # AGENTS.md (the include block) are the only kit-touched paths left visible.
   command -v git >/dev/null 2>&1 || { skip_test "git not installed"; return; }
   local proj; proj=$(_make_project_with_kit)
   ( cd "$proj" && git init -q . && bash talaka/shared/lifecycle/tools/init.sh --non-interactive ) >/dev/null 2>&1 \
     || fail "init.sh exited non-zero"
-  local status; status=$(cd "$proj" && git status --porcelain --untracked-files=all -- .tlk .claude ':!.claude/settings.json')
+  local status; status=$(cd "$proj" && git status --porcelain --untracked-files=all -- .tlk .claude)
   assert_eq "" "$status" "nothing under .tlk/ or .claude/ is visible to git"
 }
 
@@ -171,10 +170,8 @@ test_teardown_reverses_install() {
   assert_file_absent "$proj/.claude/agents/cmok.md" "installed agent removed (hash matched)"
   assert_file_absent "$proj/.claude/loop.md"          "goal-loop protocol removed (hash matched)"
   assert_file_absent "$proj/.tlk/PIPELINE.md" "PIPELINE.md removed"
-  if command -v jq >/dev/null 2>&1 && [ -f "$proj/.claude/settings.json" ]; then
-    assert_eq "null" "$(jq -r '.outputStyle' "$proj/.claude/settings.json")" \
-      "the kit's outputStyle is removed too"
-  fi
+  # It held only kit entries (statusLine, outputStyle, env), so it goes entirely.
+  assert_file_absent "$proj/.claude/settings.local.json" "kit settings removed"
   # PROJECT.md carries user config — kept without --full-clean.
   assert_file_exists "$proj/.tlk/PROJECT.md" "PROJECT.md preserved by default"
 }

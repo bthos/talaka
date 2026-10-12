@@ -267,26 +267,27 @@ register_components() {
   cadd() { COMPONENTS+=("$1|$2|$3|$4|$5"); }
 
   cadd statusline   "Statusline"           "$KIT/statusline/tools/install-statusline.sh"  "$KIT/statusline/tools/install-statusline.sh::--remove" \
-       "Pipeline-aware status bar in .claude/settings.json (statusLine)."
+       "Pipeline-aware status bar in .claude/settings.local.json (statusLine)."
   cadd autoresearch "AutoResearch (Veles)" "$KIT/autoresearch/run.sh::--init"  "::none" \
        "Eval-set + program.md + ratchet self-tuning (builds eval-set from archived features)."
   cadd memhook      "Memory Stop hook"     "$KIT/memory/tools/memory-hook.sh"         "$KIT/memory/tools/memory-hook.sh::--remove" \
        "Claude Code Stop hook: runs memory promote + rollover when a session/subagent ends."
   cadd concise      "Concise output style" "$KIT/shared/lifecycle/tools/install-output-style.sh::--force" "$KIT/shared/lifecycle/tools/install-output-style.sh::--remove" \
-       "Sets outputStyle=Concise in .claude/settings.json — trims the coordinator's own narration."
+       "Sets outputStyle=Concise in .claude/settings.local.json — trims the coordinator's own narration."
   cadd kitenv       "Kit settings (env)"   "$KIT/shared/lifecycle/tools/install-env.sh" "$KIT/shared/lifecycle/tools/install-env.sh::--remove" \
-       "Adds the TALAKA_* settings to \"env\" in .claude/settings.json, where agent tool calls see them."
+       "Adds the TALAKA_* settings to \"env\" in .claude/settings.local.json, where agent tool calls see them."
 }
 
 # component_installed KEY → return 0 if the component is currently active.
 component_installed() {
-  local sf="$PROJECT_ROOT/.claude/settings.json"
+  # The kit writes settings.local.json; older kits wrote settings.json.
+  local sf=("$PROJECT_ROOT/.claude/settings.local.json" "$PROJECT_ROOT/.claude/settings.json")
   case "$1" in
-    statusline)   [ -f "$sf" ] && grep -q '"statusLine"' "$sf" 2>/dev/null ;;
+    statusline)   grep -qs 'tools/statusline\.' "${sf[@]}" ;;
     autoresearch) [ -f "$ARTEFACTS/autoresearch/program.md" ] ;;
-    memhook)      [ -f "$sf" ] && grep -q 'memory/tools/tick.sh' "$sf" 2>/dev/null ;;
-    concise)      [ -f "$sf" ] && grep -q '"outputStyle"[[:space:]]*:[[:space:]]*"Concise"' "$sf" 2>/dev/null ;;
-    kitenv)       [ -f "$sf" ] && grep -q '"TALAKA_[A-Z_]*"[[:space:]]*:' "$sf" 2>/dev/null ;;
+    memhook)      grep -qs 'memory/tools/tick.sh' "${sf[@]}" ;;
+    concise)      grep -qs '"outputStyle"[[:space:]]*:[[:space:]]*"Concise"' "${sf[@]}" ;;
+    kitenv)       grep -qs '"TALAKA_[A-Z_]*"[[:space:]]*:' "${sf[@]}" ;;
     *) return 1 ;;
   esac
 }

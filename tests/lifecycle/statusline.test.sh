@@ -13,7 +13,8 @@ _proj() {
   printf '%s' "$proj"
 }
 _sl() { ( cd "$1" && bash talaka/statusline/tools/install-statusline.sh "${@:2}" ); }
-_settings() { printf '%s/.claude/settings.json' "$1"; }
+_settings() { printf '%s/.claude/settings.local.json' "$1"; }
+_team() { printf '%s/.claude/settings.json' "$1"; }
 
 test_install_sets_statusline() {
   have_jq || { skip_test "jq absent"; return; }
@@ -30,8 +31,7 @@ test_remove_deletes_kit_statusline() {
   local proj; proj=$(_proj)
   _sl "$proj" >/dev/null 2>&1
   _sl "$proj" --remove >/dev/null 2>&1
-  local has; has=$(jq -r 'has("statusLine")' "$(_settings "$proj")")
-  assert_eq "false" "$has" "kit statusLine removed"
+  assert_file_absent "$(_settings "$proj")" "kit statusLine removed (and the kit-only file with it)"
 }
 
 test_remove_preserves_user_statusline() {
@@ -55,6 +55,28 @@ test_remove_preserves_other_settings() {
   assert_eq "false" "$(jq -r 'has("statusLine")' "$s")" "statusLine gone"
   local kept; kept=$(jq '[ .hooks.Stop[]?.hooks[]?.command ] | any(.=="echo keep")' "$s")
   assert_eq "true" "$kept" "unrelated hook preserved"
+}
+
+test_install_respects_a_team_statusline() {
+  # settings.local.json overrides settings.json, so writing ours would hide the team's.
+  have_jq || { skip_test "jq absent"; return; }
+  local proj; proj=$(_proj)
+  mkdir -p "$proj/.claude"
+  printf '{ "statusLine": { "type": "command", "command": "bash team-bar.sh" } }' > "$(_team "$proj")"
+  _sl "$proj" >/dev/null 2>&1
+  assert_file_absent "$(_settings "$proj")" "no local statusLine shadows the team's"
+  assert_eq "bash team-bar.sh" "$(jq -r '.statusLine.command' "$(_team "$proj")")" "team statusLine untouched"
+}
+
+test_install_moves_a_legacy_kit_statusline_out_of_team_settings() {
+  have_jq || { skip_test "jq absent"; return; }
+  local proj; proj=$(_proj)
+  mkdir -p "$proj/.claude"
+  printf '{ "model": "opus", "statusLine": { "type": "command", "command": "bash talaka/statusline/tools/statusline.sh" } }' > "$(_team "$proj")"
+  _sl "$proj" >/dev/null 2>&1
+  assert_eq "false" "$(jq -r 'has("statusLine")' "$(_team "$proj")")" "kit statusLine gone from settings.json"
+  assert_eq "opus" "$(jq -r '.model' "$(_team "$proj")")" "team settings kept"
+  assert_contains "$(jq -r '.statusLine.command' "$(_settings "$proj")")" "tools/statusline" "now in settings.local.json"
 }
 
 test_remove_without_settings_is_noop() {

@@ -131,8 +131,8 @@ That's it.
 │
 ├── .claude/                                  ← agent + skill copies (kit copies git-ignored; Veles ratchets them)
 │   ├── loop.md                               ← goal-loop protocol (default prompt of a bare /loop)
-│   └── .gitignore                            ← kit-managed block hiding the kit's copies (and itself, if the kit created it)
-│   (settings.json also gets statusLine + outputStyle: Concise + env: TALAKA_*)
+│   └── .gitignore                            ← kit-managed block hiding the kit's copies, settings.local.json (and itself, if the kit created it)
+│   (settings.local.json gets statusLine + outputStyle: Concise + env: TALAKA_* — your personal settings file, never the team's settings.json)
 │
 ├── wiki/                                      ← knowledge-curating knowledge wiki — committed knowledge (project root, outside .tlk/)
 │
@@ -149,7 +149,7 @@ The IDE entry-point files are **never overwritten**. The kit only manages the co
 Talaka is a **per-developer** tool, not a team-sync mechanism — it installs into your working tree but **commits nothing of its own**. So it leaves your root `.gitignore` alone and puts a `.gitignore` next to what it hides, as a block delimited by `# >>> talaka (managed) >>>` … `# <<< talaka (managed) <<<`:
 
 - **`.tlk/.gitignore`** — `*`: all of `.tlk/` (memory, features, `PIPELINE.md`, `PROJECT.md`, bookkeeping), the `.gitignore` itself included. Every bit is personal working state; a second kit user just re-runs `init.sh` to regenerate it.
-- **`.claude/.gitignore`** — the kit-installed `agents/*`, `skills/*` and `loop.md` copies, enumerated by name (so your own `.claude/` content stays tracked). These are per-developer because Veles ratchets them in place via AutoResearch. When the kit creates this file it also lists `/.gitignore`, so the file hides itself; when your team already has a `.claude/.gitignore`, the block is appended to it and the file stays yours.
+- **`.claude/.gitignore`** — the kit-installed `agents/*`, `skills/*` and `loop.md` copies, enumerated by name, plus `settings.local.json` (so your own `.claude/` content stays tracked). These are per-developer because Veles ratchets them in place via AutoResearch. When the kit creates this file it also lists `/.gitignore`, so the file hides itself; when your team already has a `.claude/.gitignore`, the block is appended to it and the file stays yours.
 
 Git honours a `.gitignore` whether or not it is tracked, so after `init.sh` nothing under `.tlk/` or `.claude/` that the kit wrote shows up in `git status`. A managed block that an older kit left in the root `.gitignore` is stripped on the next `init.sh` / `update.sh` (commit that change).
 
@@ -167,9 +167,11 @@ The one deliberate exception is **knowledge-curating's `wiki/`**, which lives at
 4. Copies `agents/*.md` → `.claude/agents/` (records SHA-256 in **`.tlk/.talaka.files`**).
 5. Copies `skills/*/` → `.claude/skills/` (same).
 6. Copies `templates/loop.md.template` → `.claude/loop.md` — the goal-loop protocol, which Claude Code's bundled `/loop` runs when given no prompt (same SHA tracking). The kit ships no `/goal` or `/loop` command of its own, so the built-ins are never shadowed.
-7. Sets `"outputStyle": "Concise"` in `.claude/settings.json`, but **only when the key is unset** — a style you chose yourself is never overwritten. Undo with `talaka/shared/lifecycle/tools/install-output-style.sh --remove`, or toggle it in `kit.sh` → *Manage components*.
-8. Adds the kit's settings to `"env"` in `.claude/settings.json` with their defaults — see [Environment variables](#environment-variables). **Only missing keys are added**; a value you changed is kept on every re-init. `teardown.sh` removes the `TALAKA_*` keys again. Toggle in `kit.sh` → *Manage components*, or run `talaka/shared/lifecycle/tools/install-env.sh [--remove]`.
+7. Sets `"outputStyle": "Concise"` in `.claude/settings.local.json`, but **only when the key is unset** there and in `.claude/settings.json` — a style you or your team chose is never overwritten. Undo with `talaka/shared/lifecycle/tools/install-output-style.sh --remove`, or toggle it in `kit.sh` → *Manage components*.
+8. Adds the kit's settings to `"env"` in `.claude/settings.local.json` with their defaults — see [Environment variables](#environment-variables). **Only missing keys are added**; a value you changed is kept on every re-init. `teardown.sh` removes the `TALAKA_*` keys again. Toggle in `kit.sh` → *Manage components*, or run `talaka/shared/lifecycle/tools/install-env.sh [--remove]`.
 9. Adds the managed include block to `CLAUDE.md` and `AGENTS.md` (creates a stub if absent; appends to existing file if present).
+
+Every Claude Code setting the kit writes (steps 7–8, the statusline, the opt-in memory hook) goes into **`.claude/settings.local.json`** — Claude Code's per-developer settings file, which overrides `.claude/settings.json` and is git-ignored by `.claude/.gitignore`. The team's `.claude/settings.json` is only read: a `statusLine` or `outputStyle` set there is respected rather than shadowed, and kit entries an older kit wrote there are moved to `settings.local.json` on the next `init.sh` / `update.sh` (`TALAKA_*` values you changed come along).
 
 **`.tlk/.talaka.files`** records SHA-256 per kit-managed path (paths are relative to the **project root**, e.g. `.claude/agents/bagnik.md`). It sits beside `.tlk/.talaka.cfg` and is covered by `.tlk/.gitignore` so it stays local to each checkout.
 
@@ -179,7 +181,7 @@ The script is **idempotent** — existing kit-managed files prompt for overwrite
 
 ## Environment variables
 
-Kit settings that are read from the environment carry a `TALAKA_` prefix. Agents run kit scripts in **separate shell calls**, so an `export` in one call is gone by the next: set them in the `"env"` block of `.claude/settings.json`, which Claude Code passes to every command it runs. `init.sh` writes the first group there with its defaults, so you edit the value in place:
+Kit settings that are read from the environment carry a `TALAKA_` prefix. Agents run kit scripts in **separate shell calls**, so an `export` in one call is gone by the next: set them in the `"env"` block of `.claude/settings.local.json` (or, team-wide, `.claude/settings.json`), which Claude Code passes to every command it runs. `init.sh` writes the first group there with its defaults, so you edit the value in place:
 
 ```json
 {
@@ -192,7 +194,7 @@ Kit settings that are read from the environment carry a `TALAKA_` prefix. Agents
 
 Names carry no unit suffix: **every duration is in seconds**, and each value's unit is stated below. Values in `"env"` are written as strings (`"900"`).
 
-**Written into `settings.json` by `init.sh`** — they change what agents' tool calls do:
+**Written into `settings.local.json` by `init.sh`** — they change what agents' tool calls do:
 
 | Variable | Default | Read by | Effect |
 |---|---|---|---|
@@ -385,7 +387,7 @@ Two things benefit from running on a schedule. **`promote.sh`** already runs fro
 
 Pick **one** of the options below — they are alternatives, not all required. Each runs from the **project root** and honours `ARTEFACTS_DIR`.
 
-**Option 1 — Claude Code hook (no OS scheduler).** Runs the tick whenever a session/subagent stops. Add to `.claude/settings.json` (or via the `/update-config` skill):
+**Option 1 — Claude Code hook (no OS scheduler).** Runs the tick whenever a session/subagent stops. Install it with `talaka/memory/tools/memory-hook.sh` (it lands in `.claude/settings.local.json`), or add it by hand there (or via the `/update-config` skill):
 
 ```json
 {

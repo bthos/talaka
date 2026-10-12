@@ -10,7 +10,7 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
-### Changed — the kit no longer edits the project's root `.gitignore`
+### Changed — the kit no longer edits the project's root `.gitignore` or `settings.json`
 
 - **Each directory the kit writes into carries its own `.gitignore`** instead of one managed
   block in the root `.gitignore`. The root file is tracked and team-owned, so editing it was the
@@ -27,8 +27,19 @@ tags yet — entries are dated and grouped by submodule HEAD).
 - **`teardown.sh`** strips the `.claude/.gitignore` block (removing the file when the kit created
   it), still strips a legacy root block, and keeps `.tlk/.gitignore` — what stays in `.tlk/` is
   still personal state. `--full-clean` removes it with the directory.
+- **Kit settings move to `.claude/settings.local.json`.** statusLine, `outputStyle: Concise`, the
+  `TALAKA_*` env and the opt-in memory hook were merged into the team's `.claude/settings.json` —
+  a tracked file, so every developer's install showed up as a diff. They now go into Claude
+  Code's per-developer `settings.local.json` (git-ignored by `.claude/.gitignore`). The team's
+  `settings.json` is only read: a `statusLine` or `outputStyle` set there is respected rather
+  than shadowed (`--force` overrides it locally), and entries an older kit wrote there are moved
+  out on the next `init.sh` / `update.sh` — `TALAKA_*` values you changed come along. A settings
+  file left as `{}` after removing kit entries is deleted. `--remove` / `teardown.sh` clean both
+  files.
 - **Internal lib API:** `talaka_gitignore_render` now takes a scope (`artefacts` | `claude`) and
-  whether the kit owns the whole file; new `talaka_gitignore_owns_file`.
+  whether the kit owns the whole file; new `talaka_gitignore_owns_file`. New
+  `KIT_SETTINGS_FILE` / `KIT_SETTINGS_SHARED` and `kit_settings_jq` / `kit_settings_update` /
+  `kit_settings_get` for the settings writers.
 
 ### Fixed — memory writes and `defer.sh` no longer take 10–25 s on Git Bash (#8)
 

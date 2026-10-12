@@ -135,6 +135,16 @@ KIT_FILES_MANIFEST="$ARTEFACTS/.${KIT_SLUG}.files"
 KIT_BASE_DIR="$ARTEFACTS/.base"
 KIT_CONFLICTS_DIR="$ARTEFACTS/.conflicts"
 
+# Claude Code settings the kit writes (statusLine, outputStyle, the TALAKA_* env,
+# the opt-in memory hook) are personal, so they go in settings.local.json —
+# Claude Code's per-developer file, which takes precedence over the team's
+# settings.json. settings.json is only read: a value the team set there is
+# respected, and entries an older kit wrote there are moved out on install.
+KIT_SETTINGS_REL=".claude/settings.local.json"
+KIT_SETTINGS_FILE="$PROJECT_ROOT/$KIT_SETTINGS_REL"
+KIT_SETTINGS_SHARED_REL=".claude/settings.json"
+KIT_SETTINGS_SHARED="$PROJECT_ROOT/$KIT_SETTINGS_SHARED_REL"
+
 # One-time migration from older layouts (manifest + cfg at project root).
 kit_migrate_legacy_root_state() {
   mkdir -p "$ARTEFACTS"
@@ -695,7 +705,7 @@ talaka_block_append() {
 #                           pattern covers the .gitignore itself)
 #   .claude/.gitignore      the kit-installed agent, skill and goal-loop
 #                           copies, enumerated by name so a team's own .claude/
-#                           content stays tracked
+#                           content stays tracked, and settings.local.json
 #
 # Git honours a .gitignore whether or not it is tracked, so a file the kit
 # creates also ignores itself (`/.gitignore`) and never shows up in `git
@@ -726,6 +736,8 @@ talaka_gitignore_render() {
         lines+="/skills/$name/"$'\n'
       done
       [ -f "$SCRIPT_DIR/templates/loop.md.template" ] && lines+="/loop.md"$'\n'
+      # Where the kit writes its Claude Code settings — personal by definition.
+      lines+="/${KIT_SETTINGS_REL#.claude/}"$'\n'
       ;;
     *) return 2 ;;
   esac
@@ -819,6 +831,33 @@ kit_rm_rf() {
   else
     rm -rf "$1"
   fi
+}
+
+# ---------------------------------------------------------------------------
+# Claude Code settings files (jq required — callers check for it)
+# ---------------------------------------------------------------------------
+# kit_settings_jq FILE [jq args…] FILTER — rewrite FILE through jq. A file left
+# as {} carried only kit entries and is removed.
+kit_settings_jq() {
+  local file="$1"; shift
+  jq "$@" "$file" > "$file.tmp" && mv "$file.tmp" "$file" || { rm -f "$file.tmp"; return 1; }
+  [ "$(jq -c . "$file" 2>/dev/null)" = "{}" ] && rm -f "$file"
+  return 0
+}
+
+# kit_settings_update [jq args…] FILTER — apply FILTER to the kit's settings
+# file, creating it first if absent.
+kit_settings_update() {
+  mkdir -p "${KIT_SETTINGS_FILE%/*}"
+  [ -f "$KIT_SETTINGS_FILE" ] || printf '{}\n' > "$KIT_SETTINGS_FILE"
+  kit_settings_jq "$KIT_SETTINGS_FILE" "$@"
+}
+
+# kit_settings_get FILE FILTER — print jq -r FILTER over FILE (empty when the
+# file is missing or unreadable).
+kit_settings_get() {
+  [ -f "$1" ] || return 0
+  jq -r "$2" "$1" 2>/dev/null || true
 }
 
 _manifest_drop() {

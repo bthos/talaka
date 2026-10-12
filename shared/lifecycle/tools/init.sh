@@ -669,16 +669,15 @@ fi
 # ---------------------------------------------------------------------------
 # Memory maintenance hook (opt-in): a Claude Code Stop hook that runs
 # memory/tools/tick.sh (promote + rollover) so the memory tree stays fresh
-# without a cron job. We never edit settings.json silently — it's a choice.
+# without a cron job. We never add the hook silently — it's a choice.
 # ---------------------------------------------------------------------------
 _hook_install="$SCRIPT_DIR/memory/tools/memory-hook.sh"
-_settings_file="$PROJECT_ROOT/.claude/settings.json"
 _do_hook=false
 if [ "$MEMORY_HOOK" = "yes" ]; then
   _do_hook=true
 elif [ "$MEMORY_HOOK" = "no" ]; then
   _do_hook=false
-elif [ -f "$_settings_file" ] && grep -q "memory/tools/tick.sh" "$_settings_file" 2>/dev/null; then
+elif grep -qs "memory/tools/tick.sh" "$KIT_SETTINGS_FILE" "$KIT_SETTINGS_SHARED"; then
   _do_hook=true   # already installed — memory-hook.sh will idempotently skip
 else
   if $NON_INTERACTIVE; then
@@ -724,7 +723,7 @@ if [ -x "$_os_install" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Kit settings: the TALAKA_* variables go into settings.json "env", the one
+# Kit settings: the TALAKA_* variables go into settings.local.json "env", the one
 # place a setting reaches every agent tool call (shell state does not survive
 # between calls). Only missing keys are added — a value you changed is kept.
 # ---------------------------------------------------------------------------
@@ -755,9 +754,9 @@ printf "  ${DIM}%-38s${RESET} %s\n" "Entry points:"      "${CYAN}CLAUDE.md, AGEN
 printf "  ${DIM}%-38s${RESET} %s\n" "Agents installed:"  "${CYAN}.claude/agents/${RESET}"
 printf "  ${DIM}%-38s${RESET} %s\n" "Skills installed:"  "${CYAN}.claude/skills/${RESET}"
 printf "  ${DIM}%-38s${RESET} %s\n" "Goal loop:"         "${CYAN}.claude/loop.md${RESET} (default prompt of a bare ${CYAN}/loop${RESET})"
-printf "  ${DIM}%-38s${RESET} %s\n" "Statusline:"        "${CYAN}.claude/settings.json (statusLine)${RESET}"
-printf "  ${DIM}%-38s${RESET} %s\n" "Output style:"      "${CYAN}.claude/settings.json (outputStyle: Concise)${RESET}"
-printf "  ${DIM}%-38s${RESET} %s\n" "Kit settings:"      "${CYAN}.claude/settings.json (env: TALAKA_*)${RESET}"
+printf "  ${DIM}%-38s${RESET} %s\n" "Statusline:"        "${CYAN}.claude/settings.local.json (statusLine)${RESET}"
+printf "  ${DIM}%-38s${RESET} %s\n" "Output style:"      "${CYAN}.claude/settings.local.json (outputStyle: Concise)${RESET}"
+printf "  ${DIM}%-38s${RESET} %s\n" "Kit settings:"      "${CYAN}.claude/settings.local.json (env: TALAKA_*)${RESET}"
 
 printf "\n  ${BOLD}Next steps${RESET}\n"
 printf "  ${DIM}%-38s${RESET} %s\n" "Start a feature:"       "${CYAN}/requirements-eliciting${RESET}"

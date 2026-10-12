@@ -39,7 +39,7 @@ Everything kit-touched is either inside `.tlk/`, inside `.claude/`, or wrapped i
 - Skills copied to `.claude/skills/`
 - Agents copied to `.claude/agents/`
 - Goal loop at `.claude/loop.md` — the iteration protocol for work that is not "build this thing" (mapping, drift audits, research, the Veles ratchet), the default prompt of Claude Code's bundled `/loop` (bare `/loop`, or `/loop <interval>`). See **Goal loop** below.
-- `"outputStyle": "Concise"` in `.claude/settings.json`, only when that key is unset
+- `"outputStyle": "Concise"` in `.claude/settings.local.json` (personal), only when no style is set there or in `.claude/settings.json`
 - Pipeline entry-point: managed include block in `CLAUDE.md` and `AGENTS.md`, both pointing to `@.tlk/PIPELINE.md`
 
 Any workspace-aware IDE discovers the kit through `CLAUDE.md` or `AGENTS.md` (the cross-IDE convention). One install covers all of them.
@@ -299,7 +299,7 @@ An agent cannot detect any of these — it sees only its own invocation. This is
 - **Say it once.** Whatever is already in `handoff-log.md` is not repeated in prose.
 - **Cut what does not route.** A sentence that would not change the next decision is deleted, not softened.
 
-The kit also sets `"outputStyle": "Concise"` in `.claude/settings.json` at install (`talaka/shared/lifecycle/tools/install-output-style.sh`, removable with `--remove`). The prompt block and the setting do the same job at two different levels — prompts govern workers, the setting governs the coordinator session.
+The kit also sets `"outputStyle": "Concise"` in `.claude/settings.local.json` at install (`talaka/shared/lifecycle/tools/install-output-style.sh`, removable with `--remove`). The prompt block and the setting do the same job at two different levels — prompts govern workers, the setting governs the coordinator session.
 
 ### Invocation Prompt Template
 
