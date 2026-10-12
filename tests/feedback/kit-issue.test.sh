@@ -219,4 +219,78 @@ test_add_flags_a_local_entry_filed_in_other_words() {
   assert_file_contains "$proj/.tlk/kit-issues.md" "## KI-002:" "still recorded — a warning, not a veto"
 }
 
+# --- kind idea (issue #46) ---------------------------------------------------
+
+_add_idea() {
+  _ki "$1" add --kind idea --title "${2:-a side-task lane for small work}" \
+    --problem "small fixes have no home outside a feature" \
+    --proposal "a .tlk/side-tasks/ folder with its own log" "${@:3}"
+}
+
+test_idea_needs_problem_and_proposal_not_what_or_evidence() {
+  local proj; proj=$(_proj)
+  _add_idea "$proj" >/dev/null 2>&1 || fail "idea without --what/--expected/evidence was refused"
+  local f="$proj/.tlk/kit-issues.md"
+  assert_file_contains "$f" "- **Kind:** idea"
+  assert_file_contains "$f" "- **Problem:** small fixes have no home outside a feature"
+  assert_file_contains "$f" "- **Proposal:** a .tlk/side-tasks/ folder with its own log"
+  assert_file_contains "$f" "- **Acceptance:** —"
+  assert_file_not_contains "$f" "What happened"
+  local rc=0; _ki "$proj" add --kind idea --title "no proposal" --problem p >/dev/null 2>&1 || rc=$?
+  assert_eq "2" "$rc" "an idea without --proposal is refused"
+}
+
+test_defect_kinds_keep_their_rules() {
+  local proj rc; proj=$(_proj)
+  rc=0; _ki "$proj" add --kind slow --title t --what w --expected e >/dev/null 2>&1 || rc=$?
+  assert_eq "2" "$rc" "slow still needs measured evidence"
+  rc=0; _ki "$proj" add --kind error --title t --problem p --proposal s >/dev/null 2>&1 || rc=$?
+  assert_eq "2" "$rc" "error still needs --what and --expected"
+}
+
+test_idea_is_filed_as_an_idea() {
+  local proj; proj=$(_proj)
+  _add_idea "$proj" "a side-task lane for small work" --acceptance "a mid-feature bug gets its own folder" >/dev/null 2>&1
+  local out; out=$(_ki "$proj" submit KI-001 2>&1)
+  assert_contains "$out" "Title: [idea] a side-task lane for small work"
+  assert_contains "$out" "<!-- Idea from an installed"
+  assert_contains "$out" "**Acceptance:** a mid-feature bug gets its own folder"
+  _ki "$proj" submit KI-001 --confirm >/dev/null 2>&1
+  assert_contains "$(cat "$proj/.gh-calls")" "--title [idea] a side-task lane for small work"
+}
+
+test_sync_links_an_idea_filed_verbatim() {
+  local proj; proj=$(_proj)
+  _add_idea "$proj" >/dev/null 2>&1
+  GH_SIMILAR=$'45\tOPEN\t[idea] a side-task lane for small work\thttps://github.com/bthos/talaka/issues/45\n' \
+    _ki "$proj" sync >/dev/null 2>&1
+  assert_file_contains "$proj/.tlk/kit-issues.md" "- **Issue:** https://github.com/bthos/talaka/issues/45"
+}
+
+test_long_idea_write_up_keeps_its_start_and_says_what_was_cut() {
+  local proj i; proj=$(_proj)
+  { printf 'PROBLEM STATEMENT\n'; for i in $(seq 1 250); do printf 'detail %d\n' "$i"; done; } > "$proj/idea.md"
+  _add_idea "$proj" "long write-up" --evidence-file "$proj/idea.md" >/dev/null 2>&1
+  local f="$proj/.tlk/kit-issues.md"
+  assert_file_contains "$f" "PROBLEM STATEMENT" "the start of a proposal is kept"
+  assert_file_contains "$f" "[… 51 more line(s) of the file not included]"
+}
+
+test_long_log_keeps_its_end_and_says_what_was_cut() {
+  local proj i; proj=$(_proj)
+  for i in $(seq 1 100); do printf 'log %d\n' "$i"; done > "$proj/err.log"
+  _ki "$proj" add --kind error --title "long log" --what w --expected e --evidence-file "$proj/err.log" >/dev/null 2>&1
+  local f="$proj/.tlk/kit-issues.md"
+  assert_file_contains "$f" "[first 40 line(s) of the file not included]"
+  assert_file_contains "$f" "log 100"
+  grep -qx "log 40" "$f" && fail "line 40 was in the cut part and must not be kept" || true
+}
+
+test_idea_and_field_report_prefixes_do_not_make_titles_similar() {
+  local proj; proj=$(_proj)
+  GH_SIMILAR=$'7\tOPEN\t[idea] dashboard for memory\thttps://x/7\n' _ki "$proj" sync >/dev/null 2>&1
+  local out; out=$(_ki "$proj" add --kind error --title "promote.sh drops entities" --what w --expected e 2>&1)
+  assert_not_contains "$out" "#7" "a shared [idea]/[field report] prefix is not a shared key word"
+}
+
 run_tests "$@"

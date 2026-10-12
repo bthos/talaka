@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Auto-generates eval-set entries from .tlk/archive/<feature>/.
+# Auto-generates eval-set entries from .tlk/archive/features/<feature>/.
 # Each archived feature with both spec.md and handoff-log.md becomes an
 # eval-set/<feature-id>.md file: the acceptance criteria (Requirements), the
 # build's QA evidence (Reference output — for people, never scored) and the spec
@@ -36,7 +36,9 @@ fi
 added=0
 skipped=0
 
-for dir in "$ARCHIVE_DIR"/*/; do
+# Archived features live in archive/features/<slug>/ (init.sh moves the older
+# flat layout there); archive/debug/ and other kinds are not features.
+for dir in "$ARCHIVE_DIR"/features/*/; do
   [ -d "$dir" ] || continue
   feature_id=$(basename "$dir")
   spec="${dir}spec.md"

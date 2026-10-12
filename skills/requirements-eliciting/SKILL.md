@@ -71,7 +71,7 @@ When the spec is ready:
 
 2. **Append the first log entry.** The feature folder you created already contains `handoff-log.md`:
    ```
-   ## HH:MM requirements-eliciting → Coordinator [spec] done
+   ## YYYY-MM-DD HH:MM requirements-eliciting → Coordinator [spec] done
    Result: spec written. Key ACs: [count]. Open questions: [count]. Deferred: [count].
    Artifacts: [feature-path]/spec.md
    Recommend: /ux-designing (+ @mokash in parallel if user-facing flows)
@@ -80,7 +80,7 @@ When the spec is ready:
 
 **Progress entries — log as you go.** Before that entry, append a `progress` entry to `handoff-log.md` at each checkpoint: when the feature folder is bootstrapped, when the spec has requirements but acceptance criteria are still open, and when an elicitation round surfaces something that changes scope. No `→ Coordinator` arrow (you have not returned), no `Recommend:` line:
 ```
-## HH:MM requirements-eliciting [spec] progress
+## YYYY-MM-DD HH:MM requirements-eliciting [spec] progress
 Result: [what is now settled]
 Artifacts: [feature-path]/spec.md
 Next: [what you elicit next in this same run]

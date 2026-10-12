@@ -34,7 +34,7 @@ The slug should be short and area-shaped (`whole-repo`, `payments-service`, `aut
 5. **Trace invocation edges.** For each important boundary, find the call site (`path:line`) and record what triggers the call and what's passed. This is the part a file tree cannot show, and the reason the map is worth writing.
 6. **Capture conventions & schemas.** Config file shapes, frontmatter fields, naming patterns, error/exit-code conventions, where persistent state lives. Read recent git history (`git log` on hot paths) — it reveals intent the code doesn't state.
 7. **Fill `map.md`** using the template. Park anything you can't resolve from the code in `open-questions.md` — do **not** guess it into the map as fact.
-8. **Log and return.** Append your return entry to `handoff-log.md`, citing the map path, and recommend the next role (`/architecture-planning`, `/requirements-eliciting`). The coordinator routes from there. Mapping a large repo is long work — append a `## HH:MM codebase-mapping [map] progress` entry (`Result:` / `Artifacts:` / `Next:`, no arrow, no `Recommend:`) as each area is mapped, so a run that is interrupted leaves the partial map on the record.
+8. **Log and return.** Append your return entry to `handoff-log.md`, citing the map path, and recommend the next role (`/architecture-planning`, `/requirements-eliciting`). The coordinator routes from there. Mapping a large repo is long work — append a `## YYYY-MM-DD HH:MM codebase-mapping [map] progress` entry (`Result:` / `Artifacts:` / `Next:`, no arrow, no `Recommend:`) as each area is mapped, so a run that is interrupted leaves the partial map on the record.
 
 ## Map quality bar
 

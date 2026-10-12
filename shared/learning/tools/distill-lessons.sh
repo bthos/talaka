@@ -16,7 +16,7 @@
 #
 # Override the artefacts directory with $ARTEFACTS_DIR.
 #
-# Reads all .tlk/archive/*/LESSONS.md files and uses the Claude
+# Reads all .tlk/archive/features/*/LESSONS.md files and uses the Claude
 # CLI. Requires: claude CLI on PATH.
 # Run from project root.
 
@@ -51,7 +51,9 @@ if [ ! -d "$ARCHIVE_DIR" ]; then
 fi
 
 lessons_files=()
-for dir in "$ARCHIVE_DIR"/*/; do
+# Archived features live in archive/features/<slug>/ (init.sh moves the older
+# flat layout there); archive/debug/ and other kinds are not features.
+for dir in "$ARCHIVE_DIR"/features/*/; do
   [ -d "$dir" ] || continue
   f="${dir}LESSONS.md"
   [ -f "$f" ] && lessons_files+=("$f")
@@ -121,7 +123,7 @@ The schema (see talaka/templates/memory/SCHEMA.md) is exactly:
   entity_type: <one of: person, project, file, tool, library, pattern, anti-pattern, decision>
   entities: [<short names, optional>]
   confidence: medium
-  source: archive/<feature-id>/LESSONS.md
+  source: archive/features/<feature-id>/LESSONS.md
   text: |
     <one or two concrete sentences — specific, actionable, verifiable>
 

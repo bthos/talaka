@@ -8,7 +8,7 @@ BUILD="$KIT_ROOT/autoresearch/tools/build-eval-set.sh"
 # Create an archived feature. Usage: _feature ART SLUG [--no-handoff|--no-spec]
 _feature() {
   local art="$1" slug="$2" mode="${3:-full}"
-  local dir="$art/archive/$slug"
+  local dir="$art/archive/features/$slug"
   mkdir -p "$dir"
   if [ "$mode" != "--no-spec" ]; then
     cat > "$dir/spec.md" <<'EOF'
@@ -98,6 +98,17 @@ test_no_archive_dir_is_graceful() {
   mkdir -p "$art"
   # No archive/ at all — should exit cleanly, not error.
   assert_ok env ARTEFACTS_DIR="$art" bash "$BUILD"
+}
+
+test_investigations_are_not_features() {
+  # archive/debug/ holds Yaga's closed investigations; only archive/features/ feeds the eval set.
+  local art; art="$(make_tmp_project)/.tlk"
+  _feature "$art" 2026-05-01-login
+  mkdir -p "$art/archive/debug/2026-05-02-flaky"
+  cp "$art/archive/features/2026-05-01-login/"*.md "$art/archive/debug/2026-05-02-flaky/"
+  ARTEFACTS_DIR="$art" bash "$BUILD" >/dev/null 2>&1
+  assert_file_exists "$art/autoresearch/eval-set/2026-05-01-login.md"
+  assert_file_absent "$art/autoresearch/eval-set/2026-05-02-flaky.md" "investigation not turned into an eval entry"
 }
 
 run_tests "$@"

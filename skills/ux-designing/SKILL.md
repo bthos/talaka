@@ -80,7 +80,7 @@ When the UX design is complete:
 
 2. **Append your log entry** to `handoff-log.md`:
    ```
-   ## HH:MM ux-designing → Coordinator [UX] done
+   ## YYYY-MM-DD HH:MM ux-designing → Coordinator [UX] done
    Result: UX design complete. Screens: [count]. States covered: [list]. ACs covered: [list].
    Artifacts: [feature-path]/ux-design.md
    Recommend: /mockups-creating (+ @mokash in parallel)
@@ -89,7 +89,7 @@ When the UX design is complete:
 
 **Progress entries — log as you go.** Before that final entry, append a `progress` entry to `handoff-log.md` at each checkpoint: when the screen inventory and states matrix are settled, when a flow is designed but its states are not yet filled in, and when you hit an unanswered question in the spec that changes the design. No `→ Coordinator` arrow (you have not returned), no `Recommend:` line:
 ```
-## HH:MM ux-designing [UX] progress
+## YYYY-MM-DD HH:MM ux-designing [UX] progress
 Result: [what is now decided]
 Artifacts: [feature-path]/ux-design.md
 Next: [what you design next in this same run]

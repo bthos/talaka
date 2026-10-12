@@ -76,14 +76,14 @@ Fill `design.md`:
 The build is **not** yours, and neither is the routing. Append your return entry to `handoff-log.md`, then return — **do not invoke any agent or skill**:
 
 ```
-## HH:MM cli-designing → Coordinator [design] done
+## YYYY-MM-DD HH:MM cli-designing → Coordinator [design] done
 Result: CLI design complete. Commands: [count]. NOI: [one line].
 Artifacts: research-brief.md, design.md, scorecard.md
 Recommend: /architecture-planning (arch + tests)
 Why: design and QA contract are settled; the build needs tests first.
 ```
 
-The design spans three phases, so log the phase boundaries as you cross them rather than only at the end. Append a `## HH:MM cli-designing [design] progress` entry (`Result:` / `Artifacts:` / `Next:` — no arrow, no `Recommend:`) when the research brief lands with the Non-Obvious Insight named, and again when the command surface is settled but the scorecard is not yet written.
+The design spans three phases, so log the phase boundaries as you cross them rather than only at the end. Append a `## YYYY-MM-DD HH:MM cli-designing [design] progress` entry (`Result:` / `Artifacts:` / `Next:` — no arrow, no `Recommend:`) when the research brief lands with the Non-Obvious Insight named, and again when the command surface is settled but the scorecard is not yet written.
 
 From there the coordinator runs the normal route: architecture-planning → `@bagnik` (test gate) → `@cmok` (build) → `@bagnik` (code QA, **scorecard-gated**) → `@zlydni`. Cite all three artifacts in your return so it can relay them.
 

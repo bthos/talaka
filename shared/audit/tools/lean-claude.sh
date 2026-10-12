@@ -7,18 +7,24 @@ wc -w .claude/CLAUDE.md 2>/dev/null
 echo "Target: combined < 1,200 words"
 
 echo
+# The kit writes its own settings (memory hook, outputStyle) to the per-developer
+# .claude/settings.local.json, so every check reads it too.
+SETTINGS_FILES=( ~/.claude/settings.json .claude/settings.json .claude/settings.local.json )
+
 echo "=== Active hooks ==="
-cat ~/.claude/settings.json 2>/dev/null | jq '.hooks // {} | keys'
-cat .claude/settings.json 2>/dev/null | jq '.hooks // {} | keys'
+for f in "${SETTINGS_FILES[@]}"; do
+  [ -f "$f" ] && { printf '%s: ' "$f"; jq -c '.hooks // {} | keys' "$f" 2>/dev/null || echo "(unreadable)"; }
+done
 
 echo
 echo "=== UserPromptSubmit injections ==="
-cat ~/.claude/settings.json 2>/dev/null | jq '.hooks.UserPromptSubmit'
-cat .claude/settings.json 2>/dev/null | jq '.hooks.UserPromptSubmit'
+for f in "${SETTINGS_FILES[@]}"; do
+  [ -f "$f" ] && { printf '%s: ' "$f"; jq -c '.hooks.UserPromptSubmit' "$f" 2>/dev/null || echo "(unreadable)"; }
+done
 
 echo
 echo "=== Output style ==="
-for f in ~/.claude/settings.json .claude/settings.json; do
+for f in "${SETTINGS_FILES[@]}"; do
   [ -f "$f" ] || continue
   printf '%s: ' "$f"
   jq -r '.outputStyle // "(unset)"' "$f" 2>/dev/null || echo "(unreadable)"

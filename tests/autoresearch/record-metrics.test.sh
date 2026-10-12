@@ -47,10 +47,10 @@ test_bare_slug_resolves_under_features() {
 
 test_bare_slug_resolves_under_archive() {
   local proj; proj=$(make_tmp_project)
-  mkdir -p "$proj/.tlk/archive/2026-08-10-shipped"
+  mkdir -p "$proj/.tlk/archive/features/2026-08-10-shipped"
   _run "$proj" --feature "2026-08-10-shipped" --agent zlydni >/dev/null 2>&1
-  assert_file_exists "$proj/.tlk/archive/2026-08-10-shipped/metrics.jsonl" \
-    "bare slug found under .tlk/archive"
+  assert_file_exists "$proj/.tlk/archive/features/2026-08-10-shipped/metrics.jsonl" \
+    "bare slug found under .tlk/archive/features"
 }
 
 test_bare_slug_resolves_under_audits() {
@@ -64,9 +64,9 @@ test_bare_slug_resolves_under_audits() {
 test_archive_race_falls_back_to_archived_copy() {
   # Caller still holds the live path but zlydni already moved the folder.
   local proj; proj=$(make_tmp_project)
-  mkdir -p "$proj/.tlk/archive/2026-08-10-moved"
+  mkdir -p "$proj/.tlk/archive/features/2026-08-10-moved"
   _run "$proj" --feature ".tlk/features/2026-08-10-moved" --agent zlydni >/dev/null 2>&1
-  assert_file_exists "$proj/.tlk/archive/2026-08-10-moved/metrics.jsonl" \
+  assert_file_exists "$proj/.tlk/archive/features/2026-08-10-moved/metrics.jsonl" \
     "row followed the feature into the archive"
   assert_file_absent "$proj/.tlk/features/2026-08-10-moved" \
     "archived feature not resurrected under .tlk/features"

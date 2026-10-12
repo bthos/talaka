@@ -164,7 +164,7 @@ When the design system is written:
 
 2. **Append your log entry** to `handoff-log.md` (the feature's, if one is active):
    ```
-   ## HH:MM design-generating → Coordinator [design system] done
+   ## YYYY-MM-DD HH:MM design-generating → Coordinator [design system] done
    Result: <ds> written. Tokens: [n files]. Cards: [n]. Components: [n families / n total in source]. UI kits: [products].
    Artifacts: <ds>/readme.md, <ds>/styles.css
    Caveats: [font substitutions, missing logo, unbuilt families, unread sources — or "none"]
@@ -174,7 +174,7 @@ When the design system is written:
 
 **Progress entries — log as you go.** This is long work. Append a `progress` entry when access is confirmed, when tokens and fonts land, after each component group, and after each UI kit. No `→ Coordinator` arrow, no `Recommend:` line:
 ```
-## HH:MM design-generating [design system] progress
+## YYYY-MM-DD HH:MM design-generating [design system] progress
 Result: [what now exists on disk]
 Artifacts: [paths]
 Next: [what you build next in this same run]

@@ -97,8 +97,10 @@ sha8() {
 }
 
 # list_entries FILE... — yields tab-separated rows:
-#   file<TAB>start_line<TAB>end_line<TAB>text_payload<TAB>entity_type<TAB>id<TAB>confidence
-# `text_payload` is the joined indented lines under `text: |`.
+#   file<TAB>start<TAB>end<TAB>text_payload<TAB>entity_type<TAB>id<TAB>confidence<TAB>entities<TAB>source<TAB>decided
+# `text_payload` is the joined indented lines under `text: |`; `entities` is the
+# list without brackets ("a, b"). An empty field is written as "-": tab is IFS
+# whitespace, so `read` would collapse an empty field and shift every later one.
 #
 # Takes MANY files in one awk process; line numbers are per-file (FNR) and an
 # entry left open at the end of a file is flushed when the next one starts.
@@ -117,7 +119,20 @@ list_entries() {
       if (in_entry) emit(FNR - 1)
       in_entry = 1; entry_file = FILENAME; start = FNR
       id = $0; sub(/^- id:[[:space:]]*/, "", id)
-      etype = ""; payload = ""; in_text = 0; conf = ""
+      etype = ""; payload = ""; in_text = 0; conf = ""; ents = ""; src = ""; dec = ""
+      next
+    }
+    in_entry == 1 && /^[[:space:]]+entities:/ {
+      ents = $0; sub(/^[[:space:]]+entities:[[:space:]]*/, "", ents)
+      sub(/^\[[[:space:]]*/, "", ents); sub(/[[:space:]]*\][[:space:]]*$/, "", ents)
+      next
+    }
+    in_entry == 1 && /^[[:space:]]+source:/ {
+      src = $0; sub(/^[[:space:]]+source:[[:space:]]*/, "", src)
+      next
+    }
+    in_entry == 1 && /^[[:space:]]+decided:/ {
+      dec = $0; sub(/^[[:space:]]+decided:[[:space:]]*/, "", dec)
       next
     }
     in_entry == 1 && /^[[:space:]]+entity_type:/ {
@@ -142,9 +157,10 @@ list_entries() {
 
     END { if (in_entry) emit(last_fnr) }
 
+    function d(v) { return v == "" ? "-" : v }
     function emit(end_line) {
-      printf "%s\t%d\t%d\t%s\t%s\t%s\t%s\n", \
-        entry_file, start, end_line, payload, etype, id, conf
+      printf "%s\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", \
+        entry_file, start, end_line, d(payload), d(etype), d(id), d(conf), d(ents), d(src), d(dec)
     }
   ' "$@"
 }
@@ -186,12 +202,13 @@ declare -A L3_KEYS_LOADED   # target path -> 1 once its existing keys are cached
 declare -A L3_KEYS          # "target|normalised-key" -> 1
 
 load_l3_keys() {
-  local target="$1" f s e payload etype id conf
+  local target="$1" f s e payload etype id conf ents src dec
   [ -n "${L3_KEYS_LOADED[$target]:-}" ] && return
   L3_KEYS_LOADED[$target]=1
   [ -f "$target" ] || return
-  while IFS=$'\t' read -r f s e payload etype id conf; do
-    [ -z "$payload" ] && continue
+  while IFS=$'\t' read -r f s e payload etype id conf ents src dec; do
+    [ "$payload" = "-" ] && continue
+    [ "$etype" = "-" ] && etype=""
     norm_key "$payload"
     L3_KEYS["$target|$NKEY"]=1
   done < <(list_entries "$target")
@@ -204,23 +221,31 @@ l3_has_key() {
   [ -n "${L3_KEYS["$target|$key"]:-}" ]
 }
 
-# append_l3 TARGET ETYPE TEXT IDKEY CONFIDENCE SOURCE — append a curated L3 entry.
-# TEXT is stored verbatim; IDKEY (the normalised key) is used for the stable id,
-# left in $L3_LAST_ID.
+# append_l3 TARGET ETYPE TEXT IDKEY CONFIDENCE CURATED_FROM ENTITIES SOURCE DECIDED
+# — append a curated L3 entry. TEXT is stored verbatim; IDKEY (the normalised key)
+# is used for the stable id, left in $L3_LAST_ID. ENTITIES, SOURCE and DECIDED
+# come from the L2 entry ("-" or empty when it had none): the curated fact keeps
+# what the agent logged. `source:` falls back to CURATED_FROM — the daily file
+# and lines it was curated from — which is also kept as `curated_from:`.
 L3_LAST_ID=""
 append_l3() {
-  local target="$1" etype="$2" text="$3" idkey="$4" conf="$5" source="$6"
+  local target="$1" etype="$2" text="$3" idkey="$4" conf="$5" from="$6"
+  local ents="${7:-}" source="${8:-}" decided="${9:-}"
   local shared_id folded line
+  [ "$ents" = "-" ] && ents=""
+  case "$source" in -|log.sh|"") source="$from" ;; esac
+  [[ $decided =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || decided="$TODAY"
   shared_id="mem_$(sha8 "$idkey")"
   folded=$(fold -s -w 100 <<< "$text")   # indented below by a loop, not `| sed`
   {
     echo ""
     echo "- id: $shared_id"
-    echo "  decided: $TODAY"
+    echo "  decided: $decided"
     echo "  entity_type: $etype"
-    echo "  entities: []"
+    echo "  entities: [$ents]"
     echo "  confidence: $conf"
     echo "  source: $source"
+    echo "  curated_from: $from"
     echo "  text: |"
     while IFS= read -r line; do printf '    %s\n' "$line"; done <<< "$folded"
   } >> "$target"
@@ -318,8 +343,9 @@ fi
 # agent that knows a fact matters can land it immediately via log.sh.
 # ---------------------------------------------------------------------------
 if [ -n "$DAILY_TSV" ]; then
-  while IFS=$'\t' read -r f s e payload etype id conf; do
-    [ -z "$payload" ] && continue
+  while IFS=$'\t' read -r f s e payload etype id conf ents src dec; do
+    [ "$payload" = "-" ] && continue
+    [ "$etype" = "-" ] && etype=""
     [ "$conf" = "high" ] || continue
     norm_key "$payload"; key="$NKEY"
     etype="${etype:-pattern}"
@@ -330,7 +356,8 @@ if [ -n "$DAILY_TSV" ]; then
       continue
     fi
     # Store the original payload verbatim; dedupe/id on the normalised key.
-    append_l3 "$target" "$etype" "$payload" "$key" "high" "$f:$s-$e (single-shot, high-confidence)"
+    append_l3 "$target" "$etype" "$payload" "$key" "high" "$f:$s-$e (single-shot, high-confidence)" \
+      "$ents" "$src" "$dec"
     SINGLE=$((SINGLE+1))
     if [ -n "$SINGLE_SHOT_FILE" ]; then echo "Curated to L3 ($L3_LAST_ID) → $target"; fi
   done <<< "$DAILY_TSV"
@@ -349,15 +376,39 @@ declare -A TEXT_COUNT
 declare -A TEXT_SAMPLE_FILE
 declare -A TEXT_SAMPLE_TYPE
 declare -A TEXT_SAMPLE_ID
+declare -A TEXT_SAMPLE_PAYLOAD   # first sighting, verbatim — the key is lowercased
+declare -A TEXT_ENTS             # union over sightings, ", "-joined
+declare -A TEXT_SRC              # first sighting that names a real source
+declare -A TEXT_DEC              # earliest decided:
+
+# merge_entities "a, b" "b, c" → REPLY="a, b, c" (order kept, no forks)
+merge_entities() {
+  local out="$1" e
+  [ "$out" = "-" ] && out=""
+  local IFS=','
+  for e in $2; do
+    e="${e#"${e%%[![:space:]]*}"}"; e="${e%"${e##*[![:space:]]}"}"
+    [ -n "$e" ] && [ "$e" != "-" ] || continue
+    case ", $out, " in *", $e, "*) ;; *) out="${out:+$out, }$e" ;; esac
+  done
+  REPLY="$out"
+}
 
 if [ -n "$DAILY_TSV" ]; then
-  while IFS=$'\t' read -r f s e payload etype id conf; do
-    [ -z "$payload" ] && continue
+  while IFS=$'\t' read -r f s e payload etype id conf ents src dec; do
+    [ "$payload" = "-" ] && continue
+    [ "$etype" = "-" ] && etype=""
     norm_key "$payload"; key="$NKEY"
     TEXT_COUNT["$key"]=$(( ${TEXT_COUNT["$key"]:-0} + 1 ))
     TEXT_SAMPLE_FILE["$key"]="$f:$s-$e"
     TEXT_SAMPLE_TYPE["$key"]="${etype:-pattern}"
     TEXT_SAMPLE_ID["$key"]="$id"
+    [ -n "${TEXT_SAMPLE_PAYLOAD["$key"]:-}" ] || TEXT_SAMPLE_PAYLOAD["$key"]="$payload"
+    merge_entities "${TEXT_ENTS["$key"]:-}" "$ents"; TEXT_ENTS["$key"]="$REPLY"
+    case "$src" in -|log.sh) ;; *) [ -n "${TEXT_SRC["$key"]:-}" ] || TEXT_SRC["$key"]="$src" ;; esac
+    if [[ $dec =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] && { [ -z "${TEXT_DEC["$key"]:-}" ] || [[ $dec < ${TEXT_DEC["$key"]} ]]; }; then
+      TEXT_DEC["$key"]="$dec"
+    fi
   done <<< "$DAILY_TSV"
 fi
 
@@ -376,7 +427,9 @@ for key in "${!TEXT_COUNT[@]}"; do
     continue
   fi
 
-  append_l3 "$target" "$etype" "$key" "$key" "medium" "${TEXT_SAMPLE_FILE["$key"]} (×$count, 2-strike)"
+  append_l3 "$target" "$etype" "${TEXT_SAMPLE_PAYLOAD["$key"]}" "$key" "medium" \
+    "${TEXT_SAMPLE_FILE["$key"]} (×$count, 2-strike)" \
+    "${TEXT_ENTS["$key"]:-}" "${TEXT_SRC["$key"]:-}" "${TEXT_DEC["$key"]:-}"
   PROMOTED=$((PROMOTED+1))
 done
 

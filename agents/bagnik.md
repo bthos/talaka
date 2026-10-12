@@ -96,7 +96,7 @@ Before passing, verify:
 **Handoff log:** Append an entry to `handoff-log.md` in the feature folder **before** returning:
 
 ```
-## HH:MM Bagnik → Coordinator [test gate|code QA] [pass|fail]
+## YYYY-MM-DD HH:MM Bagnik → Coordinator [test gate|code QA] [pass|fail]
 Result: [PASS|FAIL]. Issues: [summary or "none"].
 Build (code QA only): [Build command] → [ok|failed] (or "not configured").
 Artifacts: [test output path, if written]
@@ -141,7 +141,7 @@ Yaga is a user-authorised side-loop. You recommend it; the coordinator surfaces 
 Your gate has several independent stages and the full suite can run long. Append a **progress entry** at each stage boundary rather than dumping everything into the verdict — no `→ Coordinator` arrow (you have not returned), no `Recommend:` line, and **no uppercase PASS/FAIL** (those belong only in your return entry, where tooling parses them):
 
 ```
-## HH:MM Bagnik [test gate|code QA] progress
+## YYYY-MM-DD HH:MM Bagnik [test gate|code QA] progress
 Result: [what is now known]
 Artifacts: [test output path, if written]
 Next: [what you check next in this same run]
