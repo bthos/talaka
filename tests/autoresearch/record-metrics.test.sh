@@ -53,6 +53,21 @@ test_bare_slug_resolves_under_archive() {
     "bare slug found under .tlk/archive/features"
 }
 
+test_side_task_paths_resolve_live_archived_and_bare() {
+  # A side-task is a --feature like any other (issue #45): live path, bare slug,
+  # and a side-task already closed into .tlk/archive/side-tasks/.
+  local proj; proj=$(make_tmp_project)
+  mkdir -p "$proj/.tlk/side-tasks/2026-10-12-stale-test" "$proj/.tlk/archive/side-tasks/2026-10-11-done"
+  _run "$proj" --feature ".tlk/side-tasks/2026-10-12-stale-test" --agent cmok >/dev/null 2>&1
+  assert_file_exists "$proj/.tlk/side-tasks/2026-10-12-stale-test/metrics.jsonl" "live side-task path"
+  _run "$proj" --feature "2026-10-11-done" --agent zlydni >/dev/null 2>&1
+  assert_file_exists "$proj/.tlk/archive/side-tasks/2026-10-11-done/metrics.jsonl" "bare slug of a closed side-task"
+  _run "$proj" --feature ".tlk/side-tasks/2026-10-11-done" --agent zlydni >/dev/null 2>&1
+  assert_eq "2" "$(grep -c . "$proj/.tlk/archive/side-tasks/2026-10-11-done/metrics.jsonl")" \
+    "closed between mark and record: the archived copy gets the row"
+  assert_file_absent "$proj/.tlk/side-tasks/2026-10-11-done" "not resurrected"
+}
+
 test_bare_slug_resolves_under_audits() {
   local proj; proj=$(make_tmp_project)
   mkdir -p "$proj/.tlk/audits/2026-08-10-review"

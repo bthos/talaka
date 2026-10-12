@@ -10,6 +10,35 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Added — side-tasks: a tracked lane for small work outside any feature (#45)
+
+- **The problem.** A small bug raised mid-feature, a stale test, a chore or a live-session
+  investigation had no home. It was done inside the active feature and logged, if at all, in that
+  feature's handoff-log: misattributed, archived with an unrelated feature (root cause and known
+  gaps included), invisible to `feature-status.sh`, and ambiguous for Bagnik and Zlydni.
+- **`shared/side-tasks/tools/side-task.sh`** — `new`, `status`, `set`, `close`, `promote`, `path`,
+  `index`. A side-task is `.tlk/side-tasks/<date>-<slug>/` with an `ST-NNN` id, a one-screen
+  `brief.md` (kind, status, trigger, related feature, scope, acceptance, non-goals), a
+  `handoff-log.md` in the pipeline's entry format, and an `outcome.md` (root cause, verification,
+  known gaps). `INDEX.md` is regenerated on every change.
+- **Close** refuses until the task is committed (`--no-commit` for an investigation or ops task)
+  and all three outcome sections are written. Closed and promoted tasks move to
+  `.tlk/archive/side-tasks/`, never into a feature, so archiving a feature moves none of them;
+  `status` keeps listing a closed task's open known gaps.
+- **Promote** creates a feature with `new-feature.sh` seeded with the brief, outcome and log, and
+  archives the side-task with a `Promoted to:` link. Thresholds: **Side-task promotion** in
+  `PROJECT.md` (default `files=5 areas=2 gaps=3`); contract changes and UX needs promote regardless.
+- **Pipeline.** PIPELINE.md gains *Side-tasks*: the intake rule (open a side-task before acting on
+  an unrelated mid-feature request), routing rows, Bagnik's *side-task gate* (one full run per
+  batch, verdict on each), Zlydni's *side-task commit* (scope-only staging, `ST-NNN` in the
+  message, then close). Bagnik, Cmok and Zlydni prompts say how.
+- **Visibility.** Statusline badge `ST: 2 open · 1 uncommitted` (bash and PowerShell),
+  `feature-status.sh` notes side-tasks in flight, `kit.sh` → *Side-tasks*, and `record-metrics.sh`
+  resolves side-task paths (live, archived, bare slug) so their cost is measured.
+- Choices on the issue's open questions: ids are `ST-NNN` per project; `investigation` is a kind;
+  known gaps stay in `outcome.md` (deferred decisions in `deferred.md` belong to
+  requirements-eliciting and are decisions, not defects).
+
 ### Changed — the kit no longer edits the project's root `.gitignore` or `settings.json`
 
 - **Each directory the kit writes into carries its own `.gitignore`** instead of one managed

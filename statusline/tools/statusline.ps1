@@ -332,6 +332,28 @@ if (Test-Path $debugDir) {
     }
 }
 
+# --- Alert: side-tasks — small tracked work outside any feature (issue #45) ---
+# "ST: 2 open · 1 uncommitted": open/in-progress/blocked count as open, verified
+# (Bagnik passed, Zlydni not yet) as uncommitted. Same rule as statusline.sh.
+$stDir = Join-Path $tlkDir "side-tasks"
+if (Test-Path $stDir) {
+    $stOpen = 0; $stUncommitted = 0
+    foreach ($d in Get-ChildItem $stDir -Directory) {
+        $brief = Join-Path $d.FullName "brief.md"
+        if (-not (Test-Path $brief)) { continue }
+        $line = Get-Content $brief | Where-Object { $_.StartsWith('- **Status:** ') } | Select-Object -First 1
+        if (-not $line) { continue }
+        $st = $line.Substring('- **Status:** '.Length).Trim()
+        if ($st -in @('open', 'in-progress', 'blocked')) { $stOpen++ }
+        elseif ($st -eq 'verified') { $stUncommitted++ }
+    }
+    if ($stOpen -gt 0 -or $stUncommitted -gt 0) {
+        $stBadge = "ST: $stOpen open"
+        if ($stUncommitted -gt 0) { $stBadge += " $([char]0x00B7) $stUncommitted uncommitted" }
+        $alerts += "${cyan}${stBadge}${reset}"
+    }
+}
+
 # --- Alert: Autoresearch ratchet status ---
 $ratchetLog = Join-Path $tlkDir "autoresearch/runs/ratchet.jsonl"
 $rejectedLog = Join-Path $tlkDir "autoresearch/runs/rejected.jsonl"

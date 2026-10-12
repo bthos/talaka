@@ -170,6 +170,8 @@ register_actions() {
   # ---- daily ----
   add status   2 daily "Feature pipeline status"         "Show spec / UX / tech-plan / handoff state for every active feature under $ARTEFACTS_NAME/features/." \
        "$KIT/shared/project/tools/feature-status.sh"
+  add sidetask 2 daily "Side-tasks"                      "Small tracked work outside any feature ($ARTEFACTS_NAME/side-tasks/): open ones, verified-but-uncommitted, open known gaps." \
+       "$KIT/shared/side-tasks/tools/side-task.sh::status"
   add memory   2 daily "Search memory"                   "Top-k retrieval across all memory layers (L1..L4). Prompts for a query." \
        "::memory-prompt"
   add dashboard 2 daily "Open dashboard"                 "Snapshot $ARTEFACTS_NAME/ and wiki/ into $ARTEFACTS_NAME/dashboard/ and open it in the browser. The memory Stop hook keeps it fresh after that." \

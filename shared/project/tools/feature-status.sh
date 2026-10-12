@@ -71,6 +71,16 @@ if [ $found -eq 0 ]; then
   echo "Start one with: /requirements-eliciting"
 fi
 
+# Side-tasks are not features and are not listed here — just say they exist,
+# so a glance at feature status does not hide work in flight (issue #45).
+if [ -d "$ARTEFACTS/side-tasks" ]; then
+  st_live=0
+  for d in "$ARTEFACTS"/side-tasks/*/; do
+    [ -f "$d/brief.md" ] && st_live=$((st_live + 1))
+  done
+  [ "$st_live" -gt 0 ] && echo "$st_live side-task(s) in flight — talaka/shared/side-tasks/tools/side-task.sh status"
+fi
+
 if [ -d "$ARCHIVE_DIR" ]; then
   # Archived features live in archive/features/<slug>/ (init.sh moves the older
   # flat layout there); archive/debug/ and other kinds are not features.

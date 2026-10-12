@@ -126,6 +126,8 @@ That's it.
 │   ├── features/<slug>/                      ← active feature (spec, UX, tech plan, handoffs)
 │   ├── archive/features/<slug>/              ← completed features (moved by Zlydni)
 │   ├── archive/debug/<slug>/                 ← closed investigations (moved by Yaga)
+│   ├── side-tasks/<date>-<slug>/             ← small tracked work outside any feature (brief, log, outcome)
+│   ├── archive/side-tasks/<date>-<slug>/     ← closed and promoted side-tasks
 │   ├── dashboard/                            ← (on first use) snapshot + page for the dashboard
 │   ├── .talaka.cfg                      ← saved IDE + pipeline template SHA (gitignored)
 │   ├── .talaka.files                    ← SHA manifest for teardown (gitignored)
@@ -585,6 +587,29 @@ The archive keeps one folder per kind, and the kit's tools read only this layout
 
 requirements-eliciting creates the feature folder automatically when starting a new spec.
 
+## Side-tasks
+
+A small bug raised mid-feature, a stale test, a chore, a live-session investigation: work too small for a spec, too real to do silently inside whatever feature is open. Done inside the active feature, it was misattributed, archived with an unrelated feature (root cause and known gaps included), invisible to `feature-status.sh`, and ambiguous for Bagnik and Zlydni. A side-task gives it a lane of its own:
+
+```
+.tlk/
+├── side-tasks/
+│   ├── INDEX.md                       ← regenerated: id, status, kind, related feature, open gaps
+│   └── YYYY-MM-DD-slug/               ← ST-NNN
+│       ├── brief.md                   ← one screen: kind, status, trigger, scope, acceptance, non-goals
+│       ├── handoff-log.md             ← the pipeline's entry format
+│       └── outcome.md                 ← root cause, verification, known gaps — required to close
+└── archive/side-tasks/YYYY-MM-DD-slug/   ← closed or promoted; never inside a feature
+```
+
+- **Intake.** When you ask for something unrelated to the active feature, the coordinator opens a side-task before acting and says so in one line. The feature's log gets at most a one-line pointer.
+- **Route.** `@cmok` (focused tests, writes root cause and known gaps) → `@bagnik` *side-task gate* (build plus **one** full-suite run for a whole batch of side-tasks, verdict recorded on each) → `@zlydni` (one commit per side-task, staging only its Scope, `ST-NNN` in the message) → `close`. No spec, UX or architecture phase: the brief replaces them.
+- **Close** refuses until the task is committed (or `--no-commit` for an investigation) and `outcome.md` has a root cause, a verification and a known-gaps section.
+- **Promotion.** A side-task that changes a contract, needs UX, or outgrows the **Side-task promotion** thresholds in `PROJECT.md` (default `files=5 areas=2 gaps=3`) becomes a feature with `side-task.sh promote ST-NNN <slug>`, seeded with the brief, outcome and log.
+- **Visibility.** `side-task.sh status` (also `kit.sh` → *Side-tasks*) lists open and verified-but-uncommitted tasks and every open known gap, closed tasks included. The statusline shows `ST: 2 open · 1 uncommitted`, and `feature-status.sh` says when side-tasks are in flight. A side-task path is a valid `record-metrics.sh --feature`, so its cost is measured.
+
+Full protocol: `.tlk/PIPELINE.md` → *Side-tasks*.
+
 ## Invocation reference
 
 | What | How |
@@ -648,6 +673,7 @@ Each skill bundles its own script. Shared scripts live under `talaka/shared/<cat
 | `talaka/shared/project/tools/bump-version.sh patch\|minor` | Bumps version in all files listed in `.tlk/PROJECT.md` (Cmok uses `patch`, Zlydni uses `minor`) — run from project root |
 | `talaka/shared/project/tools/validate-config.sh` | Checks `.tlk/PROJECT.md` for unfilled `<placeholder>` values — run after `init.sh` |
 | `talaka/shared/project/tools/feature-status.sh` | Shows pipeline status for active features in `.tlk/features/` |
+| `talaka/shared/side-tasks/tools/side-task.sh new\|status\|set\|close\|promote\|path\|index` | Side-tasks — small tracked work outside any feature in `.tlk/side-tasks/`. See *Side-tasks* above. |
 | `talaka/dashboard/tools/snapshot.sh [--open] [--full] [--quiet]` | Writes the dashboard snapshot to `.tlk/dashboard/` (incremental; `--full` rewrites every chunk) and optionally opens it. See *Dashboard* above. |
 | `talaka/statusline/tools/pace.sh [--delay]` | Usage-limit pace for the coordinator: `mode=speed-up\|normal\|slow-down\|stop` from the snapshot the statusline writes (`.tlk/usage.env`); `--delay` prints a `/loop` wake delay for that mode. Exit 4 = not measured, run at normal. See `PIPELINE.md` → *Pace*. |
 | `talaka/shared/feedback/tools/kit-issue.sh add\|list\|show\|submit\|link\|dismiss` | Field reports about the kit itself: agents record slow/hanging scripts, fabrication pressure, misplaced artifacts in `.tlk/kit-issues.md`; `submit` previews, `submit --confirm` files a GitHub issue after the user agrees. See *Kit issues* above. |
