@@ -151,6 +151,12 @@ if [ -f "$PIPELINE_CANONICAL" ] && [ -f "$PIPELINE_TEMPLATE" ]; then
   fi
 fi
 
+# Without a TTY nobody can answer init's prompts, and init.sh run bare there
+# only prints its help — the refresh would silently not happen. Agent / CI mode.
+if [ ${#forward_args[@]} -eq 0 ] && [ ! -t 0 ]; then
+  forward_args=(--non-interactive)
+fi
+
 # Run the refresh. Not `exec`: the legacy-leftover notice runs after it.
 "$SCRIPT_DIR/shared/lifecycle/tools/init.sh" "${forward_args[@]}"
 init_exit=$?

@@ -10,6 +10,29 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Fixed — agent installs: `kit.sh init -n` installs, and "configured" means one thing (#54, #55)
+
+- **`kit.sh init --non-interactive` installed nothing and exited 0** (#55). kit.sh accepted `-n`
+  but dropped it, then ran `init.sh` bare. With no TTY, `init.sh` only printed its help. Now
+  kit.sh forwards `-n` to `init` and `update`, and also uses agent mode for them when stdin is
+  not a TTY. `update.sh` run bare without a TTY passes `--non-interactive` to `init.sh` too.
+- **`init.sh` run bare without a TTY exits 2**, not 0. It still prints its help, plus a line
+  saying nothing was installed.
+- **One definition of "configured"** (#54). kit.sh's stage used to grep for any placeholder in
+  `PROJECT.md`, so the optional fields (Judge command, Generator command, Pace thresholds) kept
+  it at *needs config* after `validate-config.sh` had passed. The stage is now
+  `validate-config.sh --quiet`'s exit code. `validate-config.sh` gains `--quiet` and reports an
+  absent field line as `MISSING`, where it used to abort silently.
+- **`judge.sh` ignores an unfilled `Judge command:` placeholder**, as `generate.sh` and
+  `pace.sh` already did. It used to run the placeholder text as the judge command.
+- **The `[AGENT ACTION REQUIRED]` block** now says the install is unfinished until
+  `validate-config.sh` passes, and what to write when a project has no tests (`true` or a real
+  syntax check), no build (`true`) or no version files (`none`).
+- **README: "Install (for an LLM agent)"**: the first install instructions in the README.
+  Ordered steps an agent can follow from the repo URL alone: add the submodule, run init in
+  agent mode, fill `PROJECT.md`, verify with `validate-config.sh` and `kit.sh status`, then
+  report what to commit.
+
 ### Added — dashboard *Settings*: every parameter and built-in assumption in one place
 
 - **The problem.** The kit's knobs were spread over environment variables, `PROJECT.md` fields,

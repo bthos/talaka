@@ -4,7 +4,39 @@ A reusable AI development pipeline — 6 agents, 17 skills, and a coordinator-dr
 
 The kit is **minimally invasive** and **per-developer** (it commits nothing of its own): every kit-touched path is either inside the git-ignored `.tlk/`, inside `.claude/`, the optional committed `wiki/`, or wrapped in a removable `<!-- talaka:start --> … <!-- talaka:end -->` block in `CLAUDE.md` / `AGENTS.md`. Your root `.gitignore` is never touched: each directory the kit writes into carries its own `.gitignore`. `teardown.sh` strips the block (or removes the file when its SHA-256 still matches the kit copy recorded in `.tlk/.talaka.files`), so manual edits are always preserved.
 
-Import as a git submodule in under a minute.
+Import as a git submodule in under a minute — or tell your AI agent *"install https://github.com/bthos/talaka per its README"* and it follows the next section.
+
+## Install (for an LLM agent)
+
+These steps are written to be followed by an agent (Claude Code or any tool with a shell). Every command runs without a TTY. Do not start the interactive `talaka/kit.sh` menu: it needs a terminal. Requires **Bash ≥ 4** (on Windows, Git Bash / MSYS2).
+
+1. **Add the submodule** from the project root:
+   ```bash
+   git submodule add https://github.com/bthos/talaka talaka
+   git submodule update --init --recursive
+   ```
+   If `talaka/` is already there (e.g. a teammate committed it), run only the second command.
+2. **Install:**
+   ```bash
+   talaka/shared/lifecycle/tools/init.sh --non-interactive    # or: talaka/kit.sh init -n
+   ```
+   It must end with `✓ Done.` and print an **`[AGENT ACTION REQUIRED]`** block.
+3. **Configure `.tlk/PROJECT.md`.** This is part of the install, not a follow-up. Replace the placeholders under *Project-Specific Configuration* using your own Read/Edit tools. Infer the values from `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `Makefile` or CI workflows. The kit **executes** these values, so a placeholder or prose fails:
+
+   | Field | Typical value | When the project has none |
+   |-------|---------------|---------------------------|
+   | Test command | `npm test`, `pytest`, `cargo test`, `go test ./...` | a real check, e.g. `node --check app.js`; else `true` |
+   | Build command | `npm run build`, `make`, `cargo build` | `true` |
+   | Version files | `package.json`, `pyproject.toml`, … | `none` |
+
+   Fill *What it is*, *Tech stack* and *Key conventions* too. They are optional, but agents work better with them. The other optional fields (Focused test command, Judge command, Generator command, Pace thresholds) can stay as placeholders: the kit then uses its defaults.
+4. **Verify.** Both commands must succeed:
+   ```bash
+   talaka/shared/project/tools/validate-config.sh    # → "Configuration OK."
+   talaka/kit.sh status                              # refused until the stage is "ready"
+   ```
+   The install is finished only when both pass. Do not report done before that.
+5. **Tell the user what to commit:** `.gitmodules` and the `talaka` gitlink, plus the managed blocks in `CLAUDE.md` / `AGENTS.md` if they want them shared. Everything under `.tlk/` and the kit's `.claude/` copies is per-developer and git-ignored by the kit's own `.gitignore` files. Teammates who want the kit run `git submodule update --init` after cloning, then repeat steps 2–4.
 
 ## What it is
 
@@ -68,11 +100,12 @@ git submodule add https://github.com/bthos/talaka talaka
 # edit PROJECT.md when unconfigured, full menu once ready).
 talaka/kit.sh
 
-# Or call init.sh directly — recommended for scripts and CI.
-talaka/shared/lifecycle/tools/init.sh
+# Or call init.sh directly — scripts, CI and agents add --non-interactive
+# (see "Install (for an LLM agent)" above).
+talaka/shared/lifecycle/tools/init.sh --non-interactive
 ```
 
-`talaka/kit.sh` is a stage-aware menu: at stage **0 (not installed)** it only shows `init`; at stage **1 (needs config)** it adds `probe`, `edit PROJECT.md`, `validate`, `teardown`, and an **Optional components** submenu; at stage **2 (ready)** it surfaces the full set — feature status, the dashboard, memory search, version bumps, memory rollover/promotion, distill lessons, apply patches. The **Optional components** submenu installs/removes opt-in add-ons (statusline, AutoResearch, memory Stop hook) from one place, each showing live `[installed]`/`[off]` status — adding a new add-on is one registry row. Press `h` for inline descriptions of every action. For CI / agents, pass an action as a positional argument: `talaka/kit.sh status` runs once and exits; `talaka/kit.sh --list-json` dumps the action registry as JSON; `talaka/kit.sh --help` prints the full reference.
+`talaka/kit.sh` is a stage-aware menu: at stage **0 (not installed)** it only shows `init`; at stage **1 (needs config)** it adds `probe`, `edit PROJECT.md`, `validate`, `teardown`, and an **Optional components** submenu; at stage **2 (ready)** it surfaces the full set — feature status, the dashboard, memory search, version bumps, memory rollover/promotion, distill lessons, apply patches. The **Optional components** submenu installs/removes opt-in add-ons (statusline, AutoResearch, memory Stop hook) from one place, each showing live `[installed]`/`[off]` status — adding a new add-on is one registry row. Press `h` for inline descriptions of every action. For CI / agents, pass an action as a positional argument: `talaka/kit.sh status` runs once and exits; `talaka/kit.sh init -n` installs in agent mode (`init` and `update` also pick that mode on their own when there is no TTY). The stage is **ready** exactly when `validate-config.sh` passes, so the two never disagree; `talaka/kit.sh --list-json` dumps the action registry as JSON; `talaka/kit.sh --help` prints the full reference.
 
 > **Requirements.** Bash ≥ 4.0 (uses `read -a`, associative-style arrays, `[[ … ]]`). On Windows use **MSYS2 / Git Bash**. macOS / Linux work out of the box.
 

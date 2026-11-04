@@ -286,4 +286,16 @@ test_judge_that_ignores_stdin_still_gives_a_verdict() {
   assert_eq "0" "$v"  "its verdict is passed through"
 }
 
+test_template_placeholder_falls_back_to_default() {
+  # The unfilled template line must mean "use the default", not be run as a
+  # command (its text up to the first inner backtick is not a CLI).
+  local proj; proj=$(make_tmp_project)
+  local art="$proj/.tlk" bin="$proj/bin"
+  mkdir -p "$art" "$bin"
+  grep -F '**Judge command:**' "$KIT_ROOT/templates/PROJECT.md.template" > "$art/PROJECT.md"
+  printf '#!/usr/bin/env bash\ncat >/dev/null; printf 1\n' > "$bin/claude"; chmod +x "$bin/claude"
+  local v; v=$(PATH="$bin:$PATH" ARTEFACTS_DIR="$art" bash "$JUDGE" --requirement "r" --output "o" --samples 1 --no-cache 2>/dev/null)
+  assert_eq "1" "$v" "placeholder ignored; default claude CLI used"
+}
+
 run_tests "$@"

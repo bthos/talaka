@@ -228,10 +228,12 @@ for arg in "$@"; do
   esac
 done
 
-# No args + no TTY → agent discovered the script; show help so it knows what to pass next.
+# No args + no TTY → agent discovered the script; show help so it knows what to
+# pass next. Nothing was installed, so this must not look like success.
 if [ $# -eq 0 ] && [ ! -t 0 ] && [ ! -t 1 ]; then
   show_help
-  exit 0
+  printf 'init.sh: no TTY and no arguments — nothing installed. Re-run with --non-interactive.\n' >&2
+  exit 2
 fi
 
 # --non-interactive implies skip-existing (safe default: don't overwrite without being asked)
@@ -535,11 +537,18 @@ if [ "$FRESH_PROJECT_MD" = true ]; then
   if $NON_INTERACTIVE; then
     # Agent / CI mode: do NOT spawn a nested agent process — the agent that invoked this
     # script should fill PROJECT.md itself using its own tools after init completes.
-    printf "\n${BOLD}  [AGENT ACTION REQUIRED]${RESET} Fill in $PROJECT_REL\n"
-    printf "  Inspect the project files (package.json, pyproject.toml, Cargo.toml, go.mod,\n"
-    printf "  Makefile, etc.) to infer the test command, build command, and version files.\n"
-    printf "  Replace every <placeholder> in $PROJECT_REL with the correct value.\n"
-    printf "  Then run: ${SUBMODULE_DIR}/shared/project/tools/validate-config.sh\n\n"
+    printf "\n${BOLD}  [AGENT ACTION REQUIRED]${RESET} Fill in $PROJECT_REL — the install is not finished until this passes:\n"
+    printf "    ${SUBMODULE_DIR}/shared/project/tools/validate-config.sh\n\n"
+    printf "  Required fields (Project-Specific Configuration). The kit EXECUTES these values,\n"
+    printf "  so a placeholder or prose fails; infer them from package.json, pyproject.toml,\n"
+    printf "  Cargo.toml, go.mod, Makefile, CI workflows, etc.:\n"
+    printf "    Test command    full suite, e.g. npm test, pytest, cargo test, go test ./...\n"
+    printf "                    no tests? a real check, e.g. node --check app.js, or: true\n"
+    printf "    Build command   e.g. npm run build, make, cargo build; no build step: true\n"
+    printf "    Version files   comma-separated files holding the version, or: none\n"
+    printf "  Fill the About section (What it is, Tech stack, Key conventions) too — optional,\n"
+    printf "  but agents get less context without it. Other optional fields may stay as they are.\n"
+    printf "  Then confirm: ${SUBMODULE_DIR}/kit.sh status runs (it needs stage 'ready').\n\n"
   else
     run_fill=false
     if [ -n "$fill_cli" ]; then
