@@ -6,8 +6,10 @@ TALAKA_COST_PER_MIN	env	0	$/min	Metrics & cost	.claude/settings.local.json → e
 TALAKA_WIKI_DIR	env	wiki	path	Wiki	.claude/settings.local.json → env	knowledge-curating/new-wiki.sh, dashboard/tools/snapshot.sh	Where the committed knowledge wiki lives, relative to the project root.	
 TALAKA_ISSUES_REPO	env	bthos/talaka	owner/repo	Kit issues	.claude/settings.local.json → env	shared/feedback/tools/kit-issue.sh	Repository field reports are filed on — point it at your fork.	
 TALAKA_PROMPT_TIMEOUT	env	15	s	Install	terminal (export before init.sh)	shared/lifecycle/tools/init.sh	How long init.sh waits for an answer at its interactive prompts.	
+TALAKA_BIN_DIR	env	~/.local/bin (~/bin on Windows)	path	Install	terminal	shared/lifecycle/tools/doctor.sh	Where doctor.sh --install --allow-download puts the downloaded jq binary. Default: the first of ~/.local/bin, ~/bin already on PATH.	
+TALAKA_JQ_BASE_URL	env	https://github.com/jqlang/jq/releases/download	url	Install	terminal	shared/lifecycle/tools/doctor.sh	Mirror for the jq release download. The pinned SHA-256 is checked whatever the source.	
 PACE_SNAPSHOT_REFRESH	env	30	s	Pace & statusline	.claude/settings.local.json → env	statusline/tools/pace.sh	The statusline rewrites .tlk/usage.env only when the numbers change, or after this many seconds to keep captured_at fresh.	
-ARTEFACTS_DIR	env	.tlk	path	Install	terminal / .claude/settings.local.json → env	every kit script	Relocates the whole artefacts tree.	
+ARTEFACTS_DIR	env	.tlk	path	Install	init.sh --artefacts-dir=NAME (saved in .claude/settings.local.json → env)	every kit script	Relocates the whole artefacts tree. Move an existing tree with mv before changing it.	
 Test command	project	required	command	Pipeline	.tlk/PROJECT.md	Bagnik, check-coverage.sh	Full regression suite. Bagnik's gates always run it.	
 Focused test command	project	Cmok filters the test command	command	Pipeline	.tlk/PROJECT.md	Cmok	Runs a subset; Cmok appends a path or pattern for the tests covering what it changed.	
 Build command	project	none	command	Pipeline	.tlk/PROJECT.md	Cmok, Bagnik	Run on every build and before every code QA. Unset: the Build line says so.	

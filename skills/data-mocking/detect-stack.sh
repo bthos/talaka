@@ -24,10 +24,11 @@ done
 [ -n "$root" ] || root="/"
 [ -d "$root" ] || { echo "ERROR: not a directory: $root" >&2; exit 2; }
 
+_art="${ARTEFACTS_DIR:-.tlk}"; _art="${_art%/}"   # the kit's artefacts dir, wherever it lives
 prune=( \( -name node_modules -o -name .git -o -name dist -o -name build -o -name out
           -o -name .next -o -name .nuxt -o -name target -o -name vendor -o -name .venv
           -o -name venv -o -name __pycache__ -o -name coverage -o -name storybook-static
-          -o -name .tlk -o -name .claude \) -prune )
+          -o -name .tlk -o -name "${_art##*/}" -o -name .claude \) -prune )
 
 # Manifests, up to four levels down (monorepo packages).
 manifests=()

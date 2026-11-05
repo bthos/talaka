@@ -44,7 +44,18 @@ $yellow  = "$e[33m"; $red     = "$e[31m"; $dim   = "$e[2m"
 $bold    = "$e[1m";  $reset   = "$e[0m"
 
 # --- Pipeline state ---
-$tlkDir = Join-Path $projectDir ".tlk"
+# Artefacts dir: $env:ARTEFACTS_DIR, else the location saved at install
+# (env.ARTEFACTS_DIR in .claude/settings.local.json), else .tlk.
+# Mirrors shared/lifecycle/tools/artefacts-dir.sh.
+$artName = $env:ARTEFACTS_DIR
+if (-not $artName) {
+    $localSettings = Join-Path $projectDir ".claude/settings.local.json"
+    if (Test-Path $localSettings) {
+        try { $artName = (Get-Content $localSettings -Raw | ConvertFrom-Json).env.ARTEFACTS_DIR } catch { $artName = $null }
+    }
+}
+if (-not $artName) { $artName = ".tlk" }
+$tlkDir = if ([System.IO.Path]::IsPathRooted($artName)) { $artName } else { Join-Path $projectDir $artName }
 $activeAgent = $null
 $slug = ""; $stage = ""; $featCount = 0; $featPath = ""
 

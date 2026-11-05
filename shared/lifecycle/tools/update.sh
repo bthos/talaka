@@ -61,6 +61,8 @@ talaka / update.sh
       --skip-all | --overwrite-all | --force
       --tune | --no-tune
       --with-autoresearch | --no-autoresearch
+      --with-hook | --no-hook | --no-statusline | --no-output-style | --no-env
+    The artefacts location chosen at install (--artefacts-dir) is remembered.
 
     The --ide=* flag was removed; talaka now installs a single
     Claude-shaped layout. See CHANGELOG.md.
@@ -149,6 +151,12 @@ if [ -f "$PIPELINE_CANONICAL" ] && [ -f "$PIPELINE_TEMPLATE" ]; then
     info "Pipeline drift detected — $ARTEFACTS_NAME/PIPELINE.md will be refreshed by init.sh."
     info "Diff:    diff $ARTEFACTS_NAME/PIPELINE.md $SUBMODULE_DIR/templates/PIPELINE.md.template"
   fi
+fi
+
+# Without a TTY nobody can answer init's prompts, and init.sh run bare there
+# only prints its help — the refresh would silently not happen. Agent / CI mode.
+if [ ${#forward_args[@]} -eq 0 ] && [ ! -t 0 ]; then
+  forward_args=(--non-interactive)
 fi
 
 # Run the refresh. Not `exec`: the legacy-leftover notice runs after it.

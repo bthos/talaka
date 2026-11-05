@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Run from the target project root after adding the submodule.
 # Usage: talaka/shared/lifecycle/tools/init.sh [--force | --overwrite-all | --skip | --skip-all | --non-interactive]
+#                                             [--artefacts-dir=NAME] [--with-autoresearch] [--with-hook]
+#                                             [--no-statusline] [--no-output-style] [--no-env]
 #
 # What this script does (minimally invasive by design):
 #
@@ -43,8 +45,56 @@
 set -euo pipefail
 
 _TOOLS_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# --artefacts-dir=NAME must be known before lib.sh resolves every path from it.
+_ARTEFACTS_ARG=""
+for _a in "$@"; do
+  case "$_a" in --artefacts-dir=*) _ARTEFACTS_ARG="${_a#--artefacts-dir=}" ;; esac
+done
+_SAVED_ENV_ARTEFACTS="${ARTEFACTS_DIR:-}"
+if [ -n "$_ARTEFACTS_ARG" ]; then
+  ARTEFACTS_DIR="${_ARTEFACTS_ARG%/}"; export ARTEFACTS_DIR
+fi
+
 # shellcheck source=lib.sh
 source "$_TOOLS_DIR/lib.sh"
+
+if [ -n "$_ARTEFACTS_ARG" ] && ! kit_artefacts_name_ok "$ARTEFACTS_NAME"; then
+  err "--artefacts-dir=$_ARTEFACTS_ARG: use a relative path inside the project (e.g. .tlk, .ai/kit),"
+  err "without '..', and not .git/, .claude/ or the kit's own $SUBMODULE_DIR/."
+  exit 2
+fi
+
+# One install per project. Choosing a location while kit state already lives
+# somewhere else would start a second, empty tree and orphan the first (memory,
+# features, PROJECT.md). Moving it is the user's call — say how, change nothing.
+_existing_art=""
+for _cand in "$(kit_saved_artefacts_dir "$PROJECT_ROOT")" "$KIT_ARTEFACTS_DEFAULT"; do
+  [ -n "$_cand" ] && [ "$_cand" != "$ARTEFACTS_NAME" ] || continue
+  if [ -f "$PROJECT_ROOT/$_cand/.${KIT_SLUG}.cfg" ]; then _existing_art="$_cand"; break; fi
+done
+if [ -n "$_existing_art" ] && [ ! -f "$KIT_CFG" ]; then
+  err "Kit state already lives in $_existing_art/ — not starting a second install in $ARTEFACTS_NAME/."
+  err "To move it:  mv $_existing_art $ARTEFACTS_NAME   then re-run init.sh --artefacts-dir=$ARTEFACTS_NAME"
+  err "To keep it:  re-run without --artefacts-dir (or with --artefacts-dir=$_existing_art)."
+  exit 2
+fi
+unset _a _cand _existing_art _SAVED_ENV_ARTEFACTS
+
+# A chosen location is only remembered through .claude/settings.local.json,
+# which needs jq. Without it the next session would silently fall back to the
+# default — refuse now rather than leave a half-working install behind.
+_art_missing=""
+if [ -n "$_ARTEFACTS_ARG" ] && [ "$ARTEFACTS_NAME" != "$KIT_ARTEFACTS_DEFAULT" ] \
+   && [ "$(kit_saved_artefacts_dir "$PROJECT_ROOT")" != "$ARTEFACTS_NAME" ]; then
+  _art_missing=$(kit_feature_missing artefacts-dir) || true
+fi
+if [ -n "$_art_missing" ]; then
+  err "--artefacts-dir needs $_art_missing to save the location, and it is not installed."
+  err "Install it:  $SUBMODULE_DIR/shared/lifecycle/tools/doctor.sh --install $_art_missing   then re-run this command."
+  exit 2
+fi
+
 # shellcheck source=install-helpers.sh
 source "$_TOOLS_DIR/install-helpers.sh"
 
@@ -108,6 +158,21 @@ show_help() {
                             program.md, record-metrics.sh). If autoresearch is
                             already initialised, always refreshes without prompting.
     --no-autoresearch       Skip autoresearch setup even if already initialised.
+
+    --with-hook             Install the Claude Code Stop hook that runs memory
+                            promote + rollover (opt-in). --no-hook: don't ask.
+
+    --no-statusline         Don't install the pipeline-aware statusline.
+    --no-output-style       Don't set outputStyle=Concise.
+    --no-env                Don't add the TALAKA_* settings to settings.local.json env.
+                            (These three are on by default; --no-* only skips
+                            installing — remove an existing one via kit.sh components.)
+
+    --artefacts-dir=NAME    Keep all kit state in NAME/ instead of .tlk/ (a relative
+                            path inside the project). Saved as ARTEFACTS_DIR in
+                            .claude/settings.local.json → env, so every later tool
+                            and agent call follows it. Refuses if kit state already
+                            lives elsewhere — move it first.
 
     --tune                  After install, probe the project (stack, frameworks,
                             test/build commands, conventions) and write
@@ -206,6 +271,11 @@ NON_INTERACTIVE=false
 TUNE=false
 AUTORESEARCH=""  # "yes" | "no" | "" (auto-detect)
 MEMORY_HOOK=""   # "yes" | "no" | "" (ask)
+# Default-on add-ons; --no-* skips installing them (it does not remove an
+# existing one — kit.sh components or the tool's --remove does that).
+WITH_STATUSLINE=true
+WITH_OUTPUT_STYLE=true
+WITH_ENV=true
 
 for arg in "$@"; do
   case "$arg" in
@@ -225,14 +295,49 @@ for arg in "$@"; do
     --no-autoresearch)               AUTORESEARCH="no" ;;
     --with-hook)                     MEMORY_HOOK="yes" ;;
     --no-hook)                       MEMORY_HOOK="no" ;;
+    --no-statusline)                 WITH_STATUSLINE=false ;;
+    --no-output-style)               WITH_OUTPUT_STYLE=false ;;
+    --no-env)                        WITH_ENV=false ;;
+    --artefacts-dir=*)               ;;  # handled before lib.sh was sourced
   esac
 done
 
-# No args + no TTY → agent discovered the script; show help so it knows what to pass next.
+# No args + no TTY → agent discovered the script; show help so it knows what to
+# pass next. Nothing was installed, so this must not look like success.
 if [ $# -eq 0 ] && [ ! -t 0 ] && [ ! -t 1 ]; then
   show_help
-  exit 0
+  printf 'init.sh: no TTY and no arguments — nothing installed. Re-run with --non-interactive.\n' >&2
+  exit 2
 fi
+
+# Optional features whose tools are missing are never enabled — a half-set-up
+# feature fails later, quietly (a statusline without jq is one line of error
+# text). Say up front what the missing tools rule out; the summary repeats it.
+_blocked_list="" _missing_tools=""
+for _f in $KIT_FEATURES; do
+  [ "$_f" = artefacts-dir ] && continue   # handled above, with its own refusal
+  if ! _m=$(kit_feature_missing "$_f"); then
+    _blocked_list+="${_blocked_list:+, }$_f"
+    for _t in $_m; do
+      case " $_missing_tools " in *" $_t "*) ;; *) _missing_tools+="${_missing_tools:+ }$_t" ;; esac
+    done
+  fi
+done
+if [ -n "$_missing_tools" ]; then
+  warn "Missing: $_missing_tools — these features stay off: $_blocked_list."
+  warn "Install with $SUBMODULE_DIR/shared/lifecycle/tools/doctor.sh --install $_missing_tools, then re-run init.sh."
+fi
+unset _f _m _t _blocked_list _missing_tools
+
+# feature_ready KEY LABEL [requested] → 0 when every tool KEY needs is present.
+# Otherwise return 1, and — when the user explicitly asked for it — say that the
+# request was not honoured and why.
+feature_ready() {
+  local missing
+  missing=$(kit_feature_missing "$1") && return 0
+  [ "${3:-}" = requested ] && warn "$2 not enabled — needs $missing (install: $SUBMODULE_DIR/shared/lifecycle/tools/doctor.sh --install $missing)"
+  return 1
+}
 
 # --non-interactive implies skip-existing (safe default: don't overwrite without being asked)
 if $NON_INTERACTIVE && [ -z "$MODE" ]; then MODE="skip"; fi
@@ -396,6 +501,7 @@ setup_artefacts_dir() {
   if [ -f "$PROJECT_TARGET" ]; then
     if $OVERWRITE_ALL; then
       cp "$PROJECT_TEMPLATE" "$PROJECT_TARGET"
+      project_md_point_at_artefacts
       manifest_set_hash "$PROJECT_REL" "$(kit_sha256_file "$PROJECT_TARGET")"
       success "$PROJECT_REL (reset from template — --force)"
       FRESH_PROJECT_MD=true
@@ -414,10 +520,27 @@ setup_artefacts_dir() {
     fi
   else
     cp "$PROJECT_TEMPLATE" "$PROJECT_TARGET"
+    project_md_point_at_artefacts
     manifest_set_hash "$PROJECT_REL" "$(kit_sha256_file "$PROJECT_TARGET")"
     success "$PROJECT_REL"
     FRESH_PROJECT_MD=true
   fi
+}
+
+# A fresh PROJECT.md comes from the template, which names the default location.
+# For a relocated install, point its "Artifacts directory" field (read by
+# agents) at the real one. Bash expansion, not sed: the path holds '/'.
+project_md_point_at_artefacts() {
+  [ "$ARTEFACTS_NAME" != "$KIT_ARTEFACTS_DEFAULT" ] || return 0
+  local line out=""
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      "- **Artifacts directory:**"*) line="- **Artifacts directory:** \`$ARTEFACTS_NAME/\`" ;;
+      "> Lives at \`$KIT_ARTEFACTS_DEFAULT/PROJECT.md\`"*) line="${line/\`$KIT_ARTEFACTS_DEFAULT\/PROJECT.md\`/\`$ARTEFACTS_NAME/PROJECT.md\`}" ;;
+    esac
+    out+="$line"$'\n'
+  done < "$PROJECT_TARGET"
+  printf '%s' "$out" > "$PROJECT_TARGET"
 }
 
 # ---------------------------------------------------------------------------
@@ -535,11 +658,18 @@ if [ "$FRESH_PROJECT_MD" = true ]; then
   if $NON_INTERACTIVE; then
     # Agent / CI mode: do NOT spawn a nested agent process — the agent that invoked this
     # script should fill PROJECT.md itself using its own tools after init completes.
-    printf "\n${BOLD}  [AGENT ACTION REQUIRED]${RESET} Fill in $PROJECT_REL\n"
-    printf "  Inspect the project files (package.json, pyproject.toml, Cargo.toml, go.mod,\n"
-    printf "  Makefile, etc.) to infer the test command, build command, and version files.\n"
-    printf "  Replace every <placeholder> in $PROJECT_REL with the correct value.\n"
-    printf "  Then run: ${SUBMODULE_DIR}/shared/project/tools/validate-config.sh\n\n"
+    printf "\n${BOLD}  [AGENT ACTION REQUIRED]${RESET} Fill in $PROJECT_REL — the install is not finished until this passes:\n"
+    printf "    ${SUBMODULE_DIR}/shared/project/tools/validate-config.sh\n\n"
+    printf "  Required fields (Project-Specific Configuration). The kit EXECUTES these values,\n"
+    printf "  so a placeholder or prose fails; infer them from package.json, pyproject.toml,\n"
+    printf "  Cargo.toml, go.mod, Makefile, CI workflows, etc.:\n"
+    printf "    Test command    full suite, e.g. npm test, pytest, cargo test, go test ./...\n"
+    printf "                    no tests? a real check, e.g. node --check app.js, or: true\n"
+    printf "    Build command   e.g. npm run build, make, cargo build; no build step: true\n"
+    printf "    Version files   comma-separated files holding the version, or: none\n"
+    printf "  Fill the About section (What it is, Tech stack, Key conventions) too — optional,\n"
+    printf "  but agents get less context without it. Other optional fields may stay as they are.\n"
+    printf "  Then confirm: ${SUBMODULE_DIR}/kit.sh status runs (it needs stage 'ready').\n\n"
   else
     run_fill=false
     if [ -n "$fill_cli" ]; then
@@ -601,6 +731,10 @@ kit_cfg_set_many \
   PROJECT_ROOT    "$PROJECT_ROOT" \
   SUBMODULE_DIR   "$SUBMODULE_DIR"
 
+# Remember a non-default location so every later tool call finds it (and a
+# return to the default drops the saved value).
+kit_artefacts_dir_persist || true
+
 # ---------------------------------------------------------------------------
 # Project probe (--tune): write .tlk/PROJECT_PROFILE.md so agents self-tune
 # ---------------------------------------------------------------------------
@@ -636,13 +770,16 @@ _ar_run="$SCRIPT_DIR/autoresearch/run.sh"
 _ar_program="$ARTEFACTS/autoresearch/program.md"
 _ar_setup=false
 
-if [ "$AUTORESEARCH" = "yes" ]; then
-  _ar_setup=true
-elif [ "$AUTORESEARCH" = "no" ]; then
+if [ "$AUTORESEARCH" = "no" ]; then
   _ar_setup=false
 elif [ -f "$_ar_program" ]; then
-  # Already initialised — always refresh (idempotent)
+  # Already initialised — refreshing its templates is harmless whatever is
+  # installed; the feature is on already.
   _ar_setup=true
+elif [ "$AUTORESEARCH" = "yes" ]; then
+  feature_ready autoresearch "AutoResearch" requested && _ar_setup=true
+elif ! feature_ready autoresearch "AutoResearch"; then
+  _ar_setup=false   # not asked for, and could not be — don't offer it
 else
   # Not initialised and no explicit flag — ask the user
   if $NON_INTERACTIVE; then
@@ -674,12 +811,16 @@ fi
 # ---------------------------------------------------------------------------
 _hook_install="$SCRIPT_DIR/memory/tools/memory-hook.sh"
 _do_hook=false
-if [ "$MEMORY_HOOK" = "yes" ]; then
-  _do_hook=true
-elif [ "$MEMORY_HOOK" = "no" ]; then
+if [ "$MEMORY_HOOK" = "no" ]; then
   _do_hook=false
 elif grep -qs "memory/tools/tick.sh" "$KIT_SETTINGS_FILE" "$KIT_SETTINGS_SHARED"; then
-  _do_hook=true   # already installed — memory-hook.sh will idempotently skip
+  # Already on. memory-hook.sh refreshes it idempotently — which needs jq; without
+  # it there is nothing to do (the hook itself runs without jq).
+  kit_feature_missing memhook >/dev/null && _do_hook=true
+elif [ "$MEMORY_HOOK" = "yes" ]; then
+  feature_ready memhook "Memory Stop hook" requested && _do_hook=true
+elif ! feature_ready memhook "Memory Stop hook"; then
+  _do_hook=false    # not asked for, and could not be — don't offer it
 else
   if $NON_INTERACTIVE; then
     info "Memory maintenance hook not installed (pass --with-hook to enable, or see README scheduling)"
@@ -719,7 +860,7 @@ fi
 # Only ever set when unset — a style the user picked is kept.
 # ---------------------------------------------------------------------------
 _os_install="$SCRIPT_DIR/shared/lifecycle/tools/install-output-style.sh"
-if [ -x "$_os_install" ]; then
+if $WITH_OUTPUT_STYLE && [ -x "$_os_install" ] && feature_ready concise "Concise output style"; then
   ( cd "$PROJECT_ROOT" && "$_os_install" ) || warn "install-output-style.sh exited non-zero."
 fi
 
@@ -729,7 +870,7 @@ fi
 # between calls). Only missing keys are added — a value you changed is kept.
 # ---------------------------------------------------------------------------
 _env_install="$SCRIPT_DIR/shared/lifecycle/tools/install-env.sh"
-if [ -x "$_env_install" ]; then
+if $WITH_ENV && [ -x "$_env_install" ] && feature_ready kitenv "Kit settings (env)"; then
   ( cd "$PROJECT_ROOT" && "$_env_install" ) || warn "install-env.sh exited non-zero."
 fi
 
@@ -737,7 +878,7 @@ fi
 # Statusline: pipeline-aware status bar for Claude Code
 # ---------------------------------------------------------------------------
 _sl_install="$SCRIPT_DIR/statusline/tools/install-statusline.sh"
-if [ -x "$_sl_install" ]; then
+if $WITH_STATUSLINE && [ -x "$_sl_install" ] && feature_ready statusline "Statusline"; then
   info "Configuring pipeline-aware statusline…"
   if ! ( cd "$PROJECT_ROOT" && "$_sl_install" ); then
     warn "install-statusline.sh exited non-zero — statusline not configured."
@@ -755,9 +896,39 @@ printf "  ${DIM}%-38s${RESET} %s\n" "Entry points:"      "${CYAN}CLAUDE.md, AGEN
 printf "  ${DIM}%-38s${RESET} %s\n" "Agents installed:"  "${CYAN}.claude/agents/${RESET}"
 printf "  ${DIM}%-38s${RESET} %s\n" "Skills installed:"  "${CYAN}.claude/skills/${RESET}"
 printf "  ${DIM}%-38s${RESET} %s\n" "Goal loop:"         "${CYAN}.claude/loop.md${RESET} (default prompt of a bare ${CYAN}/loop${RESET})"
-printf "  ${DIM}%-38s${RESET} %s\n" "Statusline:"        "${CYAN}.claude/settings.local.json (statusLine)${RESET}"
-printf "  ${DIM}%-38s${RESET} %s\n" "Output style:"      "${CYAN}.claude/settings.local.json (outputStyle: Concise)${RESET}"
-printf "  ${DIM}%-38s${RESET} %s\n" "Kit settings:"      "${CYAN}.claude/settings.local.json (env: TALAKA_*)${RESET}"
+if [ "$ARTEFACTS_NAME" != "$KIT_ARTEFACTS_DEFAULT" ]; then
+  printf "  ${DIM}%-38s${RESET} %s\n" "Artefacts location:" "${CYAN}$ARTEFACTS_NAME/${RESET} (saved: .claude/settings.local.json → env.ARTEFACTS_DIR)"
+fi
+
+# Optional components: what this run left in place, so the caller can report it.
+_on()  { printf "${GREEN}on${RESET}   %s" "$1"; }
+_off() { printf "${DIM}off${RESET}  %s" "$1"; }
+printf "\n  ${BOLD}Optional components${RESET}  ${DIM}(change any time: ${SUBMODULE_DIR}/kit.sh components)${RESET}\n"
+_comp() { printf "  ${DIM}%-38s${RESET} %b\n" "$1" "$2"; }
+# _off_why KEY HINT [opted-out] → why a component is off: the user's own flag
+# first, then missing tools, else how to enable it.
+_off_why() {
+  local missing
+  if [ "${3:-}" != opted-out ] && ! missing=$(kit_feature_missing "$1"); then
+    printf "${YELLOW}needs %s${RESET} — install: %s/shared/lifecycle/tools/doctor.sh --install %s" \
+      "$missing" "$SUBMODULE_DIR" "$missing"
+  else
+    printf '(%s)' "$2"
+  fi
+}
+_optout() { $1 && echo "" || echo opted-out; }
+if grep -qs 'tools/statusline\.' "$KIT_SETTINGS_FILE"; then _comp "Statusline:" "$(_on '.claude/settings.local.json (statusLine)')"
+else _comp "Statusline:" "$(_off "$(_off_why statusline '--no-statusline, or a statusLine of your own' "$(_optout $WITH_STATUSLINE)")")"; fi
+if grep -qs '"outputStyle"[[:space:]]*:[[:space:]]*"Concise"' "$KIT_SETTINGS_FILE" "$KIT_SETTINGS_SHARED"; then _comp "Concise output style:" "$(_on 'outputStyle: Concise')"
+else _comp "Concise output style:" "$(_off "$(_off_why concise '--no-output-style, or a style of your own' "$(_optout $WITH_OUTPUT_STYLE)")")"; fi
+if grep -qs '"TALAKA_[A-Z_]*"[[:space:]]*:' "$KIT_SETTINGS_FILE"; then _comp "Kit settings (env):" "$(_on 'TALAKA_* in env')"
+else _comp "Kit settings (env):" "$(_off "$(_off_why kitenv '--no-env' "$(_optout $WITH_ENV)")")"; fi
+if grep -qs 'memory/tools/tick.sh' "$KIT_SETTINGS_FILE" "$KIT_SETTINGS_SHARED"; then _comp "Memory Stop hook:" "$(_on 'promote + rollover after each session')"
+else _comp "Memory Stop hook:" "$(_off "$(_off_why memhook 'enable: --with-hook' "$([ "$MEMORY_HOOK" = no ] && echo opted-out)")")"; fi
+if [ -f "$ARTEFACTS/autoresearch/program.md" ]; then _comp "AutoResearch:" "$(_on "$ARTEFACTS_NAME/autoresearch/")"
+else _comp "AutoResearch:" "$(_off "$(_off_why autoresearch 'enable: --with-autoresearch' "$([ "$AUTORESEARCH" = no ] && echo opted-out)")")"; fi
+if [ -f "$ARTEFACTS/PROJECT_PROFILE.md" ]; then _comp "Project profile:" "$(_on "$ARTEFACTS_NAME/PROJECT_PROFILE.md")"
+else _comp "Project profile:" "$(_off '(enable: --tune)')"; fi
 
 printf "\n  ${BOLD}Next steps${RESET}\n"
 printf "  ${DIM}%-38s${RESET} %s\n" "Start a feature:"       "${CYAN}/requirements-eliciting${RESET}"

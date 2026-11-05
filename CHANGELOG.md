@@ -10,6 +10,101 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Changed — a feature whose tools are missing is never enabled
+
+- **`shared/lifecycle/tools/features.sh`**: one table of what each optional feature needs,
+  shared by `init.sh`, `kit.sh components` and `doctor.sh`.
+  - **jq:** statusline, output style, kit env, memory hook, and a custom artefacts location.
+  - **jq and claude:** AutoResearch.
+- **`init.sh`** leaves such a feature off whatever the flags say.
+  - **Up front:** one notice names the missing tools and the features they rule out.
+  - **Explicit requests:** an explicit `--with-hook` or `--with-autoresearch` gets a "not
+    enabled — needs X" warning.
+  - **Summary:** marks the feature **needs X** with the install command. A feature the user
+    turned off with a `--no-*` flag is still reported as their choice.
+  - **Before:** the installers half-ran and suggested adding settings by hand, including a
+    statusline that cannot work without jq.
+- **`kit.sh components`** shows `[needs jq]` instead of `[off]` and refuses to install such a
+  component.
+- **`doctor.sh`** gains a *Features* section listing what is unavailable on this machine and why.
+- **README agent install:** a *Needs* column in the components table. The agent doesn't offer
+  an unavailable component as available, and reports any that stayed off for a missing tool.
+
+### Added — `doctor.sh`: check and install the tools the kit needs
+
+- **`shared/lifecycle/tools/doctor.sh`** (also `kit.sh doctor`, from stage 0) checks:
+  - **required:** bash ≥ 4, git, and sha256sum or shasum;
+  - **recommended:** jq — the statusline and every Claude Code setting the kit writes need it;
+  - **optional:** python3, gh and the claude CLI.
+
+  It changes nothing unless `--install` is given.
+- **`--install [TOOL…]`** installs missing tools (jq, python3, gh, or bash on macOS) through the
+  system package manager: brew; apt-get, dnf, yum, apk, pacman or zypper; winget, scoop or
+  choco. Linux package managers need root or password-less `sudo -n`, and it never prompts for
+  a password. When it can't install something it exits 4 and prints the command for the user
+  to run.
+- **`--allow-download`** adds a fallback for jq: the official jq 1.7.1 static binary,
+  downloaded into a user bin dir with no root and checked against a SHA-256 pinned in the
+  script. Opt-in only.
+- **`init.sh`** warns up front when jq is missing, and refuses `--artefacts-dir` without jq.
+  Without jq the location could not be saved, so the next session would quietly go back to
+  `.tlk/`.
+- **README agent install:** add the kit, run `doctor.sh`, then ask the user one question
+  covering the location, the components and installing missing tools, with a download offered
+  only when no package manager can do it. The agent passes on `doctor.sh`'s printed command
+  rather than improvising (no password `sudo`, no piped install scripts).
+
+### Added — agent install asks first: artefacts location and optional components
+
+- **The README's agent install now starts with questions.** The agent checks for an existing
+  install first, which turns the run into an update. Otherwise it asks the user, in one
+  message, where kit state should live and which optional components to install, with
+  defaults shown and "defaults" accepted as an answer. It turns the answers into `init.sh`
+  flags, checks `init.sh`'s new *Optional components* summary against them, and reports the
+  result.
+- **`init.sh --artefacts-dir=NAME`: a relocated install that works end to end.** Before this,
+  `ARTEFACTS_DIR` was only an environment variable, so every later call fell back to `.tlk/`.
+  - **Saved:** the choice is saved as `env.ARTEFACTS_DIR` in `.claude/settings.local.json`,
+    which Claude Code passes to agent tool calls, hooks and the statusline.
+  - **Read back:** the new `shared/lifecycle/tools/artefacts-dir.sh` reads it back when the
+    variable is unset. `lib.sh` (so `init`, `update` and `teardown`), `kit.sh`,
+    `validate-config.sh`, `bump-version.sh` and both statuslines use it.
+  - **Agents told:** the CLAUDE.md / AGENTS.md block tells agents that `.tlk/` in their
+    prompts means the chosen folder, and a fresh `PROJECT.md` gets the real *Artifacts
+    directory*.
+  - **Guarded:** a path outside the project, or inside `.git/`, `.claude/` or the kit, is
+    refused. `init.sh` also refuses to start a second tree while kit state lives elsewhere
+    and prints the `mv` command to move it.
+  - **Teardown:** the saved location is forgotten only once the folder is gone.
+- **`--no-statusline`, `--no-output-style`, `--no-env`** skip the add-ons that are on by default.
+  They only skip the install; removing an existing add-on is still done from
+  `kit.sh components`.
+- **`init.sh` ends with an *Optional components* list** showing what is on and off: statusline,
+  output style, env, memory hook, AutoResearch, project profile.
+
+### Fixed — agent installs: `kit.sh init -n` installs, and "configured" means one thing (#54, #55)
+
+- **`kit.sh init --non-interactive` installed nothing and exited 0** (#55). kit.sh accepted `-n`
+  but dropped it, then ran `init.sh` bare. With no TTY, `init.sh` only printed its help. Now
+  kit.sh forwards `-n` to `init` and `update`, and also uses agent mode for them when stdin is
+  not a TTY. `update.sh` run bare without a TTY passes `--non-interactive` to `init.sh` too.
+- **`init.sh` run bare without a TTY exits 2**, not 0. It still prints its help, plus a line
+  saying nothing was installed.
+- **One definition of "configured"** (#54). kit.sh's stage used to grep for any placeholder in
+  `PROJECT.md`, so the optional fields (Judge command, Generator command, Pace thresholds) kept
+  it at *needs config* after `validate-config.sh` had passed. The stage is now
+  `validate-config.sh --quiet`'s exit code. `validate-config.sh` gains `--quiet` and reports an
+  absent field line as `MISSING`, where it used to abort silently.
+- **`judge.sh` ignores an unfilled `Judge command:` placeholder**, as `generate.sh` and
+  `pace.sh` already did. It used to run the placeholder text as the judge command.
+- **The `[AGENT ACTION REQUIRED]` block** now says the install is unfinished until
+  `validate-config.sh` passes, and what to write when a project has no tests (`true` or a real
+  syntax check), no build (`true`) or no version files (`none`).
+- **README: "Install (for an LLM agent)"**: the first install instructions in the README.
+  Ordered steps an agent can follow from the repo URL alone: add the submodule, run init in
+  agent mode, fill `PROJECT.md`, verify with `validate-config.sh` and `kit.sh status`, then
+  report what to commit.
+
 ### Added — dashboard *Settings*: every parameter and built-in assumption in one place
 
 - **The problem.** The kit's knobs were spread over environment variables, `PROJECT.md` fields,

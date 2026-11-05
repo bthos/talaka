@@ -4,8 +4,9 @@
 # Run from the project root (the directory that contains talaka/).
 # Detects the current install stage and only offers actions that make sense:
 #
-#   stage 0  not installed       → init only
-#   stage 1  installed, unconfigured (PROJECT.md still has <placeholder>s)
+#   stage 0  not installed       → init + doctor
+#   stage 1  installed, unconfigured (validate-config.sh fails: a required
+#            PROJECT.md field is still a <placeholder>)
 #                                → init + probe + edit + validate
 #   stage 2  configured, idle    → start a feature, status, memory, update,
 #                                  distill lessons, version bump, teardown, …
@@ -22,7 +23,17 @@ KIT_SLUG="${KIT_SLUG:-talaka}"
 
 KIT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$KIT/.." && pwd)"
+# ARTEFACTS_DIR, else the location saved at install, else .tlk — exported so
+# every tool launched from here lands in the same place.
+# shellcheck source=shared/lifecycle/tools/artefacts-dir.sh
+source "$KIT/shared/lifecycle/tools/artefacts-dir.sh"
+# Which tools each optional component needs — a component whose tools are
+# missing is shown as "needs …" and is never installed from here.
+# shellcheck source=shared/lifecycle/tools/features.sh
+source "$KIT/shared/lifecycle/tools/features.sh"
+kit_resolve_artefacts_dir "$PROJECT_ROOT"
 ARTEFACTS_NAME="${ARTEFACTS_DIR:-.tlk}"
+ARTEFACTS_NAME="${ARTEFACTS_NAME%/}"
 # Resolve ARTEFACTS_DIR: join a relative name onto the project root, but use an
 # already-absolute value (POSIX /… or Windows drive X:/…) as-is. Joining an
 # absolute path would double it and, on Windows, mangle the mid-path drive colon
@@ -42,10 +53,11 @@ cd "$PROJECT_ROOT"
 ACTION_ARG=""
 LIST_JSON=false
 SHOW_HELP=false
+NON_INTERACTIVE=false
 for arg in "$@"; do
   case "$arg" in
     -h|--help)         SHOW_HELP=true ;;
-    -n|--non-interactive) ;;  # accepted for symmetry with siblings; menu auto-detects no-TTY
+    -n|--non-interactive) NON_INTERACTIVE=true ;;  # forwarded to init; implied when stdin is not a TTY
     --list-json)       LIST_JSON=true ;;
     -*)                printf "unknown flag: %s\n" "$arg" >&2; exit 2 ;;
     *)                 ACTION_ARG="$arg" ;;
@@ -91,12 +103,17 @@ pause_for_user() {
 
 # ---------------------------------------------------------------------------
 # Stage detection
+#
+# "Configured" means exactly what validate-config.sh accepts — one check, so the
+# menu never says "needs config" after validate has passed. Optional fields
+# (Judge command, Pace thresholds, …) left as placeholders do not hold the stage.
 # ---------------------------------------------------------------------------
 detect_stage() {
   if [ ! -d "$ARTEFACTS" ] || [ ! -f "$CFG" ]; then
     echo 0; return
   fi
-  if [ ! -f "$PROJECT_MD" ] || grep -qF ':** `<' "$PROJECT_MD" 2>/dev/null; then
+  if [ ! -f "$PROJECT_MD" ] \
+     || ! PROJECT_MD="$PROJECT_MD" bash "$KIT/shared/project/tools/validate-config.sh" --quiet >/dev/null 2>&1; then
     echo 1; return
   fi
   echo 2
@@ -151,7 +168,9 @@ register_actions() {
 
   # ---- setup ----
   add init     0 setup "Install / refresh kit"           "Run init.sh — copy agents, skills, IDE entry-point block, .tlk/ + .claude/ .gitignore files. Safe to re-run; your edits are preserved." \
-       "$KIT/shared/lifecycle/tools/init.sh"
+       "::init"
+  add doctor   0 setup "Check tools (doctor)"            "Check bash ≥ 4, git, sha256sum/shasum and jq (+ optional python3, gh, claude). Install missing ones with: doctor.sh --install." \
+       "$KIT/shared/lifecycle/tools/doctor.sh"
   add probe    1 setup "Probe project (--tune)"          "Inspect repo (package.json, pyproject.toml, Cargo.toml, …) and write $ARTEFACTS_NAME/PROJECT_PROFILE.md so agents self-tune." \
        "$KIT/shared/project/tools/probe-project.sh::--force"
   add edit-pm  1 setup "Edit PROJECT.md"                 "Open $ARTEFACTS_NAME/PROJECT.md in \$EDITOR (fallback: vi). Fill in stack, test/build commands, version files." \
@@ -159,7 +178,7 @@ register_actions() {
   add validate 1 setup "Validate PROJECT.md"             "Fail if PROJECT.md still has <placeholder> values. Run after editing." \
        "$KIT/shared/project/tools/validate-config.sh"
   add update   2 setup "Update kit"                      "git submodule update --remote talaka, then re-run init.sh with your saved IDE." \
-       "$KIT/shared/lifecycle/tools/update.sh"
+       "::update"
   add teardown 1 setup "Uninstall (teardown)"            "Strip managed include blocks; remove kit-installed copies whose SHA-256 still matches the manifest. Asks for extra args." \
        "::teardown-prompt"
 
@@ -325,7 +344,10 @@ components_menu() {
     for row in "${COMPONENTS[@]}"; do
       IFS='|' read -r key label inst rm desc <<<"$row"
       i=$((i + 1)); CKEYS+=("$key")
-      if component_installed "$key"; then badge="${GREEN}[installed]${RESET}"; else badge="${DIM}[off]${RESET}"; fi
+      local needs=""
+      if component_installed "$key"; then badge="${GREEN}[installed]${RESET}"
+      elif ! needs=$(kit_feature_missing "$key"); then badge="${YELLOW}[needs $needs]${RESET}"
+      else badge="${DIM}[off]${RESET}"; fi
       printf "    %s%2d%s  %-22s %b\n" "$BOLD$GREEN" "$i" "$RESET" "$label" "$badge"
     done
     rule
@@ -378,7 +400,11 @@ components_menu() {
     read -r act; printf '\n'; rule
     case "$act" in
       i|I)
-        if _run_component_cmd "$inst"; then printf "  %s✓%s %s installed\n" "$GREEN" "$RESET" "$label"
+        local missing=""
+        if ! missing=$(kit_feature_missing "$ckey"); then
+          printf "  %s✗%s %s needs %s — install it first: %s/shared/lifecycle/tools/doctor.sh --install %s\n" \
+            "$RED" "$RESET" "$label" "$missing" "$KIT" "$missing"
+        elif _run_component_cmd "$inst"; then printf "  %s✓%s %s installed\n" "$GREEN" "$RESET" "$label"
         else printf "  %s✗%s %s install failed\n" "$RED" "$RESET" "$label"; fi ;;
       r|R)
         if [ "$rm" = "::none" ]; then
@@ -406,6 +432,16 @@ run_action() {
   rule
 
   case "$cmd_field" in
+    ::init|::update)
+      # No TTY means nobody can answer init's prompts — and init.sh run bare
+      # without one only prints its help. Agent / CI mode is the only sane choice.
+      local tool="$KIT/shared/lifecycle/tools/${cmd_field#::}.sh"
+      if $NON_INTERACTIVE || [ ! -t 0 ]; then
+        "$tool" --non-interactive
+      else
+        "$tool"
+      fi
+      ;;
     ::edit-project-md)
       if [ ! -f "$PROJECT_MD" ]; then
         printf "  %s✗%s %s does not exist yet — run %sinit%s first.\n" \
@@ -466,6 +502,7 @@ kit.sh — single entry point for all manual kit workflows.
 USAGE
   talaka/kit.sh                     # interactive menu
   talaka/kit.sh <action>            # run a single action and exit
+  talaka/kit.sh init -n             # install in agent / CI mode (no prompts)
   talaka/kit.sh --list-json         # dump action registry as JSON
   talaka/kit.sh --help              # this help
 
@@ -479,8 +516,8 @@ EOF
   cat <<'EOF'
 
 STAGES
-  0  not installed   → only 'init' is offered
-  1  needs config    → init, probe, edit-pm, validate, teardown, components
+  0  not installed   → 'init' and 'doctor' are offered
+  1  needs config    → init, doctor, probe, edit-pm, validate, teardown, components
   2  ready           → all actions
 
   'components' opens a sub-menu of optional add-ons (statusline, AutoResearch,
@@ -488,7 +525,12 @@ STAGES
 
 NOTES
   Single-action mode auto-detects no-TTY and refuses interactive prompts
-  (memory search, teardown extra-args) instead of hanging.
+  (memory search, teardown extra-args) instead of hanging. 'init' and
+  'update' without a TTY, or with -n / --non-interactive, run init.sh in
+  --non-interactive mode.
+
+  Stage 2 means validate-config.sh passes: only Test command, Build command
+  and Version files are required.
 EOF
 }
 

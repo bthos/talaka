@@ -13,7 +13,10 @@ if [[ "$TYPE" != "patch" && "$TYPE" != "minor" ]]; then
   exit 1
 fi
 
-PROJECT_MD="${PROJECT_MD:-.tlk/PROJECT.md}"
+# shellcheck source=../../lifecycle/tools/artefacts-dir.sh
+source "$(cd "$(dirname "$0")/../../lifecycle/tools" && pwd)/artefacts-dir.sh"
+kit_resolve_artefacts_dir "$PWD"   # run from the project root
+PROJECT_MD="${PROJECT_MD:-${ARTEFACTS_DIR:-.tlk}/PROJECT.md}"
 if [ ! -f "$PROJECT_MD" ]; then
   echo "Error: $PROJECT_MD not found. Run from project root." >&2
   exit 1

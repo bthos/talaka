@@ -284,7 +284,7 @@ if $FULL_CLEAN; then
   fi
 
   if [ -f "$KIT_CFG" ] && ! $DRY_RUN; then
-    rm "$KIT_CFG" && removed ".tlk/.talaka.cfg"
+    rm "$KIT_CFG" && removed "$ARTEFACTS_NAME/.talaka.cfg"
   elif [ -f "$KIT_CFG" ] && $DRY_RUN; then
     info "would remove: $ARTEFACTS_NAME/.talaka.cfg"
   fi
@@ -302,6 +302,16 @@ fi
 if ! $DRY_RUN; then
   if [ -f "$KIT_FILES_MANIFEST" ] && [ ! -s "$KIT_FILES_MANIFEST" ]; then
     rm "$KIT_FILES_MANIFEST" && removed "$ARTEFACTS_NAME/.talaka.files (empty)"
+  fi
+fi
+
+# A saved artefacts location (env.ARTEFACTS_DIR) points at the user's state.
+# Forget it only once that directory is gone — while memory/features/PROJECT.md
+# remain, a later re-init must find them again.
+if ! $DRY_RUN && [ ! -d "$ARTEFACTS" ] && [ -n "$(kit_saved_artefacts_dir "$PROJECT_ROOT")" ]; then
+  kit_artefacts_dir_forget && removed "env.ARTEFACTS_DIR ($KIT_SETTINGS_REL)"
+  if [ -d "$PROJECT_ROOT/.claude" ] && [ -z "$(ls -A "$PROJECT_ROOT/.claude" 2>/dev/null)" ]; then
+    rmdir "$PROJECT_ROOT/.claude" 2>/dev/null && removed ".claude/ (empty dir)" || true
   fi
 fi
 

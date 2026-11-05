@@ -115,6 +115,7 @@ PROJECT_MD="$ARTEFACTS/PROJECT.md"
 if [ -f "$PROJECT_MD" ]; then
   JUDGE_CMD=$(grep -E '^\s*-\s+\*\*Judge command:\*\*' "$PROJECT_MD" 2>/dev/null \
               | sed -E 's/^[^`]*`([^`]+)`.*/\1/' | head -n1 || true)
+  case "$JUDGE_CMD" in '<'*) JUDGE_CMD="" ;; esac   # unfilled template placeholder
 fi
 
 # Samples: --samples, else PROJECT.md → Judge samples, else 3. Kept next to the

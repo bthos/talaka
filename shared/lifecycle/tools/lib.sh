@@ -81,8 +81,6 @@ TALAKA_GITIGNORE_END="# <<< ${KIT_SLUG} (managed) <<<"
 PROJECT_PATCH_BEGIN='<!-- project-patch:start -->'
 PROJECT_PATCH_END='<!-- project-patch:end -->'
 
-ARTEFACTS_NAME="${ARTEFACTS_DIR:-.tlk}"
-
 # Every kit tool sources this file, so its own startup cost is paid on every
 # call: on Git Bash a fork can cost up to a second (issue #8). Resolve paths with
 # builtins — `cd` in this shell and back, parameter expansion — not `$(cd … &&
@@ -108,6 +106,37 @@ _LIB_SELFDIR="$_KIT_ABS"
 _kit_abs_dir "$_LIB_SELFDIR/../../.."; SCRIPT_DIR="$_KIT_ABS"
 _kit_abs_dir "$SCRIPT_DIR/..";         PROJECT_ROOT="$_KIT_ABS"
 SUBMODULE_DIR="${SCRIPT_DIR##*/}"
+
+# ---------------------------------------------------------------------------
+# Artefacts directory — where all per-developer kit state lives (default .tlk).
+#
+# Resolution order and persistence: see artefacts-dir.sh.
+# ---------------------------------------------------------------------------
+KIT_ARTEFACTS_DEFAULT=".tlk"
+
+# shellcheck source=artefacts-dir.sh
+source "$_LIB_SELFDIR/artefacts-dir.sh"
+# shellcheck source=features.sh
+source "$_LIB_SELFDIR/features.sh"
+
+# kit_artefacts_name_ok NAME → 0 when NAME is usable: a relative path inside the
+# project, not the kit, not .claude/, no "..", plain characters only.
+kit_artefacts_name_ok() {
+  local n="$1"
+  [ -n "$n" ] || return 1
+  [[ "$n" =~ ^[A-Za-z0-9._][A-Za-z0-9._/-]*$ ]] || return 1
+  case "/$n/" in
+    */../*|*/./*|//*) return 1 ;;
+  esac
+  case "$n" in
+    .|.git|.git/*|.claude|.claude/*|"$SUBMODULE_DIR"|"$SUBMODULE_DIR"/*) return 1 ;;
+  esac
+  return 0
+}
+
+kit_resolve_artefacts_dir "$PROJECT_ROOT"
+ARTEFACTS_NAME="${ARTEFACTS_DIR:-$KIT_ARTEFACTS_DEFAULT}"
+ARTEFACTS_NAME="${ARTEFACTS_NAME%/}"
 
 # ARTEFACTS_DIR is normally a bare relative name (default ".tlk") that we resolve
 # against the project root. But several callers export it already resolved to an
@@ -689,7 +718,15 @@ _kit_block_replace() {
 
 # Render the include block. Arg: pipeline_rel (relative path).
 talaka_block_render() {
-  local pipeline_rel="$1"
+  local pipeline_rel="$1" relocated=""
+  # Agent, skill and pipeline prompts are written against the default location.
+  # A relocated install says so here, in the one file every session reads.
+  if [ "$ARTEFACTS_NAME" != "$KIT_ARTEFACTS_DEFAULT" ]; then
+    relocated="> **Artefacts directory: \`$ARTEFACTS_NAME/\`.** Agent, skill and pipeline docs say \`$KIT_ARTEFACTS_DEFAULT/\` —
+> in this project every \`$KIT_ARTEFACTS_DEFAULT/…\` path means \`$ARTEFACTS_NAME/…\`. Kit scripts already follow
+> \`ARTEFACTS_DIR\` (set in \`.claude/settings.local.json\` → \`env\`); never create a \`$KIT_ARTEFACTS_DEFAULT/\` tree.
+"
+  fi
   cat <<EOF
 $TALAKA_BLOCK_BEGIN
 <!--
@@ -704,7 +741,7 @@ $TALAKA_BLOCK_BEGIN
 > appends a return entry to the feature's \`handoff-log.md\`, and returns to you. You read that
 > log and decide who runs next. Their \`Recommend:\` line is an input, not a jump.
 > Project-specific config: [\`$ARTEFACTS_NAME/PROJECT.md\`]($ARTEFACTS_NAME/PROJECT.md).
-
+${relocated}
 @$pipeline_rel
 $TALAKA_BLOCK_END
 EOF
@@ -897,6 +934,42 @@ kit_settings_update() {
   mkdir -p "${KIT_SETTINGS_FILE%/*}"
   [ -f "$KIT_SETTINGS_FILE" ] || printf '{}\n' > "$KIT_SETTINGS_FILE"
   kit_settings_jq "$KIT_SETTINGS_FILE" "$@"
+}
+
+# kit_artefacts_dir_persist — save $ARTEFACTS_NAME as env.ARTEFACTS_DIR in the
+# kit's settings file when it is not the default; drop the key when it is. Only
+# a relative name is saved (an absolute one is a run-time override, not a
+# location to remember). Returns 1 when it could not save a needed value.
+kit_artefacts_dir_persist() {
+  local want=""
+  case "$ARTEFACTS_NAME" in
+    "$KIT_ARTEFACTS_DEFAULT"|/*|?:*) want="" ;;
+    *) want="$ARTEFACTS_NAME" ;;
+  esac
+  [ "$(kit_saved_artefacts_dir "$PROJECT_ROOT")" = "$want" ] && return 0
+  if ! command -v jq >/dev/null 2>&1; then
+    if [ -n "$want" ]; then
+      warn "jq not found — could not save the artefacts location. Add to $KIT_SETTINGS_REL:"
+      warn "  \"env\": { \"ARTEFACTS_DIR\": \"$want\" }"
+      return 1
+    fi
+    warn "jq not found — remove \"ARTEFACTS_DIR\" from \"env\" in $KIT_SETTINGS_REL by hand."
+    return 1
+  fi
+  if [ -n "$want" ]; then
+    kit_settings_update --arg v "$want" '.env = ((.env // {}) + {ARTEFACTS_DIR: $v})'
+    success "artefacts location saved → env.ARTEFACTS_DIR = $want ($KIT_SETTINGS_REL)"
+  else
+    kit_artefacts_dir_forget
+  fi
+}
+
+# kit_artefacts_dir_forget — remove env.ARTEFACTS_DIR from the kit's settings.
+kit_artefacts_dir_forget() {
+  [ -f "$KIT_SETTINGS_FILE" ] && command -v jq >/dev/null 2>&1 || return 0
+  [ -n "$(kit_saved_artefacts_dir "$PROJECT_ROOT")" ] || return 0
+  kit_settings_jq "$KIT_SETTINGS_FILE" \
+    'del(.env.ARTEFACTS_DIR) | if .env == {} then del(.env) else . end'
 }
 
 # kit_settings_get FILE FILTER — print jq -r FILTER over FILE (empty when the
