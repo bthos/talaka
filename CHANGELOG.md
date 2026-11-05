@@ -10,6 +10,30 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Added — `doctor.sh`: check and install the tools the kit needs
+
+- **`shared/lifecycle/tools/doctor.sh`** (also `kit.sh doctor`, from stage 0) checks:
+  - **required:** bash ≥ 4, git, and sha256sum or shasum;
+  - **recommended:** jq — the statusline and every Claude Code setting the kit writes need it;
+  - **optional:** python3, gh and the claude CLI.
+
+  It changes nothing unless `--install` is given.
+- **`--install [TOOL…]`** installs missing tools (jq, python3, gh, or bash on macOS) through the
+  system package manager: brew; apt-get, dnf, yum, apk, pacman or zypper; winget, scoop or
+  choco. Linux package managers need root or password-less `sudo -n`, and it never prompts for
+  a password. When it can't install something it exits 4 and prints the command for the user
+  to run.
+- **`--allow-download`** adds a fallback for jq: the official jq 1.7.1 static binary,
+  downloaded into a user bin dir with no root and checked against a SHA-256 pinned in the
+  script. Opt-in only.
+- **`init.sh`** warns up front when jq is missing, and refuses `--artefacts-dir` without jq.
+  Without jq the location could not be saved, so the next session would quietly go back to
+  `.tlk/`.
+- **README agent install:** add the kit, run `doctor.sh`, then ask the user one question
+  covering the location, the components and installing missing tools, with a download offered
+  only when no package manager can do it. The agent passes on `doctor.sh`'s printed command
+  rather than improvising (no password `sudo`, no piped install scripts).
+
 ### Added — agent install asks first: artefacts location and optional components
 
 - **The README's agent install now starts with questions.** The agent checks for an existing

@@ -80,6 +80,18 @@ if [ -n "$_existing_art" ] && [ ! -f "$KIT_CFG" ]; then
   exit 2
 fi
 unset _a _cand _existing_art _SAVED_ENV_ARTEFACTS
+
+# A chosen location is only remembered through .claude/settings.local.json,
+# which needs jq. Without it the next session would silently fall back to the
+# default — refuse now rather than leave a half-working install behind.
+if [ -n "$_ARTEFACTS_ARG" ] && [ "$ARTEFACTS_NAME" != "$KIT_ARTEFACTS_DEFAULT" ] \
+   && [ "$(kit_saved_artefacts_dir "$PROJECT_ROOT")" != "$ARTEFACTS_NAME" ] \
+   && ! command -v jq >/dev/null 2>&1; then
+  err "--artefacts-dir needs jq to save the location, and jq is not installed."
+  err "Install it:  $SUBMODULE_DIR/shared/lifecycle/tools/doctor.sh --install   then re-run this command."
+  exit 2
+fi
+
 # shellcheck source=install-helpers.sh
 source "$_TOOLS_DIR/install-helpers.sh"
 
@@ -293,6 +305,11 @@ if [ $# -eq 0 ] && [ ! -t 0 ] && [ ! -t 1 ]; then
   show_help
   printf 'init.sh: no TTY and no arguments — nothing installed. Re-run with --non-interactive.\n' >&2
   exit 2
+fi
+
+if ! command -v jq >/dev/null 2>&1; then
+  warn "jq not found — the statusline, output style, TALAKA_* env and memory hook will not be configured."
+  warn "Install it with $SUBMODULE_DIR/shared/lifecycle/tools/doctor.sh --install, then re-run init.sh."
 fi
 
 # --non-interactive implies skip-existing (safe default: don't overwrite without being asked)

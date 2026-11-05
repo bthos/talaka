@@ -4,7 +4,7 @@
 # Run from the project root (the directory that contains talaka/).
 # Detects the current install stage and only offers actions that make sense:
 #
-#   stage 0  not installed       → init only
+#   stage 0  not installed       → init + doctor
 #   stage 1  installed, unconfigured (validate-config.sh fails: a required
 #            PROJECT.md field is still a <placeholder>)
 #                                → init + probe + edit + validate
@@ -165,6 +165,8 @@ register_actions() {
   # ---- setup ----
   add init     0 setup "Install / refresh kit"           "Run init.sh — copy agents, skills, IDE entry-point block, .tlk/ + .claude/ .gitignore files. Safe to re-run; your edits are preserved." \
        "::init"
+  add doctor   0 setup "Check tools (doctor)"            "Check bash ≥ 4, git, sha256sum/shasum and jq (+ optional python3, gh, claude). Install missing ones with: doctor.sh --install." \
+       "$KIT/shared/lifecycle/tools/doctor.sh"
   add probe    1 setup "Probe project (--tune)"          "Inspect repo (package.json, pyproject.toml, Cargo.toml, …) and write $ARTEFACTS_NAME/PROJECT_PROFILE.md so agents self-tune." \
        "$KIT/shared/project/tools/probe-project.sh::--force"
   add edit-pm  1 setup "Edit PROJECT.md"                 "Open $ARTEFACTS_NAME/PROJECT.md in \$EDITOR (fallback: vi). Fill in stack, test/build commands, version files." \
@@ -503,8 +505,8 @@ EOF
   cat <<'EOF'
 
 STAGES
-  0  not installed   → only 'init' is offered
-  1  needs config    → init, probe, edit-pm, validate, teardown, components
+  0  not installed   → 'init' and 'doctor' are offered
+  1  needs config    → init, doctor, probe, edit-pm, validate, teardown, components
   2  ready           → all actions
 
   'components' opens a sub-menu of optional add-ons (statusline, AutoResearch,

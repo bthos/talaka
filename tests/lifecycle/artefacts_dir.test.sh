@@ -96,4 +96,15 @@ test_no_flags_skip_default_addons() {
   assert_file_exists "$proj/.claude/agents/cmok.md" "the kit itself still installed"
 }
 
+test_relocation_without_jq_is_refused() {
+  # Without jq the location cannot be saved; the next session would fall back
+  # to .tlk/. Runs where jq is absent (CI's debian-slim image).
+  _have_jq && { skip_test "jq installed — the refusal only applies without it"; return; }
+  local proj rc=0 out; proj=$(_proj)
+  out=$(_init "$proj" --artefacts-dir=.ai/kit 2>&1) || rc=$?
+  assert_eq "2" "$rc" "refused"
+  assert_contains "$out" "doctor.sh --install" "points at the installer"
+  assert_file_absent "$proj/.ai/kit" "nothing installed"
+}
+
 run_tests "$@"

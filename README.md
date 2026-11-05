@@ -8,11 +8,20 @@ Import as a git submodule in under a minute — or tell your AI agent *"install 
 
 ## Install (for an LLM agent)
 
-These steps are written to be followed by an agent (Claude Code or any tool with a shell). Every command runs without a TTY. Do not start the interactive `talaka/kit.sh` menu: it needs a terminal. Requires **Bash ≥ 4** (on Windows, Git Bash / MSYS2). `jq` is optional, but without it the settings below (statusline, env, a custom location) are not written.
+These steps are written to be followed by an agent (Claude Code or any tool with a shell). Every command runs without a TTY. Do not start the interactive `talaka/kit.sh` menu: it needs a terminal.
 
-0. **Check what is already there.** Look for a `talaka/` submodule and for an existing install. Either `.tlk/.talaka.cfg` exists, or `"ARTEFACTS_DIR"` appears in `.claude/settings.local.json` → `env` and that directory holds `.talaka.cfg`.
-   - **Kit installed already:** this is an update. Run `talaka/shared/lifecycle/tools/update.sh --non-interactive`, then go to step 4. Don't ask about the location: it is remembered. To change components, use the flags from step 1 with `update.sh`.
-   - **Submodule present but no install** (e.g. a teammate committed it): run `git submodule update --init --recursive`, then continue with step 1.
+0. **Check what is already there, then get the kit and check tools.**
+   - **Kit installed already:** either `.tlk/.talaka.cfg` exists, or `"ARTEFACTS_DIR"` appears in `.claude/settings.local.json` → `env` and that directory holds `.talaka.cfg`. This is an update: run `talaka/shared/lifecycle/tools/update.sh --non-interactive`, then go to step 4. Don't ask about the location: it is remembered. To change components, use the flags from step 1 with `update.sh`.
+   - **Otherwise, add the kit** from the project root. Adding the submodule only adds files; nothing is installed yet. If `talaka/` is already there (e.g. a teammate committed it), run only the second command.
+     ```bash
+     git submodule add https://github.com/bthos/talaka talaka
+     git submodule update --init --recursive
+     ```
+   - **Then check the tools.** This changes nothing:
+     ```bash
+     talaka/shared/lifecycle/tools/doctor.sh
+     ```
+     The kit **requires** bash ≥ 4, git, and sha256sum or shasum. It **recommends** jq: without it there is no statusline, no Claude Code settings are written, and `--artefacts-dir` is refused. python3, gh and the claude CLI are **optional**. If something required is missing, stop and tell the user what to install (on macOS that is usually `brew install bash`; on Windows, Git for Windows).
 
 1. **Ask the user before installing.** Ask everything in **one message**, show the defaults, and say that replying "defaults" is fine. Don't re-ask what their request already answered. With no one to ask (CI, a scheduled run), use the defaults.
 
@@ -31,16 +40,20 @@ These steps are written to be followed by an agent (Claude Code or any tool with
 
    Every component can be switched later from `talaka/kit.sh components`.
 
-2. **Add the submodule and install**, from the project root, with the user's answers as flags:
+   **Install missing tools?** Ask only if `doctor.sh` reported something missing. Installing software changes the user's machine, so never do it without a yes. Say which tool, why the kit wants it, and how it would be installed:
+   - **Package manager.** `doctor.sh --install` uses the system's package manager (brew; apt-get, dnf, yum, apk, pacman or zypper; winget, scoop or choco). On Linux it needs root or password-less sudo, and it never prompts for a password.
+   - **Direct download, as a fallback.** `doctor.sh --install --allow-download` fetches jq's official static binary into `~/.local/bin` (`~/bin` on Windows), with no root. It checks the binary against a SHA-256 pinned in the kit. Offer it only when no package manager can do it, and only use it if the user agrees to a download.
+
+2. **Install tools (if agreed), then the kit**, from the project root, with the user's answers as flags:
    ```bash
-   git submodule add https://github.com/bthos/talaka talaka
-   git submodule update --init --recursive
+   talaka/shared/lifecycle/tools/doctor.sh --install [jq] [python3] [gh] [--allow-download]
    talaka/shared/lifecycle/tools/init.sh --non-interactive \
      [--artefacts-dir=<dir>] [--tune] [--with-hook] [--with-autoresearch] \
      [--no-statusline] [--no-output-style] [--no-env]
    ```
-   Leave out every flag whose answer is the default. It must end with `✓ Done.`. Its **Optional components** list shows what is now on and off, so check it against what the user asked for. It also prints an **`[AGENT ACTION REQUIRED]`** block.
-   If `init.sh` refuses because kit state already lives in another folder, don't work around it. Tell the user and offer the `mv` command it printed.
+   - **Exit codes:** `doctor.sh --install` exits 0 when everything asked for is now present. It exits 4 when it couldn't install something, and then prints the exact command for the user to run. Pass that on rather than improvising: don't `sudo` with a password, don't pipe install scripts into a shell, don't download from elsewhere. If it says a new directory isn't on `PATH`, tell the user the line to add to their shell profile. If winget installed the tool, the user needs a new terminal before it is found. You can still go ahead without jq: the install works, just without the parts listed above. Don't use `--artefacts-dir` then.
+   - **`init.sh` flags:** leave out every flag whose answer is the default. It must end with `✓ Done.`. Its **Optional components** list shows what is now on and off, so check it against what the user asked for. It also prints an **`[AGENT ACTION REQUIRED]`** block.
+   - **If `init.sh` refuses** because kit state already lives in another folder, don't work around it. Tell the user and offer the `mv` command it printed.
 
 3. **Configure `<dir>/PROJECT.md`** (`.tlk/PROJECT.md` by default). This is part of the install, not a follow-up. Replace the placeholders under *Project-Specific Configuration* using your own Read/Edit tools. Infer the values from `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `Makefile` or CI workflows. If `--tune` ran, `PROJECT_PROFILE.md` already lists what it detected. The kit **executes** these values, so a placeholder or prose fails:
 
@@ -61,6 +74,7 @@ These steps are written to be followed by an agent (Claude Code or any tool with
 
 5. **Report to the user:**
    - **Where the state lives**, and which components are on and which are off.
+   - **Tools installed for them**, if any, and how: package manager or download, and where.
    - **What to commit:** `.gitmodules` and the `talaka` gitlink, plus the managed blocks in `CLAUDE.md` / `AGENTS.md` if the user wants them shared. Everything in the artefacts folder and the kit's `.claude/` copies is per-developer and git-ignored by the kit's own `.gitignore` files.
    - **For teammates:** anyone who wants the kit runs `git submodule update --init` after cloning, then follows these steps. Their location and components are their own choice.
    - **Custom location only:** Claude Code reads the saved `ARTEFACTS_DIR` when a session starts. Tell the user to **restart the session** before starting work. Until then, in this session, put `ARTEFACTS_DIR=<dir>` in front of any kit script other than `kit.sh`, `init.sh`, `update.sh`, `teardown.sh` and `validate-config.sh`, which find the saved location on their own.
@@ -134,7 +148,7 @@ talaka/shared/lifecycle/tools/init.sh --non-interactive
 
 `talaka/kit.sh` is a stage-aware menu: at stage **0 (not installed)** it only shows `init`; at stage **1 (needs config)** it adds `probe`, `edit PROJECT.md`, `validate`, `teardown`, and an **Optional components** submenu; at stage **2 (ready)** it surfaces the full set — feature status, the dashboard, memory search, version bumps, memory rollover/promotion, distill lessons, apply patches. The **Optional components** submenu installs/removes opt-in add-ons (statusline, AutoResearch, memory Stop hook) from one place, each showing live `[installed]`/`[off]` status — adding a new add-on is one registry row. Press `h` for inline descriptions of every action. For CI / agents, pass an action as a positional argument: `talaka/kit.sh status` runs once and exits; `talaka/kit.sh init -n` installs in agent mode (`init` and `update` also pick that mode on their own when there is no TTY). The stage is **ready** exactly when `validate-config.sh` passes, so the two never disagree; `talaka/kit.sh --list-json` dumps the action registry as JSON; `talaka/kit.sh --help` prints the full reference.
 
-> **Requirements.** Bash ≥ 4.0 (uses `read -a`, associative-style arrays, `[[ … ]]`). On Windows use **MSYS2 / Git Bash**. macOS / Linux work out of the box.
+> **Requirements.** Bash ≥ 4.0 (uses `read -a`, associative-style arrays, `[[ … ]]`), git, and sha256sum or shasum. **jq** is recommended: the statusline and every Claude Code setting the kit writes need it. On Windows use **MSYS2 / Git Bash**. macOS ships bash 3.2, so run `brew install bash`. `talaka/shared/lifecycle/tools/doctor.sh` checks all of this, and `doctor.sh --install` installs what's missing (see `--help`).
 
 `shared/lifecycle/tools/init.sh` installs one layout regardless of which IDE you use. Non-interactive / CI:
 
@@ -275,6 +289,8 @@ Names carry no unit suffix: **every duration is in seconds**, and each value's u
 | `TALAKA_WIKI_DIR` | `wiki` | `knowledge-curating/new-wiki.sh` | Where the committed knowledge wiki lives, relative to the project root. |
 | `TALAKA_ISSUES_REPO` | `bthos/talaka` | `shared/feedback/tools/kit-issue.sh` | Repository field reports are filed on — point it at your fork. |
 | `TALAKA_PROMPT_TIMEOUT` | `15` s | `shared/lifecycle/tools/init.sh` | Seconds `init.sh` waits for an answer at its interactive prompts. Set it in your terminal, not `settings.json`. |
+| `TALAKA_BIN_DIR` | `~/.local/bin` (`~/bin` on Windows) | `shared/lifecycle/tools/doctor.sh` | Where `doctor.sh --install --allow-download` puts the downloaded jq binary. By default it uses the first of `~/.local/bin` and `~/bin` that is already on `PATH`. |
+| `TALAKA_JQ_BASE_URL` | jq's GitHub releases | `shared/lifecycle/tools/doctor.sh` | A mirror for that download. The SHA-256 pinned in the kit is checked whatever the source. |
 
 Every one of these, plus `PROJECT.md`'s fields and the kit's fixed thresholds, is listed in `shared/config/parameters.tsv` and shown with its current value in the dashboard's **Settings** view. `PACE_SNAPSHOT_REFRESH` (`30` s, `statusline/tools/pace.sh`) sets how often the statusline rewrites `.tlk/usage.env` when nothing changed.
 
@@ -752,6 +768,7 @@ Each skill bundles its own script. Shared scripts live under `talaka/shared/<cat
 |--------|-------------|
 | `kit.sh` | **Recommended human entry point.** Stage-aware interactive launcher. Detects install state (not installed / needs config / ready) and surfaces only actions that make sense at the current stage: `init`, `probe`, edit + `validate` `PROJECT.md`, `update`, `teardown`, feature `status`, the `dashboard`, memory `search`, version `bump`, memory `rollover` / `promote`, `distill` lessons, apply `patches`. Press `h` inside the menu for one-line descriptions. |
 | `shared/lifecycle/tools/init.sh` | Sets up `.tlk/`; copies agents to `.claude/agents/` and skills to `.claude/skills/`; manages include blocks in `CLAUDE.md` and `AGENTS.md`; writes `.tlk/.gitignore` and `.claude/.gitignore`; maintains **`.tlk/.talaka.files`**. |
+| `shared/lifecycle/tools/doctor.sh` | Checks the tools the kit needs: bash ≥ 4, git, sha256sum/shasum (required), jq (recommended), and python3, gh, claude (optional). `--install [TOOL…]` installs missing ones through the system package manager without ever prompting for a password. `--allow-download` adds a fallback that downloads jq's official binary, checked against a pinned SHA-256, into a user bin dir. Exit 4 means the user has to run the printed command. Also `kit.sh doctor`. |
 | `shared/lifecycle/tools/update.sh` | `git submodule update --remote` for the kit, then re-runs `shared/lifecycle/tools/init.sh` with the same arguments you pass (optional `--no-pull` to skip the fetch). Warns once if `.cursor/` or `.github/` copies from a pre-Claude-only install are still present (it does not remove them — see [Leftovers from old installs](#leftovers-from-old-installs)). Warns if `templates/PIPELINE.md.template` drifted since last init. |
 | `shared/lifecycle/tools/teardown.sh` | Strips managed include blocks from `CLAUDE.md` and `AGENTS.md`; strips the `.claude/.gitignore` block; removes kit-installed copies when SHA-256 matches **`.tlk/.talaka.files`**. `--full-clean` also removes `.tlk/PROJECT.md`, `.tlk/.talaka.cfg`, and `.tlk/scratch/`; `--remove-submodule` deinits git. |
 | `talaka/shared/lifecycle/tools/lib.sh` | Shared helpers (colors, paths, managed blocks, `.gitignore` renderer) — sourced by `shared/lifecycle/tools/init.sh`, `shared/lifecycle/tools/update.sh`, `shared/lifecycle/tools/teardown.sh`, and some tools; not run directly. |
