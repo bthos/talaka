@@ -27,6 +27,10 @@ PROJECT_ROOT="$(cd "$KIT/.." && pwd)"
 # every tool launched from here lands in the same place.
 # shellcheck source=shared/lifecycle/tools/artefacts-dir.sh
 source "$KIT/shared/lifecycle/tools/artefacts-dir.sh"
+# Which tools each optional component needs — a component whose tools are
+# missing is shown as "needs …" and is never installed from here.
+# shellcheck source=shared/lifecycle/tools/features.sh
+source "$KIT/shared/lifecycle/tools/features.sh"
 kit_resolve_artefacts_dir "$PROJECT_ROOT"
 ARTEFACTS_NAME="${ARTEFACTS_DIR:-.tlk}"
 ARTEFACTS_NAME="${ARTEFACTS_NAME%/}"
@@ -340,7 +344,10 @@ components_menu() {
     for row in "${COMPONENTS[@]}"; do
       IFS='|' read -r key label inst rm desc <<<"$row"
       i=$((i + 1)); CKEYS+=("$key")
-      if component_installed "$key"; then badge="${GREEN}[installed]${RESET}"; else badge="${DIM}[off]${RESET}"; fi
+      local needs=""
+      if component_installed "$key"; then badge="${GREEN}[installed]${RESET}"
+      elif ! needs=$(kit_feature_missing "$key"); then badge="${YELLOW}[needs $needs]${RESET}"
+      else badge="${DIM}[off]${RESET}"; fi
       printf "    %s%2d%s  %-22s %b\n" "$BOLD$GREEN" "$i" "$RESET" "$label" "$badge"
     done
     rule
@@ -393,7 +400,11 @@ components_menu() {
     read -r act; printf '\n'; rule
     case "$act" in
       i|I)
-        if _run_component_cmd "$inst"; then printf "  %s✓%s %s installed\n" "$GREEN" "$RESET" "$label"
+        local missing=""
+        if ! missing=$(kit_feature_missing "$ckey"); then
+          printf "  %s✗%s %s needs %s — install it first: %s/shared/lifecycle/tools/doctor.sh --install %s\n" \
+            "$RED" "$RESET" "$label" "$missing" "$KIT" "$missing"
+        elif _run_component_cmd "$inst"; then printf "  %s✓%s %s installed\n" "$GREEN" "$RESET" "$label"
         else printf "  %s✗%s %s install failed\n" "$RED" "$RESET" "$label"; fi ;;
       r|R)
         if [ "$rm" = "::none" ]; then

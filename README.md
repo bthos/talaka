@@ -29,16 +29,20 @@ These steps are written to be followed by an agent (Claude Code or any tool with
 
    **Which optional components should be installed?**
 
-   | Component | Default | What it does | Flag |
-   |-----------|---------|--------------|------|
-   | Statusline | on | Status bar in Claude Code showing the active agent, feature stage and usage pace | `--no-statusline` to skip |
-   | Concise output style | on | Sets `outputStyle: Concise`, which trims the coordinator's narration. A style the user already set is kept. | `--no-output-style` to skip |
-   | Kit settings (env) | on | Adds the `TALAKA_*` knobs, with their defaults, to `.claude/settings.local.json`, where agents' tool calls see them | `--no-env` to skip |
-   | Memory Stop hook | off | Runs memory promote + rollover whenever a Claude Code session ends, so memory upkeep needs no cron job | `--with-hook` |
-   | Project profile | off | Probes the stack, frameworks and conventions into `PROJECT_PROFILE.md` so agents tune themselves. Recommended for existing codebases. | `--tune` |
-   | AutoResearch | off | Self-tuning loop (eval set + Veles ratchet). Advanced: it needs archived features to learn from, and it spends model calls. | `--with-autoresearch` |
+   | Component | Default | Needs | What it does | Flag |
+   |-----------|---------|-------|--------------|------|
+   | Statusline | on | jq | Status bar in Claude Code showing the active agent, feature stage and usage pace | `--no-statusline` to skip |
+   | Concise output style | on | jq | Sets `outputStyle: Concise`, which trims the coordinator's narration. A style the user already set is kept. | `--no-output-style` to skip |
+   | Kit settings (env) | on | jq | Adds the `TALAKA_*` knobs, with their defaults, to `.claude/settings.local.json`, where agents' tool calls see them | `--no-env` to skip |
+   | Memory Stop hook | off | jq | Runs memory promote + rollover whenever a Claude Code session ends, so memory upkeep needs no cron job | `--with-hook` |
+   | Project profile | off | — | Probes the stack, frameworks and conventions into `PROJECT_PROFILE.md` so agents tune themselves. Recommended for existing codebases. | `--tune` |
+   | AutoResearch | off | jq, claude | Self-tuning loop (eval set + Veles ratchet). Advanced: it needs archived features to learn from, and it spends model calls. | `--with-autoresearch` |
 
-   Every component can be switched later from `talaka/kit.sh components`.
+   **A component is never enabled while a tool it needs is missing.** `init.sh` and `kit.sh components` leave it off whatever the flags say. A requested one is reported as not enabled, with the tool it needs, and the summary marks it **needs jq** (or whichever tool). `doctor.sh` lists these under *Features* before you ask. So:
+   - Don't offer a component as available when `doctor.sh` lists it as unavailable. Mention that it needs the tool, together with the question about installing that tool.
+   - If the user turns down the tool, or it can't be installed, that component stays off. Tell them so.
+
+   Every component can be switched later from `talaka/kit.sh components`. Components whose tools are missing show there as `[needs jq]` and can't be installed until the tool is.
 
    **Install missing tools?** Ask only if `doctor.sh` reported something missing. Installing software changes the user's machine, so never do it without a yes. Say which tool, why the kit wants it, and how it would be installed:
    - **Package manager.** `doctor.sh --install` uses the system's package manager (brew; apt-get, dnf, yum, apk, pacman or zypper; winget, scoop or choco). On Linux it needs root or password-less sudo, and it never prompts for a password.
@@ -73,7 +77,7 @@ These steps are written to be followed by an agent (Claude Code or any tool with
    The install is finished only when both pass. Don't report it done before that.
 
 5. **Report to the user:**
-   - **Where the state lives**, and which components are on and which are off.
+   - **Where the state lives**, and which components are on and which are off. For any that are off because a tool is missing, name the tool and the command that installs it.
    - **Tools installed for them**, if any, and how: package manager or download, and where.
    - **What to commit:** `.gitmodules` and the `talaka` gitlink, plus the managed blocks in `CLAUDE.md` / `AGENTS.md` if the user wants them shared. Everything in the artefacts folder and the kit's `.claude/` copies is per-developer and git-ignored by the kit's own `.gitignore` files.
    - **For teammates:** anyone who wants the kit runs `git submodule update --init` after cloning, then follows these steps. Their location and components are their own choice.

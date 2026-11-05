@@ -231,8 +231,9 @@ test_kit_menu_offers_the_dashboard() {
   local proj; proj=$(make_tmp_project)
   mkdir -p "$proj/talaka"
   cp "$KIT_ROOT/kit.sh" "$proj/talaka/"
-  mkdir -p "$proj/talaka/shared/lifecycle/tools"   # kit.sh sources artefacts-dir.sh
-  cp "$KIT_ROOT/shared/lifecycle/tools/artefacts-dir.sh" "$proj/talaka/shared/lifecycle/tools/"
+  mkdir -p "$proj/talaka/shared/lifecycle/tools"   # kit.sh sources artefacts-dir.sh + features.sh
+  cp "$KIT_ROOT/shared/lifecycle/tools/artefacts-dir.sh" "$KIT_ROOT/shared/lifecycle/tools/features.sh" \
+     "$proj/talaka/shared/lifecycle/tools/"
   local out; out=$(bash "$proj/talaka/kit.sh" --list-json 2>&1)
   assert_contains "$out" '"key":"dashboard"'
 }

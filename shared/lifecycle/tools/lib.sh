@@ -116,6 +116,8 @@ KIT_ARTEFACTS_DEFAULT=".tlk"
 
 # shellcheck source=artefacts-dir.sh
 source "$_LIB_SELFDIR/artefacts-dir.sh"
+# shellcheck source=features.sh
+source "$_LIB_SELFDIR/features.sh"
 
 # kit_artefacts_name_ok NAME → 0 when NAME is usable: a relative path inside the
 # project, not the kit, not .claude/, no "..", plain characters only.

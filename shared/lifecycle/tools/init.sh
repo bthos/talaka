@@ -84,11 +84,14 @@ unset _a _cand _existing_art _SAVED_ENV_ARTEFACTS
 # A chosen location is only remembered through .claude/settings.local.json,
 # which needs jq. Without it the next session would silently fall back to the
 # default — refuse now rather than leave a half-working install behind.
+_art_missing=""
 if [ -n "$_ARTEFACTS_ARG" ] && [ "$ARTEFACTS_NAME" != "$KIT_ARTEFACTS_DEFAULT" ] \
-   && [ "$(kit_saved_artefacts_dir "$PROJECT_ROOT")" != "$ARTEFACTS_NAME" ] \
-   && ! command -v jq >/dev/null 2>&1; then
-  err "--artefacts-dir needs jq to save the location, and jq is not installed."
-  err "Install it:  $SUBMODULE_DIR/shared/lifecycle/tools/doctor.sh --install   then re-run this command."
+   && [ "$(kit_saved_artefacts_dir "$PROJECT_ROOT")" != "$ARTEFACTS_NAME" ]; then
+  _art_missing=$(kit_feature_missing artefacts-dir) || true
+fi
+if [ -n "$_art_missing" ]; then
+  err "--artefacts-dir needs $_art_missing to save the location, and it is not installed."
+  err "Install it:  $SUBMODULE_DIR/shared/lifecycle/tools/doctor.sh --install $_art_missing   then re-run this command."
   exit 2
 fi
 
@@ -307,10 +310,34 @@ if [ $# -eq 0 ] && [ ! -t 0 ] && [ ! -t 1 ]; then
   exit 2
 fi
 
-if ! command -v jq >/dev/null 2>&1; then
-  warn "jq not found — the statusline, output style, TALAKA_* env and memory hook will not be configured."
-  warn "Install it with $SUBMODULE_DIR/shared/lifecycle/tools/doctor.sh --install, then re-run init.sh."
+# Optional features whose tools are missing are never enabled — a half-set-up
+# feature fails later, quietly (a statusline without jq is one line of error
+# text). Say up front what the missing tools rule out; the summary repeats it.
+_blocked_list="" _missing_tools=""
+for _f in $KIT_FEATURES; do
+  [ "$_f" = artefacts-dir ] && continue   # handled above, with its own refusal
+  if ! _m=$(kit_feature_missing "$_f"); then
+    _blocked_list+="${_blocked_list:+, }$_f"
+    for _t in $_m; do
+      case " $_missing_tools " in *" $_t "*) ;; *) _missing_tools+="${_missing_tools:+ }$_t" ;; esac
+    done
+  fi
+done
+if [ -n "$_missing_tools" ]; then
+  warn "Missing: $_missing_tools — these features stay off: $_blocked_list."
+  warn "Install with $SUBMODULE_DIR/shared/lifecycle/tools/doctor.sh --install $_missing_tools, then re-run init.sh."
 fi
+unset _f _m _t _blocked_list _missing_tools
+
+# feature_ready KEY LABEL [requested] → 0 when every tool KEY needs is present.
+# Otherwise return 1, and — when the user explicitly asked for it — say that the
+# request was not honoured and why.
+feature_ready() {
+  local missing
+  missing=$(kit_feature_missing "$1") && return 0
+  [ "${3:-}" = requested ] && warn "$2 not enabled — needs $missing (install: $SUBMODULE_DIR/shared/lifecycle/tools/doctor.sh --install $missing)"
+  return 1
+}
 
 # --non-interactive implies skip-existing (safe default: don't overwrite without being asked)
 if $NON_INTERACTIVE && [ -z "$MODE" ]; then MODE="skip"; fi
@@ -743,13 +770,16 @@ _ar_run="$SCRIPT_DIR/autoresearch/run.sh"
 _ar_program="$ARTEFACTS/autoresearch/program.md"
 _ar_setup=false
 
-if [ "$AUTORESEARCH" = "yes" ]; then
-  _ar_setup=true
-elif [ "$AUTORESEARCH" = "no" ]; then
+if [ "$AUTORESEARCH" = "no" ]; then
   _ar_setup=false
 elif [ -f "$_ar_program" ]; then
-  # Already initialised — always refresh (idempotent)
+  # Already initialised — refreshing its templates is harmless whatever is
+  # installed; the feature is on already.
   _ar_setup=true
+elif [ "$AUTORESEARCH" = "yes" ]; then
+  feature_ready autoresearch "AutoResearch" requested && _ar_setup=true
+elif ! feature_ready autoresearch "AutoResearch"; then
+  _ar_setup=false   # not asked for, and could not be — don't offer it
 else
   # Not initialised and no explicit flag — ask the user
   if $NON_INTERACTIVE; then
@@ -781,12 +811,16 @@ fi
 # ---------------------------------------------------------------------------
 _hook_install="$SCRIPT_DIR/memory/tools/memory-hook.sh"
 _do_hook=false
-if [ "$MEMORY_HOOK" = "yes" ]; then
-  _do_hook=true
-elif [ "$MEMORY_HOOK" = "no" ]; then
+if [ "$MEMORY_HOOK" = "no" ]; then
   _do_hook=false
 elif grep -qs "memory/tools/tick.sh" "$KIT_SETTINGS_FILE" "$KIT_SETTINGS_SHARED"; then
-  _do_hook=true   # already installed — memory-hook.sh will idempotently skip
+  # Already on. memory-hook.sh refreshes it idempotently — which needs jq; without
+  # it there is nothing to do (the hook itself runs without jq).
+  kit_feature_missing memhook >/dev/null && _do_hook=true
+elif [ "$MEMORY_HOOK" = "yes" ]; then
+  feature_ready memhook "Memory Stop hook" requested && _do_hook=true
+elif ! feature_ready memhook "Memory Stop hook"; then
+  _do_hook=false    # not asked for, and could not be — don't offer it
 else
   if $NON_INTERACTIVE; then
     info "Memory maintenance hook not installed (pass --with-hook to enable, or see README scheduling)"
@@ -826,7 +860,7 @@ fi
 # Only ever set when unset — a style the user picked is kept.
 # ---------------------------------------------------------------------------
 _os_install="$SCRIPT_DIR/shared/lifecycle/tools/install-output-style.sh"
-if $WITH_OUTPUT_STYLE && [ -x "$_os_install" ]; then
+if $WITH_OUTPUT_STYLE && [ -x "$_os_install" ] && feature_ready concise "Concise output style"; then
   ( cd "$PROJECT_ROOT" && "$_os_install" ) || warn "install-output-style.sh exited non-zero."
 fi
 
@@ -836,7 +870,7 @@ fi
 # between calls). Only missing keys are added — a value you changed is kept.
 # ---------------------------------------------------------------------------
 _env_install="$SCRIPT_DIR/shared/lifecycle/tools/install-env.sh"
-if $WITH_ENV && [ -x "$_env_install" ]; then
+if $WITH_ENV && [ -x "$_env_install" ] && feature_ready kitenv "Kit settings (env)"; then
   ( cd "$PROJECT_ROOT" && "$_env_install" ) || warn "install-env.sh exited non-zero."
 fi
 
@@ -844,7 +878,7 @@ fi
 # Statusline: pipeline-aware status bar for Claude Code
 # ---------------------------------------------------------------------------
 _sl_install="$SCRIPT_DIR/statusline/tools/install-statusline.sh"
-if $WITH_STATUSLINE && [ -x "$_sl_install" ]; then
+if $WITH_STATUSLINE && [ -x "$_sl_install" ] && feature_ready statusline "Statusline"; then
   info "Configuring pipeline-aware statusline…"
   if ! ( cd "$PROJECT_ROOT" && "$_sl_install" ); then
     warn "install-statusline.sh exited non-zero — statusline not configured."
@@ -871,16 +905,28 @@ _on()  { printf "${GREEN}on${RESET}   %s" "$1"; }
 _off() { printf "${DIM}off${RESET}  %s" "$1"; }
 printf "\n  ${BOLD}Optional components${RESET}  ${DIM}(change any time: ${SUBMODULE_DIR}/kit.sh components)${RESET}\n"
 _comp() { printf "  ${DIM}%-38s${RESET} %b\n" "$1" "$2"; }
+# _off_why KEY HINT [opted-out] → why a component is off: the user's own flag
+# first, then missing tools, else how to enable it.
+_off_why() {
+  local missing
+  if [ "${3:-}" != opted-out ] && ! missing=$(kit_feature_missing "$1"); then
+    printf "${YELLOW}needs %s${RESET} — install: %s/shared/lifecycle/tools/doctor.sh --install %s" \
+      "$missing" "$SUBMODULE_DIR" "$missing"
+  else
+    printf '(%s)' "$2"
+  fi
+}
+_optout() { $1 && echo "" || echo opted-out; }
 if grep -qs 'tools/statusline\.' "$KIT_SETTINGS_FILE"; then _comp "Statusline:" "$(_on '.claude/settings.local.json (statusLine)')"
-else _comp "Statusline:" "$(_off '(--no-statusline, or a statusLine of your own)')"; fi
+else _comp "Statusline:" "$(_off "$(_off_why statusline '--no-statusline, or a statusLine of your own' "$(_optout $WITH_STATUSLINE)")")"; fi
 if grep -qs '"outputStyle"[[:space:]]*:[[:space:]]*"Concise"' "$KIT_SETTINGS_FILE" "$KIT_SETTINGS_SHARED"; then _comp "Concise output style:" "$(_on 'outputStyle: Concise')"
-else _comp "Concise output style:" "$(_off '(--no-output-style, or a style of your own)')"; fi
+else _comp "Concise output style:" "$(_off "$(_off_why concise '--no-output-style, or a style of your own' "$(_optout $WITH_OUTPUT_STYLE)")")"; fi
 if grep -qs '"TALAKA_[A-Z_]*"[[:space:]]*:' "$KIT_SETTINGS_FILE"; then _comp "Kit settings (env):" "$(_on 'TALAKA_* in env')"
-else _comp "Kit settings (env):" "$(_off '(--no-env, or jq missing)')"; fi
+else _comp "Kit settings (env):" "$(_off "$(_off_why kitenv '--no-env' "$(_optout $WITH_ENV)")")"; fi
 if grep -qs 'memory/tools/tick.sh' "$KIT_SETTINGS_FILE" "$KIT_SETTINGS_SHARED"; then _comp "Memory Stop hook:" "$(_on 'promote + rollover after each session')"
-else _comp "Memory Stop hook:" "$(_off '(enable: --with-hook)')"; fi
+else _comp "Memory Stop hook:" "$(_off "$(_off_why memhook 'enable: --with-hook' "$([ "$MEMORY_HOOK" = no ] && echo opted-out)")")"; fi
 if [ -f "$ARTEFACTS/autoresearch/program.md" ]; then _comp "AutoResearch:" "$(_on "$ARTEFACTS_NAME/autoresearch/")"
-else _comp "AutoResearch:" "$(_off '(enable: --with-autoresearch)')"; fi
+else _comp "AutoResearch:" "$(_off "$(_off_why autoresearch 'enable: --with-autoresearch' "$([ "$AUTORESEARCH" = no ] && echo opted-out)")")"; fi
 if [ -f "$ARTEFACTS/PROJECT_PROFILE.md" ]; then _comp "Project profile:" "$(_on "$ARTEFACTS_NAME/PROJECT_PROFILE.md")"
 else _comp "Project profile:" "$(_off '(enable: --tune)')"; fi
 

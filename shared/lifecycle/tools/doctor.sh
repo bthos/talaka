@@ -31,6 +31,11 @@
 
 set -euo pipefail
 
+# shellcheck source=features.sh
+# Parameter expansion, not dirname: this must work on a bare-bones PATH.
+case "${BASH_SOURCE[0]}" in */*) _here="${BASH_SOURCE[0]%/*}" ;; *) _here=. ;; esac
+source "$_here/features.sh"
+
 JQ_VERSION="1.7.1"
 # SHA-256 of the jq $JQ_VERSION release assets (github.com/jqlang/jq/releases).
 JQ_SHA256_linux_amd64="5942c9b0934e510ee61eb3e30273f1b3fe2590df93933a93d7c58b81d19c8ff5"
@@ -94,7 +99,7 @@ line() {  # line STATUS NAME DETAIL
     bad)  mark="${R}✗${Z}" ;;
     info) mark="${D}·${Z}" ;;
   esac
-  printf '  %b %-10s %s\n' "$mark" "$2" "$3"
+  printf '  %b %-13s %s\n' "$mark" "$2" "$3"
 }
 
 check_all() {
@@ -120,7 +125,24 @@ check_all() {
   if have gh; then line ok gh "present"
   else line info gh "missing — kit-issue.sh submit prints the issue for you to file instead"; MISSING_OPTIONAL+=(gh); fi
   if have claude; then line ok claude "present"
-  else line info claude "missing — no PROJECT.md auto-fill in an interactive init; AutoResearch needs a judge command"; MISSING_OPTIONAL+=(claude); fi
+  else line info claude "missing — no PROJECT.md auto-fill in an interactive init, no AutoResearch"; MISSING_OPTIONAL+=(claude); fi
+
+  # What the missing tools rule out. init.sh and kit.sh never enable these.
+  local f m label blocked=0
+  printf '%sFeatures%s\n' "$B" "$Z"
+  for f in $KIT_FEATURES; do
+    case "$f" in
+      statusline)    label="statusline" ;;
+      concise)       label="concise output style" ;;
+      kitenv)        label="kit settings (env)" ;;
+      memhook)       label="memory Stop hook" ;;
+      autoresearch)  label="AutoResearch" ;;
+      artefacts-dir) label="custom artefacts location" ;;
+    esac
+    if m=$(kit_feature_missing "$f"); then line ok "$f" "$label — available"
+    else line warn "$f" "$label — unavailable, needs $m"; blocked=1; fi
+  done
+  [ "$blocked" -eq 0 ] || printf '  %sUnavailable features stay off until their tools are installed.%s\n' "$D" "$Z"
 }
 
 # ---------------------------------------------------------------------------

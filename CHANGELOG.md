@@ -10,6 +10,26 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Changed — a feature whose tools are missing is never enabled
+
+- **`shared/lifecycle/tools/features.sh`**: one table of what each optional feature needs,
+  shared by `init.sh`, `kit.sh components` and `doctor.sh`.
+  - **jq:** statusline, output style, kit env, memory hook, and a custom artefacts location.
+  - **jq and claude:** AutoResearch.
+- **`init.sh`** leaves such a feature off whatever the flags say.
+  - **Up front:** one notice names the missing tools and the features they rule out.
+  - **Explicit requests:** an explicit `--with-hook` or `--with-autoresearch` gets a "not
+    enabled — needs X" warning.
+  - **Summary:** marks the feature **needs X** with the install command. A feature the user
+    turned off with a `--no-*` flag is still reported as their choice.
+  - **Before:** the installers half-ran and suggested adding settings by hand, including a
+    statusline that cannot work without jq.
+- **`kit.sh components`** shows `[needs jq]` instead of `[off]` and refuses to install such a
+  component.
+- **`doctor.sh`** gains a *Features* section listing what is unavailable on this machine and why.
+- **README agent install:** a *Needs* column in the components table. The agent doesn't offer
+  an unavailable component as available, and reports any that stayed off for a missing tool.
+
 ### Added — `doctor.sh`: check and install the tools the kit needs
 
 - **`shared/lifecycle/tools/doctor.sh`** (also `kit.sh doctor`, from stage 0) checks:
