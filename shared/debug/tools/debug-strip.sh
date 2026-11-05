@@ -27,11 +27,14 @@ fi
 
 SENTINEL="DEBUG:${ID}"
 
-# Find matching files. Exclude common noise dirs.
+# Find matching files. Exclude common noise dirs — and the kit's artefacts dir
+# wherever it lives (grep matches --exclude-dir against a directory's base name).
+_art="${ARTEFACTS_DIR:-.tlk}"; _art="${_art%/}"
 EXCLUDES=(
   --exclude-dir=.git
   --exclude-dir=node_modules
   --exclude-dir=.tlk
+  --exclude-dir="${_art##*/}"
   --exclude-dir=.claude
   --exclude-dir=talaka
   --exclude-dir=dist

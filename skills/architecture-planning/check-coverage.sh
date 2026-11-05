@@ -28,7 +28,7 @@ for arg in "$@"; do
     *)  FEATURE_PATH="$arg" ;;
   esac
 done
-PROJECT_MD="${PROJECT_MD:-.tlk/PROJECT.md}"
+PROJECT_MD="${PROJECT_MD:-${ARTEFACTS_DIR:-.tlk}/PROJECT.md}"
 
 if [ ! -f "$PROJECT_MD" ]; then
   echo "Error: $PROJECT_MD not found. Run from project root." >&2

@@ -10,6 +10,34 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Added — agent install asks first: artefacts location and optional components
+
+- **The README's agent install now starts with questions.** The agent checks for an existing
+  install first, which turns the run into an update. Otherwise it asks the user, in one
+  message, where kit state should live and which optional components to install, with
+  defaults shown and "defaults" accepted as an answer. It turns the answers into `init.sh`
+  flags, checks `init.sh`'s new *Optional components* summary against them, and reports the
+  result.
+- **`init.sh --artefacts-dir=NAME`: a relocated install that works end to end.** Before this,
+  `ARTEFACTS_DIR` was only an environment variable, so every later call fell back to `.tlk/`.
+  - **Saved:** the choice is saved as `env.ARTEFACTS_DIR` in `.claude/settings.local.json`,
+    which Claude Code passes to agent tool calls, hooks and the statusline.
+  - **Read back:** the new `shared/lifecycle/tools/artefacts-dir.sh` reads it back when the
+    variable is unset. `lib.sh` (so `init`, `update` and `teardown`), `kit.sh`,
+    `validate-config.sh`, `bump-version.sh` and both statuslines use it.
+  - **Agents told:** the CLAUDE.md / AGENTS.md block tells agents that `.tlk/` in their
+    prompts means the chosen folder, and a fresh `PROJECT.md` gets the real *Artifacts
+    directory*.
+  - **Guarded:** a path outside the project, or inside `.git/`, `.claude/` or the kit, is
+    refused. `init.sh` also refuses to start a second tree while kit state lives elsewhere
+    and prints the `mv` command to move it.
+  - **Teardown:** the saved location is forgotten only once the folder is gone.
+- **`--no-statusline`, `--no-output-style`, `--no-env`** skip the add-ons that are on by default.
+  They only skip the install; removing an existing add-on is still done from
+  `kit.sh components`.
+- **`init.sh` ends with an *Optional components* list** showing what is on and off: statusline,
+  output style, env, memory hook, AutoResearch, project profile.
+
 ### Fixed — agent installs: `kit.sh init -n` installs, and "configured" means one thing (#54, #55)
 
 - **`kit.sh init --non-interactive` installed nothing and exited 0** (#55). kit.sh accepted `-n`

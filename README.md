@@ -8,20 +8,41 @@ Import as a git submodule in under a minute — or tell your AI agent *"install 
 
 ## Install (for an LLM agent)
 
-These steps are written to be followed by an agent (Claude Code or any tool with a shell). Every command runs without a TTY. Do not start the interactive `talaka/kit.sh` menu: it needs a terminal. Requires **Bash ≥ 4** (on Windows, Git Bash / MSYS2).
+These steps are written to be followed by an agent (Claude Code or any tool with a shell). Every command runs without a TTY. Do not start the interactive `talaka/kit.sh` menu: it needs a terminal. Requires **Bash ≥ 4** (on Windows, Git Bash / MSYS2). `jq` is optional, but without it the settings below (statusline, env, a custom location) are not written.
 
-1. **Add the submodule** from the project root:
+0. **Check what is already there.** Look for a `talaka/` submodule and for an existing install. Either `.tlk/.talaka.cfg` exists, or `"ARTEFACTS_DIR"` appears in `.claude/settings.local.json` → `env` and that directory holds `.talaka.cfg`.
+   - **Kit installed already:** this is an update. Run `talaka/shared/lifecycle/tools/update.sh --non-interactive`, then go to step 4. Don't ask about the location: it is remembered. To change components, use the flags from step 1 with `update.sh`.
+   - **Submodule present but no install** (e.g. a teammate committed it): run `git submodule update --init --recursive`, then continue with step 1.
+
+1. **Ask the user before installing.** Ask everything in **one message**, show the defaults, and say that replying "defaults" is fine. Don't re-ask what their request already answered. With no one to ask (CI, a scheduled run), use the defaults.
+
+   **Where should the kit keep its working state?** Default: `.tlk/`. This folder holds `PROJECT.md`, the pipeline doc, memory, feature folders and the dashboard. It is per-developer and git-ignored. Any other relative path inside the project works too (e.g. `.ai/talaka`). The choice is saved and every later run follows it. It can't sit inside `.git/`, `.claude/` or `talaka/`.
+
+   **Which optional components should be installed?**
+
+   | Component | Default | What it does | Flag |
+   |-----------|---------|--------------|------|
+   | Statusline | on | Status bar in Claude Code showing the active agent, feature stage and usage pace | `--no-statusline` to skip |
+   | Concise output style | on | Sets `outputStyle: Concise`, which trims the coordinator's narration. A style the user already set is kept. | `--no-output-style` to skip |
+   | Kit settings (env) | on | Adds the `TALAKA_*` knobs, with their defaults, to `.claude/settings.local.json`, where agents' tool calls see them | `--no-env` to skip |
+   | Memory Stop hook | off | Runs memory promote + rollover whenever a Claude Code session ends, so memory upkeep needs no cron job | `--with-hook` |
+   | Project profile | off | Probes the stack, frameworks and conventions into `PROJECT_PROFILE.md` so agents tune themselves. Recommended for existing codebases. | `--tune` |
+   | AutoResearch | off | Self-tuning loop (eval set + Veles ratchet). Advanced: it needs archived features to learn from, and it spends model calls. | `--with-autoresearch` |
+
+   Every component can be switched later from `talaka/kit.sh components`.
+
+2. **Add the submodule and install**, from the project root, with the user's answers as flags:
    ```bash
    git submodule add https://github.com/bthos/talaka talaka
    git submodule update --init --recursive
+   talaka/shared/lifecycle/tools/init.sh --non-interactive \
+     [--artefacts-dir=<dir>] [--tune] [--with-hook] [--with-autoresearch] \
+     [--no-statusline] [--no-output-style] [--no-env]
    ```
-   If `talaka/` is already there (e.g. a teammate committed it), run only the second command.
-2. **Install:**
-   ```bash
-   talaka/shared/lifecycle/tools/init.sh --non-interactive    # or: talaka/kit.sh init -n
-   ```
-   It must end with `✓ Done.` and print an **`[AGENT ACTION REQUIRED]`** block.
-3. **Configure `.tlk/PROJECT.md`.** This is part of the install, not a follow-up. Replace the placeholders under *Project-Specific Configuration* using your own Read/Edit tools. Infer the values from `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `Makefile` or CI workflows. The kit **executes** these values, so a placeholder or prose fails:
+   Leave out every flag whose answer is the default. It must end with `✓ Done.`. Its **Optional components** list shows what is now on and off, so check it against what the user asked for. It also prints an **`[AGENT ACTION REQUIRED]`** block.
+   If `init.sh` refuses because kit state already lives in another folder, don't work around it. Tell the user and offer the `mv` command it printed.
+
+3. **Configure `<dir>/PROJECT.md`** (`.tlk/PROJECT.md` by default). This is part of the install, not a follow-up. Replace the placeholders under *Project-Specific Configuration* using your own Read/Edit tools. Infer the values from `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `Makefile` or CI workflows. If `--tune` ran, `PROJECT_PROFILE.md` already lists what it detected. The kit **executes** these values, so a placeholder or prose fails:
 
    | Field | Typical value | When the project has none |
    |-------|---------------|---------------------------|
@@ -30,13 +51,19 @@ These steps are written to be followed by an agent (Claude Code or any tool with
    | Version files | `package.json`, `pyproject.toml`, … | `none` |
 
    Fill *What it is*, *Tech stack* and *Key conventions* too. They are optional, but agents work better with them. The other optional fields (Focused test command, Judge command, Generator command, Pace thresholds) can stay as placeholders: the kit then uses its defaults.
+
 4. **Verify.** Both commands must succeed:
    ```bash
    talaka/shared/project/tools/validate-config.sh    # → "Configuration OK."
    talaka/kit.sh status                              # refused until the stage is "ready"
    ```
-   The install is finished only when both pass. Do not report done before that.
-5. **Tell the user what to commit:** `.gitmodules` and the `talaka` gitlink, plus the managed blocks in `CLAUDE.md` / `AGENTS.md` if they want them shared. Everything under `.tlk/` and the kit's `.claude/` copies is per-developer and git-ignored by the kit's own `.gitignore` files. Teammates who want the kit run `git submodule update --init` after cloning, then repeat steps 2–4.
+   The install is finished only when both pass. Don't report it done before that.
+
+5. **Report to the user:**
+   - **Where the state lives**, and which components are on and which are off.
+   - **What to commit:** `.gitmodules` and the `talaka` gitlink, plus the managed blocks in `CLAUDE.md` / `AGENTS.md` if the user wants them shared. Everything in the artefacts folder and the kit's `.claude/` copies is per-developer and git-ignored by the kit's own `.gitignore` files.
+   - **For teammates:** anyone who wants the kit runs `git submodule update --init` after cloning, then follows these steps. Their location and components are their own choice.
+   - **Custom location only:** Claude Code reads the saved `ARTEFACTS_DIR` when a session starts. Tell the user to **restart the session** before starting work. Until then, in this session, put `ARTEFACTS_DIR=<dir>` in front of any kit script other than `kit.sh`, `init.sh`, `update.sh`, `teardown.sh` and `validate-config.sh`, which find the saved location on their own.
 
 ## What it is
 
@@ -527,7 +554,7 @@ By design it runs **after a Zlydni archive** (auto, 2 rounds) or **manually** (`
 
 The same launchd / Windows Task Scheduler / Claude-hook mechanisms above work too — just point them at `autoresearch/run.sh --rounds=N` instead of `tick.sh`, and prefer a **weekly** cadence. (A `Stop` hook would fire it far too often.) `run.sh` no-ops cleanly when the eval-set is empty, so a scheduled run before you've archived any features does no harm.
 
-> **Override the artefacts directory.** Every memory / autoresearch script honours `ARTEFACTS_DIR` (e.g. `ARTEFACTS_DIR=.kit-state talaka/memory/tools/search.sh "auth"`). The default is `.tlk`, which `init.sh` records in `.tlk/.talaka.cfg` as `ARTEFACTS_DIR=…` for drift detection and tooling.
+> **Relocate the artefacts directory.** Install with `init.sh --artefacts-dir=<dir>` (default `.tlk`). The choice is saved as `ARTEFACTS_DIR` in `.claude/settings.local.json` → `env`. Claude Code passes that to every agent tool call, hook and the statusline, and `kit.sh`, `init.sh`, `update.sh`, `teardown.sh`, `validate-config.sh` and `bump-version.sh` read it even when the variable is unset. The CLAUDE.md / AGENTS.md block tells agents to read `.tlk/` in their prompts as `<dir>/`. In a terminal, call other scripts through `kit.sh` or with the variable set (e.g. `ARTEFACTS_DIR=.ai/talaka talaka/memory/tools/search.sh "auth"`). To move an existing install, `mv` the folder first and re-run `init.sh --artefacts-dir=<new>`. Without that move, `init.sh` refuses to start a second tree. `teardown.sh` forgets the saved location only once the folder is gone.
 
 **Initialise AutoResearch:**
 

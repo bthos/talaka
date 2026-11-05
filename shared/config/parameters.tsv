@@ -7,7 +7,7 @@ TALAKA_WIKI_DIR	env	wiki	path	Wiki	.claude/settings.local.json → env	knowledge
 TALAKA_ISSUES_REPO	env	bthos/talaka	owner/repo	Kit issues	.claude/settings.local.json → env	shared/feedback/tools/kit-issue.sh	Repository field reports are filed on — point it at your fork.	
 TALAKA_PROMPT_TIMEOUT	env	15	s	Install	terminal (export before init.sh)	shared/lifecycle/tools/init.sh	How long init.sh waits for an answer at its interactive prompts.	
 PACE_SNAPSHOT_REFRESH	env	30	s	Pace & statusline	.claude/settings.local.json → env	statusline/tools/pace.sh	The statusline rewrites .tlk/usage.env only when the numbers change, or after this many seconds to keep captured_at fresh.	
-ARTEFACTS_DIR	env	.tlk	path	Install	terminal / .claude/settings.local.json → env	every kit script	Relocates the whole artefacts tree.	
+ARTEFACTS_DIR	env	.tlk	path	Install	init.sh --artefacts-dir=NAME (saved in .claude/settings.local.json → env)	every kit script	Relocates the whole artefacts tree. Move an existing tree with mv before changing it.	
 Test command	project	required	command	Pipeline	.tlk/PROJECT.md	Bagnik, check-coverage.sh	Full regression suite. Bagnik's gates always run it.	
 Focused test command	project	Cmok filters the test command	command	Pipeline	.tlk/PROJECT.md	Cmok	Runs a subset; Cmok appends a path or pattern for the tests covering what it changed.	
 Build command	project	none	command	Pipeline	.tlk/PROJECT.md	Cmok, Bagnik	Run on every build and before every code QA. Unset: the Build line says so.	

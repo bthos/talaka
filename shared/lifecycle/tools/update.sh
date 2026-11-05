@@ -61,6 +61,8 @@ talaka / update.sh
       --skip-all | --overwrite-all | --force
       --tune | --no-tune
       --with-autoresearch | --no-autoresearch
+      --with-hook | --no-hook | --no-statusline | --no-output-style | --no-env
+    The artefacts location chosen at install (--artefacts-dir) is remembered.
 
     The --ide=* flag was removed; talaka now installs a single
     Claude-shaped layout. See CHANGELOG.md.

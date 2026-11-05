@@ -23,7 +23,13 @@ KIT_SLUG="${KIT_SLUG:-talaka}"
 
 KIT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$KIT/.." && pwd)"
+# ARTEFACTS_DIR, else the location saved at install, else .tlk — exported so
+# every tool launched from here lands in the same place.
+# shellcheck source=shared/lifecycle/tools/artefacts-dir.sh
+source "$KIT/shared/lifecycle/tools/artefacts-dir.sh"
+kit_resolve_artefacts_dir "$PROJECT_ROOT"
 ARTEFACTS_NAME="${ARTEFACTS_DIR:-.tlk}"
+ARTEFACTS_NAME="${ARTEFACTS_NAME%/}"
 # Resolve ARTEFACTS_DIR: join a relative name onto the project root, but use an
 # already-absolute value (POSIX /… or Windows drive X:/…) as-is. Joining an
 # absolute path would double it and, on Windows, mangle the mid-path drive colon

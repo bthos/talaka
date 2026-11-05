@@ -11,7 +11,10 @@
 
 set -euo pipefail
 
-PROJECT_MD="${PROJECT_MD:-.tlk/PROJECT.md}"
+# shellcheck source=../../lifecycle/tools/artefacts-dir.sh
+source "$(cd "$(dirname "$0")/../../lifecycle/tools" && pwd)/artefacts-dir.sh"
+kit_resolve_artefacts_dir "$PWD"   # run from the project root
+PROJECT_MD="${PROJECT_MD:-${ARTEFACTS_DIR:-.tlk}/PROJECT.md}"
 QUIET=false
 for arg in "$@"; do
   case "$arg" in

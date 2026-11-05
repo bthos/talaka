@@ -55,7 +55,15 @@ C='\033[36m'; M='\033[35m'; G='\033[32m'; Y='\033[33m'; R='\033[31m'
 D='\033[2m'; B='\033[1m'; Z='\033[0m'
 
 # --- Pipeline state ---
-AKT="$PROJECT_DIR/.tlk"
+# Artefacts dir: $ARTEFACTS_DIR, else the saved location, else .tlk.
+# shellcheck source=../../shared/lifecycle/tools/artefacts-dir.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/shared/lifecycle/tools/artefacts-dir.sh"
+kit_resolve_artefacts_dir "$PROJECT_DIR"
+_art="${ARTEFACTS_DIR:-.tlk}"
+case "$_art" in
+  /*|?:*) AKT="$_art" ;;
+  *)      AKT="$PROJECT_DIR/$_art" ;;
+esac
 ACTIVE_AGENT=""
 SLUG=""
 STAGE=""
