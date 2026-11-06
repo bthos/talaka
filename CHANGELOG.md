@@ -10,6 +10,19 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Added — install hints from `probe-project.sh` (#54)
+
+- **`probe-project.sh --commands`** prints the detected test command, build command and version
+  files as `KIND<TAB>VALUE<TAB>EVIDENCE` lines and writes nothing.
+- **`init.sh --non-interactive`** lists them in its `[AGENT ACTION REQUIRED]` block as hints, each
+  with the file it was read from, and asks the agent to confirm each before using it. They are
+  never written into `PROJECT.md`: the kit executes these values, and a wrong guess would pass
+  `validate-config.sh`.
+- **Fewer wrong guesses:** `pytest` is suggested only when `pytest.ini` exists or a project file
+  names pytest (no longer for any `pyproject.toml`); a `Makefile` `test` / `build` / `all` target
+  is now detected; version files come from a `version` field in `package.json`, `pyproject.toml`
+  or `Cargo.toml`.
+
 ### Changed — every layout change is a numbered migration
 
 - `kit_migrate_legacy_root_state` (lib.sh) is gone: moving `.talaka.cfg` / `.talaka.files` from the

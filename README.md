@@ -59,7 +59,7 @@ These steps are written to be followed by an agent (Claude Code or any tool with
    - **`init.sh` flags:** leave out every flag whose answer is the default. It must end with `✓ Done.`. Its **Optional components** list shows what is now on and off, so check it against what the user asked for. It also prints an **`[AGENT ACTION REQUIRED]`** block.
    - **If `init.sh` refuses** because kit state already lives in another folder, don't work around it. Tell the user and offer the `mv` command it printed.
 
-3. **Configure `<dir>/PROJECT.md`** (`.tlk/PROJECT.md` by default). This is part of the install, not a follow-up. Replace the placeholders under *Project-Specific Configuration* using your own Read/Edit tools. Infer the values from `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `Makefile` or CI workflows. If `--tune` ran, `PROJECT_PROFILE.md` already lists what it detected. The kit **executes** these values, so a placeholder or prose fails:
+3. **Configure `<dir>/PROJECT.md`** (`.tlk/PROJECT.md` by default). This is part of the install, not a follow-up. Replace the placeholders under *Project-Specific Configuration* using your own Read/Edit tools. Infer the values from `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `Makefile` or CI workflows. The `[AGENT ACTION REQUIRED]` block lists what `probe-project.sh` detected, each with the file it came from. Those are hints, not answers: confirm each one (is the tool a dependency, does the command run) before writing it. The kit **executes** these values, so a placeholder or prose fails:
 
    | Field | Typical value | When the project has none |
    |-------|---------------|---------------------------|
@@ -171,7 +171,7 @@ When a kit-managed path already exists, the interactive prompt is: **s**kip this
 
 > **`.tlk/PROJECT.md` is never part of this prompt.** It holds *your* project config and is *meant* to diverge from the template, so init/update always **keep it** silently — there's no sensible "overwrite?" question to ask. Reset it from the template only with an explicit `--force` / `--overwrite-all`. If a kit update changes `PROJECT.md.template` (e.g. adds a new config field), init prints a one-line notice with a `diff` command so you can adopt new fields by hand — it still never overwrites your copy.
 
-`--non-interactive` / `-n` is the recommended flag for agents and CI (aliases: `--yes`, `-y`): it skips existing files, suppresses all Y/n prompts, and prints a structured **`[AGENT ACTION REQUIRED]`** block instructing the calling agent to fill `.tlk/PROJECT.md` itself — no nested CLI process is spawned. The agent reads the script output and uses its own tools (Read / Glob / Edit) to replace the placeholders.
+`--non-interactive` / `-n` is the recommended flag for agents and CI (aliases: `--yes`, `-y`): it skips existing files, suppresses all Y/n prompts, and prints a structured **`[AGENT ACTION REQUIRED]`** block instructing the calling agent to fill `.tlk/PROJECT.md` itself — no nested CLI process is spawned. The block lists the test/build commands and version files `probe-project.sh --commands` detects, with their evidence, as hints; init never writes them into `PROJECT.md`, because a wrong guess would pass `validate-config.sh` and then run the wrong thing. The agent reads the script output and uses its own tools (Read / Glob / Edit) to replace the placeholders.
 
 Then open **`.tlk/PROJECT.md`** and fill in the **Project-Specific Configuration** section:
 

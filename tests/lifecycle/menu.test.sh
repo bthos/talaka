@@ -95,6 +95,18 @@ test_bare_init_sh_without_tty_is_not_success() {
   assert_file_absent "$proj/.tlk/PROJECT.md" "and must not install anything"
 }
 
+test_init_non_interactive_prints_hints_and_writes_none() {
+  # Issue #54: what probe-project.sh detects is shown as a hint with its
+  # evidence, never written into PROJECT.md (a wrong guess would pass validation).
+  local proj out; proj=$(_proj_with_kit)
+  printf '{ "version": "1.0.0", "scripts": { "test": "vitest run" } }\n' > "$proj/package.json"
+  out=$(_tlk "$proj" init -n </dev/null 2>&1) || fail "init failed: $out"
+  assert_contains "$out" "hints, not answers"
+  assert_contains "$out" 'npm test   (package.json has a "test" script)'
+  assert_contains "$out" "Version files   package.json"
+  assert_file_contains "$proj/.tlk/PROJECT.md" "Test command:** \`<" "the hint is not written into PROJECT.md"
+}
+
 test_stage_ready_once_required_fields_filled() {
   # Issue #54: the stage and validate-config.sh must agree. Optional fields
   # (Judge command, Pace thresholds, …) left as placeholders don't block 'ready'.

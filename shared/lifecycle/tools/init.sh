@@ -667,6 +667,28 @@ if [ "$FRESH_PROJECT_MD" = true ]; then
     printf "                    no tests? a real check, e.g. node --check app.js, or: true\n"
     printf "    Build command   e.g. npm run build, make, cargo build; no build step: true\n"
     printf "    Version files   comma-separated files holding the version, or: none\n"
+    # Hints only: probe-project.sh guesses from file names and scripts, and a
+    # wrong guess written straight into PROJECT.md would pass validate-config.sh
+    # while running the wrong thing. The agent checks each one before using it.
+    _hints=""
+    _probe="$SCRIPT_DIR/shared/project/tools/probe-project.sh"
+    if [ -f "$_probe" ]; then
+      _hints=$(cd "$PROJECT_ROOT" && bash "$_probe" --commands 2>/dev/null) || _hints=""
+    fi
+    if [ -n "$_hints" ]; then
+      printf "  Detected in this project — hints, not answers: confirm each one (open the file,\n"
+      printf "  check the tool is a dependency, run it) before you write it:\n"
+      while IFS=$'\t' read -r _kind _val _why; do
+        case "$_kind" in
+          test)    _label="Test command " ;;
+          build)   _label="Build command" ;;
+          version) _label="Version files" ;;
+          *)       continue ;;
+        esac
+        printf "    %s   %s   (%s)\n" "$_label" "$_val" "$_why"
+      done <<< "$_hints"
+      printf "  A field with no hint here has nothing detected: infer it yourself.\n"
+    fi
     printf "  Fill the About section (What it is, Tech stack, Key conventions) too — optional,\n"
     printf "  but agents get less context without it. Other optional fields may stay as they are.\n"
     printf "  Then confirm: ${SUBMODULE_DIR}/kit.sh status runs (it needs stage 'ready').\n\n"
