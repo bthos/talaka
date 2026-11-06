@@ -116,12 +116,13 @@ Concretely, in every agent and skill prompt in this kit:
 | tasks-researching | Pre-planning research — verified findings, converge on one approach |
 | prompts-building | Build & validate agent/skill prompts (Builder/Tester loop) |
 | assumptions-challenging | Critical-thinking side-loop — challenge assumptions before commit |
+| prose-auditing | Docs phrasing audit — stock LLM phrasing in a docs diff, listed not fixed (opt-in) |
 
 ### Invocation
 
 | Kind | Names |
 |------|--------|
-| Skills | `/requirements-eliciting`, `/ux-designing`, `/architecture-planning`, `/mockups-creating`, `/design-generating`, `/storybook-generating`, `/screenshots-testing`, `/data-mocking`, `/bugs-diagnosing`, `/knowledge-curating`, `/cli-designing`, `/codebase-mapping`, `/consistency-auditing`, `/patterns-adapting`, `/tasks-researching`, `/prompts-building`, `/assumptions-challenging` |
+| Skills | `/requirements-eliciting`, `/ux-designing`, `/architecture-planning`, `/mockups-creating`, `/design-generating`, `/storybook-generating`, `/screenshots-testing`, `/data-mocking`, `/bugs-diagnosing`, `/knowledge-curating`, `/cli-designing`, `/codebase-mapping`, `/consistency-auditing`, `/patterns-adapting`, `/tasks-researching`, `/prompts-building`, `/assumptions-challenging`, `/prose-auditing` |
 | Agents | `@bagnik`, `@cmok` (build), `@mokash`, `@veles`, `@yaga`, `@zlydni` |
 
 The build implementation after Bagnik passes is the `@cmok` agent. The mockup phase uses the `/mockups-creating` skill. They are distinct roles: the build agent keeps the mythology name `cmok`, while skills use purpose-based names.
@@ -261,7 +262,8 @@ The coordinator's decision function. Keyed on the last return entry.
 | Bagnik | code QA | pass | `@zlydni` (commit + archive) | — |
 | Bagnik | code QA | fail | `@cmok` (fix) | — |
 | Zlydni | commit | done | — | Optional — user may push / run `@veles` |
-| Mokash | docs | done | — (nothing; docs are consumed) | — |
+| Mokash | docs | done | — (nothing; docs are consumed) — unless `PROJECT.md` → `Prose audit` is `on` or the user asked: `/prose-auditing` on Mokash's files | — |
+| prose-auditing | prose | done | — (findings wait for the user's next stop; `@mokash` applies only the ones they pick) | at the next stop |
 | any worker | any | blocked | Read `Blockers:`; route to the worker that owns the blocker, or STOP | depends |
 | any worker | any | progress | — (nothing; that worker is still running) | — |
 | *(side-loop)* user authorises | — | — | `/bugs-diagnosing` then `@yaga` | **STOP** first — user authorises |

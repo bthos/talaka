@@ -10,6 +10,20 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Added — `prose-auditing`: optional phrasing audit for docs (#51)
+
+- **New skill `/prose-auditing`:** audit-only pass over a docs diff (or named files). Lists
+  stock LLM phrasing — canned openers, announcing, recap endings, inflated and hollow adjectives,
+  hedges, sign-offs — each with the smallest quoted excerpt and a suggested fix. It never
+  rewrites, scores, or guesses authorship, and drops candidates where the word does real work.
+- **`scan-prose.sh`** lists the mechanical candidates from `patterns.tsv` (skips fenced and
+  inline code); `--diff [BASE]` scans only the docs lines added since BASE plus untracked docs.
+  The pattern list is adapted from human-speak (MIT, github.com/nateherkai/human-speak), not
+  copied. The skill reads for what a pattern cannot match (rule of three, uniform rhythm).
+- **Off by default**, per developer: `.tlk/PROJECT.md` → `Prose audit: on` makes the coordinator
+  run it after `@mokash` returns; findings wait for the user's next stop, and `@mokash` applies
+  only the ones they pick. Registered in `parameters.tsv` (dashboard Settings).
+
 ### Added — contact sheets for `screenshots-testing` diffs (#52)
 
 - **`contact-sheet.sh`**: after a check run, one sheet per changed or new story in

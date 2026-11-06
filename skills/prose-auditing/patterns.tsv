@@ -1,0 +1,22 @@
+# Stock phrasing in LLM-written docs. One pattern per line, tab-separated:
+#   id<TAB>regex<TAB>suggested fix
+# The regex is bash ERE, matched against the lower-cased line, so write it in
+# lower case. Word edges: (^|[^a-z]) … ([^a-z]|$) — the scanner trims them from
+# the excerpt. Adapted from the pattern list in human-speak (MIT,
+# github.com/nateherkai/human-speak); not copied. Lines starting with # are skipped.
+canned-opener	^(#+ )?(in today'?s|in the (ever-evolving|fast-paced|modern|digital) |in an era of)	Start with what the thing does.
+meta-opener	(^|[^a-z])(this (guide|document|section|readme|article) (will|aims to|is designed to)|in this (guide|section|article),? (we|you) will)	Drop the announcement; give the content.
+delve	(^|[^a-z])(delv(e|es|ing)|deep dive)([^a-z]|$)	look at, cover, explain.
+lets-dive	(^|[^a-z])let'?s (dive|jump|explore|take a (closer )?look|get started)([^a-z]|$)	Cut it; start the next sentence.
+grand-noun	(^|[^a-z])(tapestry|realm of|landscape of|testament to|beacon of|journey of)([^a-z]|$)	Name the concrete thing.
+inflated-adjective	(^|[^a-z])(seamless(ly)?|cutting-edge|state-of-the-art|game-chang(er|ing)|revolutioni[sz](e|es|ing)|groundbreaking|blazing(ly)? fast|effortless(ly)?|world-class|best-in-class)([^a-z]|$)	Replace with the measured fact, or delete.
+hollow-adjective	(^|[^a-z])(robust|powerful|comprehensive|holistic|myriad|plethora of|vibrant|crucial|pivotal)([^a-z]|$)	Say what makes it so, or delete.
+leverage	(^|[^a-z])(leverag(e|es|ed|ing)|utili[sz](e|es|ed|ing)|facilitat(e|es|ed|ing))([^a-z]|$)	use, help, let.
+empower	(^|[^a-z])(empower(s|ed|ing)?|unlock(s|ing)? (the )?(full )?(power|potential)|elevat(e|es|ing) (your|the))([^a-z]|$)	Say what the reader can now do.
+importance-hedge	(^|[^a-z])it('s| is) (important|worth|crucial|essential) to (note|mention|remember|understand)	Delete the hedge; state the point.
+not-just-but	(^|[^a-z])not (just|only|merely) [^.;]{1,50}, but( also)?([^a-z]|$)	State the point directly.
+navigate	(^|[^a-z])navigat(e|es|ing) the (complexit(y|ies)|world|landscape|challenges)([^a-z]|$)	Name the task.
+whether-youre	(^|[^a-z])whether you'?re (a |an )?[^,.]{1,40} or 	Address the actual reader.
+recap-ending	^(#+ )?(in (summary|conclusion)|to (sum up|summari[sz]e|wrap up)|overall,|all in all)	Cut the recap; the reader just read it.
+sign-off	(^|[^a-z])(happy (coding|hacking|building)|hope this helps|feel free to (reach out|ask|explore))([^a-z]|$)	Delete.
+intensifier	(^|[^a-z])(truly|incredibly|remarkably|absolutely|extremely) [a-z]+	Delete the intensifier.

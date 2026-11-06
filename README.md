@@ -1,6 +1,6 @@
 # Talaka
 
-A reusable AI development pipeline — 6 agents, 17 skills, and a coordinator-driven handoff protocol. Installs one Claude-shaped layout (`.claude/agents/`, `.claude/skills/`) with two entry-point files at the project root: **`CLAUDE.md`** (read natively by Claude Code) and **`AGENTS.md`** (the cross-IDE convention — read by any workspace-aware tool that follows the AGENTS.md spec). One install covers every IDE.
+A reusable AI development pipeline — 6 agents, 18 skills, and a coordinator-driven handoff protocol. Installs one Claude-shaped layout (`.claude/agents/`, `.claude/skills/`) with two entry-point files at the project root: **`CLAUDE.md`** (read natively by Claude Code) and **`AGENTS.md`** (the cross-IDE convention — read by any workspace-aware tool that follows the AGENTS.md spec). One install covers every IDE.
 
 The kit is **minimally invasive** and **per-developer** (it commits nothing of its own): every kit-touched path is either inside the git-ignored `.tlk/`, inside `.claude/`, the optional committed `wiki/`, or wrapped in a removable `<!-- talaka:start --> … <!-- talaka:end -->` block in `CLAUDE.md` / `AGENTS.md`. Your root `.gitignore` is never touched: each directory the kit writes into carries its own `.gitignore`. `teardown.sh` strips the block (or removes the file when its SHA-256 still matches the kit copy recorded in `.tlk/.talaka.files`), so manual edits are always preserved.
 
@@ -133,6 +133,7 @@ This keeps routing observable and interruptible: the coordinator holds the whole
 | tasks-researching | Pre-planning research — reads codebase + external sources, verified findings only, converges on ONE approach in `research-brief.md`, hands off to architecture-planning |
 | prompts-building | Prompt engineering — Builder/Tester loop that authors and validates agent/skill prompts against the kit's own conventions |
 | assumptions-challenging | Critical-thinking side-loop — challenges assumptions and stress-tests an approach before it's committed (advisory, read-only). Opt-in *lenses* mode: parallel narrow seats (reversibility, operability, security, cost) plus the cruxes between them |
+| prose-auditing | Docs phrasing audit — lists stock LLM phrasing in a docs diff (canned openers, recap endings, inflated adjectives) with the smallest excerpt and a suggested fix; never rewrites or scores. Off by default (`PROJECT.md` → `Prose audit`) |
 
 ## Quick start
 
@@ -724,6 +725,7 @@ Full protocol: `.tlk/PIPELINE.md` → *Side-tasks*.
 | Build or improve an agent/skill prompt | `/prompts-building` |
 | Stress-test an approach / challenge assumptions | `/assumptions-challenging` |
 | Same, from several angles in parallel (hard-to-reverse decisions) | `/assumptions-challenging lenses` |
+| Audit new docs for stock LLM phrasing (list, no rewrite) | `/prose-auditing [base \| files]` |
 | Commit | `@zlydni` |
 
 These are **coordinator vocabulary**: you type them to start a step, and the coordinator uses them to route. Agents never invoke each other — when one names `@cmok` in its output it is recommending, not calling.
@@ -748,6 +750,7 @@ Each skill bundles its own script. Shared scripts live under `talaka/shared/<cat
 | `.claude/skills/screenshots-testing/diff-summary.sh [test-results/visual]` | screenshots-testing | Reads the last run's output images: `changed` (has `-diff.png`), `new` (no baseline), then `CHANGED= NEW=` |
 | `.claude/skills/screenshots-testing/in-container.sh [--print] [--node SCRIPT] [args…]` | screenshots-testing | Runs `playwright test -c playwright.visual.config.ts` (or, with `--node`, a Node script) in `mcr.microsoft.com/playwright:v<installed version>-noble` (docker or podman), forwarding `VISUAL_*` |
 | `.claude/skills/screenshots-testing/contact-sheet.sh [--html-only] [test-results/visual]` | screenshots-testing | One review sheet per changed or new story in `test-results/visual/_sheets/`: every mode in a row, expected / actual / diff side by side. Review aid only |
+| `.claude/skills/prose-auditing/scan-prose.sh FILE… \| --diff [BASE]` | prose-auditing | Candidate stock phrasing from `patterns.tsv` in docs files, or only the docs lines added since BASE: `path:line`, pattern id, excerpt, suggested fix, then `FINDINGS= FILES=`. Skips code |
 | `.claude/skills/data-mocking/detect-stack.sh [dir]` | data-mocking | Prints `key=value` facts that decide the mock tool: languages, package manager, UI, frameworks, test runners, API clients, protocols, contracts (OpenAPI / GraphQL / proto / AsyncAPI / WSDL), mock tools already present, Docker |
 | `.claude/skills/consistency-auditing/new-audit.sh <slug>` | consistency-auditing | Creates `.tlk/audits/YYYY-MM-DD-<slug>/` with `audit.md` (ranked, located findings + recommended fixes) and `handoff-log.md` |
 | `.claude/skills/patterns-adapting/new-adaptation.sh <slug>` | patterns-adapting | Creates `.tlk/features/YYYY-MM-DD-adapt-<slug>/` with `research-brief.md`, `adaptation.md`, `handoff-log.md` skeletons |
