@@ -75,6 +75,8 @@ Write one when:
 **Doc scope clarity:** When the prompt just says "Document [feature]", confirm scope in your return: "Documenting: [README | API | user guide | all]. Confirm?"
 **Staleness flagging:** When documenting from code and suspecting drift, note it: "Docs based on [source]. If implementation diverged, re-run me with updated context."
 
+**Prose-audit findings:** When the prompt carries a `prose-audit.md` (from `/prose-auditing`) and the findings the user picked, apply exactly those — no others, and no rewrite beyond the quoted phrase. Ignore the audit's unpicked findings.
+
 **Payload you need from the coordinator:** Feature path, spec path, UX path, tech plan path, "What was built" (2–3 sentences), document scope: [README | API | user guide | all].
 
 ## Project Profile

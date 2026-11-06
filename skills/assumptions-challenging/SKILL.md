@@ -26,6 +26,34 @@ This is a **side-loop**, like `@yaga` for debugging: the coordinator (or the use
 4. **Play devil's advocate.** Argue the strongest version of the opposing approach, even one you would not choose — the goal is to expose pitfalls, not to win.
 5. **Return the thinking.** You surface the questions and the blind spots, then return to the coordinator. It routes back to the worker whose decision you challenged, carrying your questions. Do not resolve the debate yourself and do not invoke that worker.
 
+## Lenses mode (opt-in)
+
+One devil's advocate can miss a whole dimension. For an expensive or hard-to-reverse decision the user can ask for **lenses**: several narrow seats, run in parallel, each looking at the decision through one concern, then one pass that names where they disagree. Off unless asked — it costs one invocation per lens plus one.
+
+**Who asks.** The user (`/assumptions-challenging lenses`, or "challenge this with lenses"). The coordinator may *offer* it in one line when the decision is hard to reverse (schema, public API, data migration, vendor lock-in); it never runs lenses unasked.
+
+**The flow** — the coordinator stays the only router:
+
+1. **Brief.** The coordinator writes one brief: the decision in one sentence, the artifact paths, the feature path. Every seat gets the same brief.
+2. **Seats.** The coordinator launches one invocation per lens, in parallel, each with `lens: <name>`. Default set: `reversibility`, `operability`, `security`, `cost`. The user may name others (`performance`, `accessibility`, `migration`, `team`) — at most five seats.
+3. **Cruxes.** When every seat has returned, the coordinator launches one more invocation with `cruxes:` and the cards pasted in. It returns the 1–3 underlying disagreements between lenses.
+4. **Route.** The coordinator routes the cards and cruxes back to the worker whose decision was challenged, like a single-voice challenge.
+
+**A seat** (`lens: <name>`) runs the Approach above through that one lens only — read memory, find the assumption the decision rests on *as that lens sees it*, push on it. Ignore what the other lenses cover. Return a card, nothing else:
+
+```
+Lens: reversibility
+Assumption: <the belief this decision rests on, seen through this lens>
+Risk: <what breaks, with a path or a number>
+Question: <the one question the worker must answer>
+```
+
+**The cruxes pass** (`cruxes:` + cards) reads no code. It compares the cards and returns where they pull against each other — "reversibility wants a flag, cost says a flag doubles the test matrix: which is cheaper to be wrong about?" — as 1–3 questions, one line each. A card that agrees with every other is not a crux. No verdict, no ranking of the lenses.
+
+**Pace.** Lenses are parallel work: in `speed-up` and `normal` run the seats in parallel; in `slow-down` run a single-voice challenge instead and log that lenses were deferred; in `stop`, nothing (see `.tlk/PIPELINE.md` → *Pace*).
+
+Every guardrail below holds for each seat and for the cruxes pass: read-only, questions not answers, no invocations, no memory writes.
+
 ## Question Patterns
 
 - **Root cause probing:** "Why do you believe that approach is necessary? What breaks if you don't do it that way?"

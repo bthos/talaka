@@ -10,6 +10,46 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Added — `prose-auditing`: optional phrasing audit for docs (#51)
+
+- **New skill `/prose-auditing`:** audit-only pass over a docs diff (or named files). Lists
+  stock LLM phrasing — canned openers, announcing, recap endings, inflated and hollow adjectives,
+  hedges, sign-offs — each with the smallest quoted excerpt and a suggested fix. It never
+  rewrites, scores, or guesses authorship, and drops candidates where the word does real work.
+- **`scan-prose.sh`** lists the mechanical candidates from `patterns.tsv` (skips fenced and
+  inline code); `--diff [BASE]` scans only the docs lines added since BASE plus untracked docs.
+  The pattern list is adapted from human-speak (MIT, github.com/nateherkai/human-speak), not
+  copied. The skill reads for what a pattern cannot match (rule of three, uniform rhythm).
+- **Off by default**, per developer: `.tlk/PROJECT.md` → `Prose audit: on` makes the coordinator
+  run it after `@mokash` returns; findings wait for the user's next stop, and `@mokash` applies
+  only the ones they pick. Registered in `parameters.tsv` (dashboard Settings).
+
+### Added — contact sheets for `screenshots-testing` diffs (#52)
+
+- **`contact-sheet.sh`**: after a check run, one sheet per changed or new story in
+  `test-results/visual/_sheets/<story>.sheet.png` — a row per mode (named from the visual
+  config's projects), expected | actual | diff side by side — so the reviewer sees every mode
+  at once before accepting anything. The approach follows scroll-craft's sheet (MIT,
+  github.com/nateherkai/scroll-craft).
+- **No new dependency:** rendered by Playwright, which the suite already pins, inside the same
+  container (`in-container.sh --node SCRIPT` runs a Node script in that image); host `node`
+  is the fallback, and the HTML sheets remain when neither can render.
+- **Review aid only:** the accept/reject rule, baselines and the container are unchanged.
+
+### Added — lenses mode for `assumptions-challenging` (#53)
+
+- **Opt-in:** the user asks for `/assumptions-challenging lenses`; the coordinator may offer it
+  for a hard-to-reverse decision but never runs it unasked.
+- **Flow:** one brief → one seat per lens in parallel (default `reversibility`, `operability`,
+  `security`, `cost`; at most five) → one `cruxes:` pass that names the 1–3 disagreements
+  between the cards → routed back to the challenged worker. Each seat returns a four-line card.
+- **Still advisory:** every seat keeps the read-only, no-verdict, no-invocation guardrails, and
+  the coordinator stays the only router. The structure (brief, parallel seats, cruxes) follows
+  Roast Room (MIT, github.com/nateherkai/roast-room); its personas are not used.
+- **Pace:** parallel in `speed-up` and `normal`; a single-voice challenge in `slow-down`.
+- **`PIPELINE.md`:** routing rows for the seats and the cruxes pass; the parallel-work rules name
+  the exception.
+
 ### Changed — a feature whose tools are missing is never enabled
 
 - **`shared/lifecycle/tools/features.sh`**: one table of what each optional feature needs,

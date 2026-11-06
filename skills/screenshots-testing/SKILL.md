@@ -17,6 +17,7 @@ Your job is to catch **unintended visual changes** before they ship, the way Chr
 | Baselines per branch | PNGs in git beside the spec; they move with branches and merges |
 | TurboSnap | `changed-stories.sh` re-shoots only stories whose files or imports changed |
 | UI Review: accept / deny | You show each diff; the user decides; only accepted ones are updated |
+| UI Review: all modes side by side | `contact-sheet.sh` tiles each changed story's modes, expected / actual / diff, into one image |
 | PR check | `visual-tests.yml` fails the PR on any unaccepted diff and uploads the report |
 
 A diff is **not** a bug and **not** an approval. It is a question for the user. You never answer it for them.
@@ -66,8 +67,9 @@ Make a todo list from the steps of the mode you are in and work it. Scripts live
 2. **Scope.** `mkdir -p test-results && $S/changed-stories.sh --base <ref> > test-results/visual-only.txt` (base: the PR's target branch; default `origin/main`). It prints `ALL` when a global file changed (preview, global CSS, tokens, lockfile, config), else the story files whose own files or imports changed. Empty output: nothing visual changed; say so and return `pass`. Unsure it traced an import (aliases, barrel files, CSS-in-JS themes)? Run everything. A missed story is worse than a slow run.
 3. **Run.** `VISUAL_ONLY_FILE=test-results/visual-only.txt $S/in-container.sh`. The container forwards `VISUAL_*` variables.
 4. **Summarise.** `$S/diff-summary.sh`. It lists `changed` (baseline differs), `new` (no baseline yet) and the counts.
-5. **Review each one.** For every `changed` line, open the `-expected.png`, `-actual.png` and `-diff.png` beside it. For each, say in one line what moved and whether the change in the diff (git diff of the branch, the task in `handoff-log.md`) explains it: *intended*, *side effect* (a component the task did not mean to touch), or *unexplained*. Also flag shots that look broken in themselves (blank, clipped, error overlay). Then **stop and ask the user** to accept or reject each, with the report command: `npx playwright show-report visual-report`. `new` lines are shown too; they are accepted the same way.
-6. Nothing changed and nothing new: return `pass`.
+5. **Contact sheets.** `$S/contact-sheet.sh` writes one sheet per changed or new story to `test-results/visual/_sheets/<story>.sheet.png`: a row per mode, expected | actual | diff side by side. It renders with Playwright in the same container (host `node` as a fallback); if neither can, it leaves `.sheet.html` files and says so. A review aid only: sheets are never compared, committed or accepted.
+6. **Review each one.** Read each story's sheet first: it shows whether a change hits every mode or only one (a mobile-only shift, a dark-theme-only colour). Then, for every `changed` line, open the `-expected.png`, `-actual.png` and `-diff.png` beside it when the sheet is too small to judge. For each, say in one line what moved and whether the change in the diff (git diff of the branch, the task in `handoff-log.md`) explains it: *intended*, *side effect* (a component the task did not mean to touch), or *unexplained*. Also flag shots that look broken in themselves (blank, clipped, error overlay). Then **stop and ask the user** to accept or reject each, with the report command: `npx playwright show-report visual-report`. `new` lines are shown too; they are accepted the same way.
+7. Nothing changed and nothing new: return `pass`.
 
 ### Accept
 
@@ -108,7 +110,7 @@ Never add `retries` to the visual config. A retry that passes hides the flake an
    ```
    ## YYYY-MM-DD HH:MM screenshots-testing → Coordinator [visual] pass | changes | fail
    Result: Mode [setup|check|accept]. Shots [n run / n total] across [modes]. Changed [n], new [n], accepted [n], rejected [n]. Container [image | none].
-   Artifacts: playwright.visual.config.ts, tests/visual/, visual-report/
+   Artifacts: playwright.visual.config.ts, tests/visual/, visual-report/, test-results/visual/_sheets/
    Caveats: [stories tagged no-visual, host-rendered baselines, masks added — or "none"]
    Recommend: STOP — user reviews diffs | @cmok (rejected: [ids]) | continue pipeline
    Why: [one line]
