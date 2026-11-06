@@ -196,7 +196,7 @@ test_contact_sheet_renders_png_with_playwright() {
   mkdir -p "$d"
   # 1x1 transparent PNG
   printf '\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\x0d\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82' > "$d/Default-actual.png"
-  out=$( cd "$proj" && CONTAINER_ENGINE= bash "$SKILL/contact-sheet.sh" 2>/dev/null ) || true
+  out=$( cd "$proj" && CONTAINER_ENGINE='' bash "$SKILL/contact-sheet.sh" 2>/dev/null ) || true
   case "$out" in
     *".sheet.png"*) assert_file_exists "$proj/test-results/visual/_sheets/Card__Default.sheet.png" ;;
     *) skip_test "no browser available to render" ;;
