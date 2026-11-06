@@ -10,6 +10,20 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Added — lenses mode for `assumptions-challenging` (#53)
+
+- **Opt-in:** the user asks for `/assumptions-challenging lenses`; the coordinator may offer it
+  for a hard-to-reverse decision but never runs it unasked.
+- **Flow:** one brief → one seat per lens in parallel (default `reversibility`, `operability`,
+  `security`, `cost`; at most five) → one `cruxes:` pass that names the 1–3 disagreements
+  between the cards → routed back to the challenged worker. Each seat returns a four-line card.
+- **Still advisory:** every seat keeps the read-only, no-verdict, no-invocation guardrails, and
+  the coordinator stays the only router. The structure (brief, parallel seats, cruxes) follows
+  Roast Room (MIT, github.com/nateherkai/roast-room); its personas are not used.
+- **Pace:** parallel in `speed-up` and `normal`; a single-voice challenge in `slow-down`.
+- **`PIPELINE.md`:** routing rows for the seats and the cruxes pass; the parallel-work rules name
+  the exception.
+
 ### Changed — a feature whose tools are missing is never enabled
 
 - **`shared/lifecycle/tools/features.sh`**: one table of what each optional feature needs,

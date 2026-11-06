@@ -132,7 +132,7 @@ This keeps routing observable and interruptible: the coordinator holds the whole
 | patterns-adapting | External pattern → project fit — research a gist/repo/tool, extract the core insight, design the adaptation |
 | tasks-researching | Pre-planning research — reads codebase + external sources, verified findings only, converges on ONE approach in `research-brief.md`, hands off to architecture-planning |
 | prompts-building | Prompt engineering — Builder/Tester loop that authors and validates agent/skill prompts against the kit's own conventions |
-| assumptions-challenging | Critical-thinking side-loop — challenges assumptions and stress-tests an approach before it's committed (advisory, read-only) |
+| assumptions-challenging | Critical-thinking side-loop — challenges assumptions and stress-tests an approach before it's committed (advisory, read-only). Opt-in *lenses* mode: parallel narrow seats (reversibility, operability, security, cost) plus the cruxes between them |
 
 ## Quick start
 
@@ -723,6 +723,7 @@ Full protocol: `.tlk/PIPELINE.md` → *Side-tasks*.
 | Research a task before planning it | `/tasks-researching` |
 | Build or improve an agent/skill prompt | `/prompts-building` |
 | Stress-test an approach / challenge assumptions | `/assumptions-challenging` |
+| Same, from several angles in parallel (hard-to-reverse decisions) | `/assumptions-challenging lenses` |
 | Commit | `@zlydni` |
 
 These are **coordinator vocabulary**: you type them to start a step, and the coordinator uses them to route. Agents never invoke each other — when one names `@cmok` in its output it is recommending, not calling.

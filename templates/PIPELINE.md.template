@@ -146,7 +146,7 @@ Two roles, and they never swap:
 1. **Read the log.** `handoff-log.md` in the active feature folder is the event track — the full chain of custody. The last **return entry** (the one with `→ Coordinator`) says where the pipeline stands; `progress` entries under it are in-flight detail, not routing signals.
 2. **Check pace.** Run `bash talaka/statusline/tools/pace.sh` and read its `mode=` (see *Pace* below). It bounds what step 4 may launch.
 3. **Decide.** Apply the Routing Table below to `(last worker, context, status)`. The worker's `Recommend:` line is an input, not a verdict — override it when the log says otherwise (see *Loop breaking*).
-4. **Invoke exactly one step.** One agent, or one parallel pair where the table says so (only Mokash runs in parallel — plus independent read-only steps in `speed-up` mode).
+4. **Invoke exactly one step.** One agent, or one parallel pair where the table says so (only Mokash runs in parallel — plus the seats of a lenses challenge the user asked for, and independent read-only steps in `speed-up` mode).
 5. **Wait for the return.** The worker finishes, having appended its log entry.
 6. **Repeat** until the table says STOP (user input required), the pace says `stop`, or the pipeline ends.
 
@@ -167,7 +167,7 @@ The numbers are Claude Code's own `rate_limits`, which only the statusline recei
 |------|------|---------------------|
 | `speed-up` | Headroom will go unused before the window resets | Run **independent read-only** steps in parallel (research, mapping, auditing, assumption challenges); re-run a gate instead of arguing with a flaky result. Builds stay one at a time — never two `@cmok` on one tree. |
 | `normal` | On pace | Everything in this protocol, nothing more. |
-| `slow-down` | Spending faster than the window refills | Start no new epic or feature; one full-suite run per gate (no re-runs "to be sure"); no parallel agents, Mokash included; defer optional steps — docs sweeps, mutation/Veles rounds, audits — to a progress entry. |
+| `slow-down` | Spending faster than the window refills | Start no new epic or feature; one full-suite run per gate (no re-runs "to be sure"); no parallel agents, Mokash included; defer optional steps — docs sweeps, mutation/Veles rounds, audits, lenses challenges — to a progress entry. |
 | `stop` | A window is at its stop threshold | Start nothing new. Let the running worker return, then write a progress entry with the **exact resume point** (next worker, its prompt inputs, what was deferred), update `.tlk/SESSION-STATE.md`, and tell the user when the window resets. |
 
 Thresholds default to `slow5h=-15 slow7d=-10 push5h=20 push7d=10 stop5h=90 stop7d=95` (surplus = quota left − time left, in points of the window; `stop` is % used). Override any of them in `.tlk/PROJECT.md` → `Pace thresholds`. The statusline badge (`▲ speed-up` · `● normal` · `▼ slow-down` · `■ stop`) uses the same rules, so what the user sees is what the coordinator acts on.
@@ -273,6 +273,9 @@ The coordinator's decision function. Keyed on the last return entry.
 | screenshots-testing | visual | changes | — | **STOP** — user accepts or rejects each diff, then `/screenshots-testing accept <ids>` |
 | screenshots-testing | visual | fail | `@cmok` (fix the rejected regressions) | — |
 | cli-designing / patterns-adapting / tasks-researching | design / brief | done | `/architecture-planning` | — |
+| *(user asks)* lenses challenge | — | — | `/assumptions-challenging` once per lens (`lens: <name>`, parallel, same brief) | — |
+| assumptions-challenging | lens seats | all returned | `/assumptions-challenging` with `cruxes:` and the cards | — |
+| assumptions-challenging | challenge / cruxes | done | the worker whose decision was challenged, carrying the questions | — |
 | *(user, mid-feature)* request unrelated to the active feature | — | — | `side-task.sh new` first, say so in one line; then `@cmok` (or `/bugs-diagnosing` + `@yaga` if the cause is not obvious) | — |
 | Cmok | side-task | done | Check *promotion*; else `@bagnik` (side-task gate — batch it with other side-tasks Cmok has finished) | — |
 | Bagnik | side-task gate | pass | `@zlydni` (side-task commit) | — |
@@ -378,7 +381,7 @@ The coordinator reads this log before every routing decision. It is the only pla
 4. **Carry failure history** — In fix loops, tell the worker what was already tried; it has no memory of its previous run
 5. **Flag blockers early** — Workers report blockers in the return entry; the coordinator routes or stops
 6. **Log partial results** — Progress entries as checkpoints land, not one dump at the end
-7. **Parallel work** — Only Mokash runs in parallel; pass it the same context. In `speed-up` pace, independent read-only steps may run in parallel too; in `slow-down`, nothing does (see *Pace*)
+7. **Parallel work** — Only Mokash runs in parallel; pass it the same context. A lenses challenge the user asked for runs its seats in parallel too (see `/assumptions-challenging` → *Lenses mode*). In `speed-up` pace, independent read-only steps may run in parallel too; in `slow-down`, nothing does (see *Pace*)
 8. **Close feature after commit** — After Zlydni commit, move feature folder to `.tlk/archive/features/`
 9. **Version bumping** — Cmok: bump patch before each build. Zlydni: bump minor before commit. Update all version files listed in Project-Specific Configuration.
 
