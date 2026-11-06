@@ -2,18 +2,25 @@
 # Runs the visual suite inside the official Playwright image, so screenshots
 # render with the same browser, fonts and anti-aliasing on every machine and CI.
 # Usage: .claude/skills/screenshots-testing/in-container.sh [--print] [playwright test args…]
+#        .claude/skills/screenshots-testing/in-container.sh [--print] --node SCRIPT [args…]
 #   --print   print the command instead of running it
+#   --node    run a Node script (path relative to project root) in the same image
 # The image tag is the installed @playwright/test version (node_modules), else
 # the exact version pinned in package.json. Engine: $CONTAINER_ENGINE, else
 # docker, else podman. Config: $VISUAL_CONFIG (default playwright.visual.config.ts).
-# Forwards CI and every VISUAL_* variable. Exit 1: no version; 3: no engine.
+# Forwards CI and every VISUAL_* variable. Exit 1: no version; 2: usage; 3: no engine.
 # Run from project root.
 
 set -euo pipefail
 
 print=false
 if [ "${1:-}" = "--print" ]; then print=true; shift; fi
-case "${1:-}" in -h|--help) sed -n '2,10p' "$0"; exit 0 ;; esac
+node_script=""
+if [ "${1:-}" = "--node" ]; then
+  [ -n "${2:-}" ] || { echo "ERROR: --node needs a script path" >&2; exit 2; }
+  node_script="$2"; shift 2
+fi
+case "${1:-}" in -h|--help) sed -n '2,12p' "$0"; exit 0 ;; esac
 
 _json_version() {  # _json_version FILE KEY — first "KEY": "x" value, no parser needed
   [ -f "$1" ] || return 0
@@ -53,7 +60,11 @@ fi
 while IFS='=' read -r name _; do
   cmd+=( -e "$name" )
 done < <(env | grep -E '^VISUAL_[A-Z0-9_]*=' | LC_ALL=C sort || true)
-cmd+=( "$image" npx playwright test -c "$config" "$@" )
+if [ -n "$node_script" ]; then
+  cmd+=( "$image" node "$node_script" "$@" )
+else
+  cmd+=( "$image" npx playwright test -c "$config" "$@" )
+fi
 
 if $print; then
   printf '%q ' "${cmd[@]}"; echo
@@ -61,7 +72,8 @@ if $print; then
 fi
 [ -n "$engine" ] || {
   echo "ERROR: no docker or podman. Install one, or run on the host (baselines will not match other machines):" >&2
-  echo "       npx playwright test -c $config $*" >&2
+  if [ -n "$node_script" ]; then echo "       node $node_script $*" >&2
+  else echo "       npx playwright test -c $config $*" >&2; fi
   exit 3
 }
 exec "${cmd[@]}"

@@ -126,4 +126,92 @@ test_in_container_rejects_a_range() {
   fi
 }
 
+test_contact_sheet_groups_modes_per_story() {
+  local proj out d html
+  proj=$(make_tmp_project)
+  write_file "$proj/playwright.visual.config.ts" <<'TS'
+  projects: [
+    { name: 'desktop', use: {} },
+    { name: "desktop-dark", use: {} },
+    { name: 'mobile', use: {} },
+  ],
+TS
+  for m in desktop desktop-dark mobile; do
+    d="$proj/test-results/visual/visual-Forms-Button-Primary-button--primary-$m/Forms/Button"
+    mkdir -p "$d"
+    : > "$d/Primary & co-expected.png"; : > "$d/Primary & co-actual.png"; : > "$d/Primary & co-diff.png"
+  done
+  d="$proj/test-results/visual/visual-Card-Default-card--default-mobile/Card"
+  mkdir -p "$d"; : > "$d/Default-actual.png"
+  d="$proj/test-results/visual/visual-Card-Ok-card--ok-mobile/Card"
+  mkdir -p "$d"; : > "$d/Ok-expected.png"; : > "$d/Ok-actual.png"   # passed: not a sheet
+
+  out=$( cd "$proj" && bash "$SKILL/contact-sheet.sh" --html-only )
+  assert_contains "$out" "SHEETS=2" "one sheet per changed or new story"
+  assert_contains "$out" "sheet	test-results/visual/_sheets/Forms__Button__Primary---co.sheet.html"
+  assert_contains "$out" "sheet	test-results/visual/_sheets/Card__Default.sheet.html"
+
+  html=$(cat "$proj/test-results/visual/_sheets/Forms__Button__Primary---co.sheet.html")
+  assert_contains "$html" "<h1>Forms/Button/Primary &amp; co</h1>" "title is escaped"
+  assert_contains "$html" ">desktop-dark<br>changed<" "longest project name wins"
+  assert_contains "$html" ">desktop<br>changed<"
+  assert_contains "$html" ">mobile<br>changed<"
+  assert_contains "$html" 'src="../visual-Forms-Button-Primary-button--primary-mobile/Forms/Button/Primary%20&amp;%20co-diff.png"' \
+    "image paths are relative and URL-encoded"
+
+  html=$(cat "$proj/test-results/visual/_sheets/Card__Default.sheet.html")
+  assert_contains "$html" ">mobile<br>new<"
+  assert_contains "$html" "no baseline" "a new shot has no expected image"
+
+  # A re-run replaces the sheets; diff-summary does not mistake them for shots.
+  out=$( cd "$proj" && bash "$SKILL/contact-sheet.sh" --html-only test-results/visual/ )
+  assert_contains "$out" "SHEETS=2" "re-run is stable"
+  out=$( cd "$proj" && bash "$SKILL/diff-summary.sh" )
+  assert_contains "$out" "CHANGED=3 NEW=1"
+}
+
+test_contact_sheet_nothing_changed_writes_nothing() {
+  local proj out d; proj=$(make_tmp_project)
+  d="$proj/test-results/visual/visual-Card-mobile/Card"
+  mkdir -p "$d" "$proj/test-results/visual/_sheets"
+  : > "$d/Ok-expected.png"; : > "$d/Ok-actual.png"
+  : > "$proj/test-results/visual/_sheets/stale.sheet.html"
+  out=$( cd "$proj" && bash "$SKILL/contact-sheet.sh" --html-only )
+  assert_eq "SHEETS=0" "$out"
+  assert_file_absent "$proj/test-results/visual/_sheets/stale.sheet.html" "stale sheets are removed"
+}
+
+test_contact_sheet_fails_without_run() {
+  local proj; proj=$(make_tmp_project)
+  if ( cd "$proj" && bash "$SKILL/contact-sheet.sh" --html-only ) >/dev/null 2>&1; then
+    fail "no output dir should fail"
+  fi
+}
+
+test_contact_sheet_renders_png_with_playwright() {
+  command -v node >/dev/null 2>&1 || skip_test "node not installed"
+  node -e 'require("playwright")' >/dev/null 2>&1 || skip_test "playwright not installed for node"
+  local proj out d; proj=$(make_tmp_project)
+  d="$proj/test-results/visual/visual-Card-Default-card--default-mobile/Card"
+  mkdir -p "$d"
+  # 1x1 transparent PNG
+  printf '\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\x0d\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82' > "$d/Default-actual.png"
+  out=$( cd "$proj" && CONTAINER_ENGINE= bash "$SKILL/contact-sheet.sh" 2>/dev/null ) || true
+  case "$out" in
+    *".sheet.png"*) assert_file_exists "$proj/test-results/visual/_sheets/Card__Default.sheet.png" ;;
+    *) skip_test "no browser available to render" ;;
+  esac
+}
+
+test_in_container_runs_a_node_script() {
+  local proj out; proj=$(make_tmp_project)
+  write_file "$proj/package.json" <<< '{"devDependencies":{"@playwright/test":"1.49.1"}}'
+  out=$( cd "$proj" && CONTAINER_ENGINE=docker bash "$SKILL/in-container.sh" --print --node .claude/skills/screenshots-testing/render-sheets.mjs a.html )
+  assert_contains "$out" "playwright:v1.49.1-noble node .claude/skills/screenshots-testing/render-sheets.mjs a.html"
+  assert_not_contains "$out" "playwright test" "--node replaces the test runner"
+  if ( cd "$proj" && bash "$SKILL/in-container.sh" --print --node ) >/dev/null 2>&1; then
+    fail "--node without a script should fail"
+  fi
+}
+
 run_tests "$@"

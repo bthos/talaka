@@ -10,6 +10,18 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Added — contact sheets for `screenshots-testing` diffs (#52)
+
+- **`contact-sheet.sh`**: after a check run, one sheet per changed or new story in
+  `test-results/visual/_sheets/<story>.sheet.png` — a row per mode (named from the visual
+  config's projects), expected | actual | diff side by side — so the reviewer sees every mode
+  at once before accepting anything. The approach follows scroll-craft's sheet (MIT,
+  github.com/nateherkai/scroll-craft).
+- **No new dependency:** rendered by Playwright, which the suite already pins, inside the same
+  container (`in-container.sh --node SCRIPT` runs a Node script in that image); host `node`
+  is the fallback, and the HTML sheets remain when neither can render.
+- **Review aid only:** the accept/reject rule, baselines and the container are unchanged.
+
 ### Added — lenses mode for `assumptions-challenging` (#53)
 
 - **Opt-in:** the user asks for `/assumptions-challenging lenses`; the coordinator may offer it
