@@ -10,6 +10,39 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Added — install hints from `probe-project.sh` (#54)
+
+- **`probe-project.sh --commands`** prints the detected test command, build command and version
+  files as `KIND<TAB>VALUE<TAB>EVIDENCE` lines and writes nothing.
+- **`init.sh --non-interactive`** lists them in its `[AGENT ACTION REQUIRED]` block as hints, each
+  with the file it was read from, and asks the agent to confirm each before using it. They are
+  never written into `PROJECT.md`: the kit executes these values, and a wrong guess would pass
+  `validate-config.sh`.
+- **Fewer wrong guesses:** `pytest` is suggested only when `pytest.ini` exists or a project file
+  names pytest (no longer for any `pyproject.toml`); a `Makefile` `test` / `build` / `all` target
+  is now detected; version files come from a `version` field in `package.json`, `pyproject.toml`
+  or `Cargo.toml`.
+
+### Changed — every layout change is a numbered migration
+
+- `kit_migrate_legacy_root_state` (lib.sh) is gone: moving `.talaka.cfg` / `.talaka.files` from the
+  project root into `.tlk/` is now migration `000-root-state-into-artefacts`, and a root copy that
+  clashes with an existing `.tlk/` one is left in place with a warning.
+- `update.sh` and `teardown.sh` run the migrations first, as `init.sh` already did, so each finds
+  the current layout before reading the cfg or manifest. `teardown.sh --dry-run` runs none, and
+  `--help` no longer touches the project.
+
+### Changed — `tasks-researching` is now `research-briefing`
+
+- The skill is named for what it produces, `research-brief.md`, and starts with "research".
+  Invoke it as `/research-briefing`; the bootstrap is
+  `.claude/skills/research-briefing/new-research.sh`. Metrics rows and log entries written under
+  the old name keep it.
+- **Renamed kit copies are cleaned up.** `init.sh` / `update.sh` remove an installed copy under an
+  old name when it is still exactly what the kit installed (manifest SHA-256), and keep an edited
+  one with a warning naming the new path; `teardown.sh` does the same. Renames are listed in
+  `KIT_RENAMED_COPIES` in `shared/lifecycle/tools/lib.sh`.
+
 ### Added — `prose-auditing`: optional phrasing audit for docs (#51)
 
 - **New skill `/prose-auditing`:** audit-only pass over a docs diff (or named files). Lists

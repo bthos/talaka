@@ -157,6 +157,32 @@ test_init_strips_legacy_root_gitignore_block() {
   assert_file_exists "$proj/.tlk/.gitignore" "replaced by the nested file"
 }
 
+# A kit update that renames a skill (tasks-researching → research-briefing) must
+# not leave the old copy installed beside the new one.
+_install_with_old_skill_name() {  # → project with .claude/skills/tasks-researching installed
+  local proj; proj=$(_make_project_with_kit)
+  cp -r "$proj/talaka/skills/requirements-eliciting" "$proj/talaka/skills/tasks-researching"
+  ( cd "$proj" && bash talaka/shared/lifecycle/tools/init.sh --non-interactive ) >/dev/null 2>&1
+  rm -rf "$proj/talaka/skills/tasks-researching"   # the kit update renamed it
+  printf '%s' "$proj"
+}
+
+test_update_removes_an_unedited_copy_of_a_renamed_skill() {
+  local proj; proj=$(_install_with_old_skill_name)
+  assert_dir_exists "$proj/.claude/skills/tasks-researching" "precondition: the old name was installed"
+  ( cd "$proj" && bash talaka/shared/lifecycle/tools/init.sh --non-interactive ) >/dev/null 2>&1
+  assert_file_absent "$proj/.claude/skills/tasks-researching" "unedited old copy removed"
+  assert_file_not_contains "$proj/.tlk/.talaka.files" ".claude/skills/tasks-researching" "and dropped from the manifest"
+}
+
+test_update_keeps_an_edited_copy_of_a_renamed_skill() {
+  local proj; proj=$(_install_with_old_skill_name)
+  printf '\nOur team note.\n' >> "$proj/.claude/skills/tasks-researching/SKILL.md"
+  local out; out=$( cd "$proj" && bash talaka/shared/lifecycle/tools/init.sh --non-interactive 2>&1 )
+  assert_file_contains "$proj/.claude/skills/tasks-researching/SKILL.md" "Our team note." "edits are never deleted"
+  assert_contains "$out" "is now .claude/skills/research-briefing" "the user is told where it went"
+}
+
 test_teardown_reverses_install() {
   local proj; proj=$(_make_project_with_kit)
   ( cd "$proj" && bash talaka/shared/lifecycle/tools/init.sh --non-interactive ) >/dev/null 2>&1

@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Probes the project to produce .tlk/PROJECT_PROFILE.md.
-# Usage:  talaka/shared/project/tools/probe-project.sh [--force] [--quick]
-#   --force   Overwrite existing PROJECT_PROFILE.md
-#   --quick   Skip the LLM enrichment step (fast, plain heuristics only)
+# Usage:  talaka/shared/project/tools/probe-project.sh [--force] [--quick | --commands]
+#   --force     Overwrite existing PROJECT_PROFILE.md
+#   --quick     Skip the LLM enrichment step (fast, plain heuristics only)
+#   --commands  Print the detected test/build commands and version files as
+#               KIND<TAB>VALUE<TAB>EVIDENCE lines and exit; writes nothing
 #
 # Override the artefacts directory with $ARTEFACTS_DIR.
 #
@@ -17,16 +19,71 @@ PROFILE_FILE="$ARTEFACTS/PROJECT_PROFILE.md"
 
 FORCE=false
 QUICK=false
+COMMANDS_ONLY=false
 for _arg in "$@"; do
   case "$_arg" in
     --force) FORCE=true ;;
     --quick) QUICK=true ;;
+    --commands) COMMANDS_ONLY=true ;;
     -h|--help)
-      sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
   esac
 done
+
+# ---------------------------------------------------------------------------
+# Test / build commands and version files. Each comes with the evidence it was
+# read from: these are guesses for an agent or a person to check, never values
+# to write into PROJECT.md unread (the kit executes them).
+# ---------------------------------------------------------------------------
+test_cmd=""; test_why=""
+build_cmd=""; build_why=""
+version_files=(); version_why=()
+
+_set_test()  { [ -n "$test_cmd" ]  || { test_cmd="$1";  test_why="$2"; }; }
+_set_build() { [ -n "$build_cmd" ] || { build_cmd="$1"; build_why="$2"; }; }
+_has_target() { grep -qE "^$1[[:space:]]*:" Makefile 2>/dev/null; }
+
+if [ -f package.json ]; then
+  grep -qE '"test"[[:space:]]*:' package.json 2>/dev/null \
+    && _set_test "npm test" 'package.json has a "test" script'
+  grep -qE '"build"[[:space:]]*:' package.json 2>/dev/null \
+    && _set_build "npm run build" 'package.json has a "build" script'
+fi
+if [ -f Makefile ]; then
+  _has_target test && _set_test "make test" "Makefile has a test target"
+  if _has_target build; then _set_build "make build" "Makefile has a build target"
+  elif _has_target all; then _set_build "make" "Makefile has an all target"; fi
+fi
+[ -f Cargo.toml ] && { _set_test "cargo test" "Cargo.toml"; _set_build "cargo build" "Cargo.toml"; }
+[ -f go.mod ]     && { _set_test "go test ./..." "go.mod"; _set_build "go build ./..." "go.mod"; }
+# Python: pytest only when the project names it, not for any pyproject.toml.
+for _f in pytest.ini pyproject.toml setup.cfg tox.ini requirements-dev.txt requirements.txt; do
+  [ -f "$_f" ] || continue
+  if [ "$_f" = pytest.ini ] || grep -qi 'pytest' "$_f" 2>/dev/null; then
+    _set_test "pytest" "$_f mentions pytest"; break
+  fi
+done
+
+if [ -f package.json ] && grep -qE '"version"[[:space:]]*:' package.json 2>/dev/null; then
+  version_files+=("package.json"); version_why+=('package.json has a "version" field')
+fi
+for _f in pyproject.toml Cargo.toml; do
+  if [ -f "$_f" ] && grep -qE '^version[[:space:]]*=' "$_f" 2>/dev/null; then
+    version_files+=("$_f"); version_why+=("$_f has a version = line")
+  fi
+done
+
+if [ "$COMMANDS_ONLY" = true ]; then
+  [ -n "$test_cmd" ]  && printf 'test\t%s\t%s\n'  "$test_cmd"  "$test_why"
+  [ -n "$build_cmd" ] && printf 'build\t%s\t%s\n' "$build_cmd" "$build_why"
+  if [ "${#version_files[@]}" -gt 0 ]; then
+    _vf=$(IFS=,; printf '%s' "${version_files[*]}"); _vw=$(IFS=';'; printf '%s' "${version_why[*]}")
+    printf 'version\t%s\t%s\n' "${_vf//,/, }" "${_vw//;/; }"
+  fi
+  exit 0
+fi
 
 if [ -f "$PROFILE_FILE" ] && [ "$FORCE" = false ]; then
   echo "PROJECT_PROFILE.md already exists. Use --force to overwrite."
@@ -40,8 +97,6 @@ mkdir -p "$ARTEFACTS"
 # ---------------------------------------------------------------------------
 languages=()
 package_managers=()
-test_cmd=""
-build_cmd=""
 frameworks=()
 test_dirs=()
 hot_files=()
@@ -67,14 +122,6 @@ hot_files=()
 [ -f Makefile ]          && hot_files+=("Makefile")
 [ -f manifest.json ] && grep -q '"manifest_version"' manifest.json 2>/dev/null && frameworks+=("Chrome Extension (MV3 if manifest_version=3)")
 
-# Test/build heuristics from package.json
-if [ -f package.json ]; then
-  if grep -q '"test"' package.json 2>/dev/null;  then test_cmd="npm test"; fi
-  if grep -q '"build"' package.json 2>/dev/null; then build_cmd="npm run build"; fi
-fi
-[ -f Cargo.toml ] && { test_cmd="${test_cmd:-cargo test}"; build_cmd="${build_cmd:-cargo build}"; }
-[ -f go.mod ]     && { test_cmd="${test_cmd:-go test ./...}"; build_cmd="${build_cmd:-go build ./...}"; }
-[ -f pyproject.toml ] && { test_cmd="${test_cmd:-pytest}"; build_cmd="${build_cmd:-python -m build}"; }
 
 # Test directories
 for d in tests test __tests__ spec specs; do

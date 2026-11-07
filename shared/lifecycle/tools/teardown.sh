@@ -31,8 +31,6 @@ set -euo pipefail
 # shellcheck source=lib.sh
 source "$(cd "$(dirname "$0")" && pwd)/lib.sh"
 
-kit_migrate_legacy_root_state
-
 # ---------------------------------------------------------------------------
 # Flag parsing (must come before any removal logic)
 # ---------------------------------------------------------------------------
@@ -73,6 +71,10 @@ for _arg in "$@"; do
 done
 # Non-interactive (no TTY) auto-enables --yes
 [ ! -t 0 ] && YES=true
+
+# Bring an old layout up to date first, so the cfg and manifest are found where
+# this script looks. A dry run changes nothing, migrations included.
+$DRY_RUN || kit_run_migrations || true
 
 # ---------------------------------------------------------------------------
 # Header
@@ -141,6 +143,7 @@ for skill_dir in "$SCRIPT_DIR/skills/"*/; do
   name=$(basename "$skill_dir")
   kit_managed_tree_remove ".claude/skills/$name" "${skill_dir%/}" || true
 done
+kit_retire_renamed_copies
 if ! $DRY_RUN && [ -d "$PROJECT_ROOT/.claude/skills" ] && [ -z "$(ls -A "$PROJECT_ROOT/.claude/skills" 2>/dev/null)" ]; then
   rmdir "$PROJECT_ROOT/.claude/skills" 2>/dev/null && removed ".claude/skills/ (empty dir)" || true
 fi

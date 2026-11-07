@@ -24,7 +24,10 @@ passes locally and on the Windows runner — then Linux and macOS fail with
 ## Changing the `.tlk/` layout
 
 A kit change that moves or renames anything under a project's `.tlk/` ships with
-a migration, so installed projects follow on their next `update.sh`:
+a migration, so installed projects follow on their next `update.sh`. Every
+layout change goes through `shared/lifecycle/migrations/` — `init.sh`,
+`update.sh` and `teardown.sh` run them before reading any state, so there is no
+"where does it run" choice to make:
 
 - Add `shared/lifecycle/migrations/NNN-<slug>.sh` (next free number), opening
   with `# NNN — <what changes>`. It is sourced in its own bash process with

@@ -1,6 +1,6 @@
 # {{RESEARCH_ID}} — Research Brief
 
-_Filled by /tasks-researching. Read by architecture-planning (and downstream Cmok, Bagnik). Every claim below MUST trace to a tool result — a `path:line` or a URL. No assumptions, no recall-as-fact. Converge on ONE approach; delete the alternatives once chosen._
+_Filled by /research-briefing. Read by architecture-planning (and downstream Cmok, Bagnik). Every claim below MUST trace to a tool result — a `path:line` or a URL. No assumptions, no recall-as-fact. Converge on ONE approach; delete the alternatives once chosen._
 
 ## Task
 
