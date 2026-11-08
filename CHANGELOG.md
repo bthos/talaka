@@ -10,6 +10,34 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Added — `tlk`, and `.tlk/` synced between your own devices
+
+- **The `tlk` command.** `init.sh` installs a launcher into `~/.local/bin` (`~/bin` on Git Bash):
+  `tlk <action> [args…]` is `talaka/kit.sh <action> [args…]`, from any folder of any project with
+  the kit — it finds the kit from the current folder upwards. On by default, `--non-interactive`
+  included; `--no-cli` skips it. A `tlk` that is not the kit's is never overwritten (the launcher
+  goes in as `talaka`). New `shared/lifecycle/tools/{tlk.sh,install-cli.sh}`; *Manage components*
+  → `cli`. `teardown.sh` leaves it: it serves every project on the machine.
+- **`kit.sh <action> [args…]`** passes everything after the action to its tool:
+  `kit.sh memory "query"`, `kit.sh sync status`, `kit.sh init --tune`.
+- **Artefact sync — `tlk sync`** (`shared/sync/tools/sync.sh`). `.tlk/` can become a git repo of
+  its own, pushed to a private repo of yours (one branch per project, named after its `origin`) or
+  to branch `tlk/<you>` of the project's origin. A wizard on a TTY (it can create the private repo
+  with `gh`); `tlk sync enable --mode=… --remote=… -y` and `init.sh --sync=… --sync-remote=…` for
+  agents. `git config --global talaka.sync.{mode,remote}` makes every project connect on its next
+  `init.sh`; on a new device the synced files come down before init writes anything.
+  - The project repo skips the synced dir through `.git/info/exclude`; `.tlk/.gitignore` becomes
+    the list of what stays per device (install bookkeeping, `PIPELINE.md`, caches). No layout
+    change, so no migration.
+  - Nothing is overwritten: two devices' changes are merged by git, and a clash stops with
+    `tlk sync resolve --ours | --theirs | --manual`. Pushes are held back when a changed file holds
+    something shaped like a credential (`--allow-secrets` to override).
+  - Optional Claude Code hooks (need jq): pull at session start, commit after each turn, push at
+    most every `TALAKA_SYNC_PUSH_INTERVAL` (600 s) and at session end. The statusline shows
+    `sync:conflict`, `sync:held` and `sync:offline`.
+  - `teardown.sh` removes the hooks but keeps `.tlk/.git`, and keeps `PROJECT.md` of a synced
+    `.tlk/` even with `--full-clean`; `tlk sync disable [--purge]` stops syncing.
+
 ### Added — install hints from `probe-project.sh` (#54)
 
 - **`probe-project.sh --commands`** prints the detected test command, build command and version

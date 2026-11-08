@@ -314,6 +314,17 @@ if [ -d "$AKT/debug" ]; then
   fi
 fi
 
+# --- Alert: artefact sync (tlk sync) — quiet while in sync; speaks up when a
+# conflict, a held-back push or an unreachable remote needs the user. One read.
+if [ -f "$AKT/.sync/state" ] && [ -d "$AKT/.git" ]; then
+  IFS= read -r SYNC_STATE < "$AKT/.sync/state" || true
+  case "${SYNC_STATE%% *}" in
+    conflict*) ALERTS+=("${R}sync:conflict${Z}") ;;
+    secrets)   ALERTS+=("${Y}sync:held${Z}") ;;
+    offline|behind|error) ALERTS+=("${Y}sync:${SYNC_STATE%% *}${Z}") ;;
+  esac
+fi
+
 # --- Alert: side-tasks — small tracked work outside any feature (issue #45) ---
 # "ST: 2 open · 1 uncommitted": open/in-progress/blocked count as open, verified
 # (Bagnik passed, Zlydni not yet) as uncommitted. Read with builtins — no forks.

@@ -194,6 +194,15 @@ if [ -x "$_hook_remove" ] || [ -x "$_sl_remove" ] || [ -x "$_os_remove" ] || [ -
   [ -x "$_os_remove" ]   && ( cd "$PROJECT_ROOT" && DRY_RUN="$DRY_RUN" "$_os_remove" --remove ) || true
   [ -x "$_env_remove" ]  && ( cd "$PROJECT_ROOT" && DRY_RUN="$DRY_RUN" "$_env_remove" --remove ) || true
 fi
+# Artefact sync: only its hooks go. $ARTEFACTS_NAME/.git — your synced history —
+# stays with the files, and so does the .git/info/exclude line that keeps the
+# project repo out of it. `tlk sync disable --purge` removes those.
+_sync_tool="$SCRIPT_DIR/shared/sync/tools/sync.sh"
+if [ -f "$_sync_tool" ] && grep -qs "shared/sync/tools/sync.sh hook" "$KIT_SETTINGS_FILE"; then
+  if $DRY_RUN; then info "would remove the sync hooks from $KIT_SETTINGS_REL"
+  else ( cd "$PROJECT_ROOT" && bash "$_sync_tool" hooks --remove ) || true; fi
+fi
+[ -d "$ARTEFACTS/.git" ] && info "$ARTEFACTS_NAME/ is synced (its own git repo) — kept. Stop syncing: $SUBMODULE_DIR/shared/sync/tools/sync.sh disable --purge"
 # Settings files left empty are removed by the tools above; drop .claude/ if
 # that emptied it.
 if ! $DRY_RUN && [ -d "$PROJECT_ROOT/.claude" ] && [ -z "$(ls -A "$PROJECT_ROOT/.claude" 2>/dev/null)" ]; then
@@ -255,7 +264,12 @@ if $FULL_CLEAN; then
     fi
   }
 
-  _confirm_remove "$ARTEFACTS_NAME/PROJECT.md"
+  if [ -d "$ARTEFACTS/.git" ]; then
+    # Synced: deleting it here would delete it on every device at the next sync.
+    info "$ARTEFACTS_NAME/PROJECT.md kept — $ARTEFACTS_NAME/ is synced, and removing it would remove it on your other devices too"
+  else
+    _confirm_remove "$ARTEFACTS_NAME/PROJECT.md"
+  fi
   _manifest_drop "$ARTEFACTS_NAME/PROJECT.md"
 
   # scratch/ holds only ephemeral kit runtime files (commit messages, PR

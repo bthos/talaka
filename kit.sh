@@ -50,11 +50,23 @@ cd "$PROJECT_ROOT"
 # ---------------------------------------------------------------------------
 # CLI arg parsing — single positional action lets CI / agents bypass the menu
 # ---------------------------------------------------------------------------
+# Everything after the action name is handed to that action's tool unchanged
+# (`kit.sh sync --enable`, `kit.sh memory "query"`, `kit.sh init --tune`), so the
+# `tlk` launcher is a full stand-in for every tool behind the menu. -n stays a
+# kit.sh flag wherever it appears, as it always was.
 ACTION_ARG=""
+ACTION_ARGS=()
 LIST_JSON=false
 SHOW_HELP=false
 NON_INTERACTIVE=false
 for arg in "$@"; do
+  if [ -n "$ACTION_ARG" ]; then
+    case "$arg" in
+      -n|--non-interactive) NON_INTERACTIVE=true ;;
+      *) ACTION_ARGS+=("$arg") ;;
+    esac
+    continue
+  fi
   case "$arg" in
     -h|--help)         SHOW_HELP=true ;;
     -n|--non-interactive) NON_INTERACTIVE=true ;;  # forwarded to init; implied when stdin is not a TTY
@@ -182,6 +194,9 @@ register_actions() {
   add teardown 1 setup "Uninstall (teardown)"            "Strip managed include blocks; remove kit-installed copies whose SHA-256 still matches the manifest. Asks for extra args." \
        "::teardown-prompt"
 
+  add sync     1 setup "Sync artefacts"                  "Keep $ARTEFACTS_NAME/ in a git repo of your own and sync it between your devices. Off: a short wizard. On: commit, pull, push. More: sync status | enable | disable | resolve." \
+       "$KIT/shared/sync/tools/sync.sh"
+
   # ---- optional components (multi-level submenu) ----
   add components 1 extras "Manage components ▸"          "Install / remove optional add-ons (statusline, AutoResearch, memory Stop hook) from a sub-menu with live status." \
        "::components-menu"
@@ -299,6 +314,10 @@ register_components() {
        "Sets outputStyle=Concise in .claude/settings.local.json — trims the coordinator's own narration."
   cadd kitenv       "Kit settings (env)"   "$KIT/shared/lifecycle/tools/install-env.sh" "$KIT/shared/lifecycle/tools/install-env.sh::--remove" \
        "Adds the TALAKA_* settings to \"env\" in .claude/settings.local.json, where agent tool calls see them."
+  cadd cli          "tlk command"          "$KIT/shared/lifecycle/tools/install-cli.sh" "$KIT/shared/lifecycle/tools/install-cli.sh::--remove" \
+       "A launcher in ~/.local/bin (~/bin on Git Bash): \`tlk <action>\` = talaka/kit.sh <action>, from any folder of any project with the kit."
+  cadd sync         "Artefact sync"        "$KIT/shared/sync/tools/sync.sh::enable" "$KIT/shared/sync/tools/sync.sh::disable" \
+       "Keep $ARTEFACTS_NAME/ in a git repo of your own (private repo, or a tlk/<you> branch) and sync it between your devices."
 }
 
 # component_installed KEY → return 0 if the component is currently active.
@@ -311,19 +330,22 @@ component_installed() {
     memhook)      grep -qs 'memory/tools/tick.sh' "${sf[@]}" ;;
     concise)      grep -qs '"outputStyle"[[:space:]]*:[[:space:]]*"Concise"' "${sf[@]}" ;;
     kitenv)       grep -qs '"TALAKA_[A-Z_]*"[[:space:]]*:' "${sf[@]}" ;;
+    cli)          bash "$KIT/shared/lifecycle/tools/install-cli.sh" --status >/dev/null 2>&1 ;;
+    sync)         [ -d "$ARTEFACTS/.git" ] ;;
     *) return 1 ;;
   esac
 }
 
 # exec_cmd_field "a::b::c" → run argv (a b c) with no eval. Shared by run_action.
+# Extra args after the field are appended to the argv.
 exec_cmd_field() {
-  local rest="$1" head argv=()
+  local rest="$1" head argv=(); shift
   while [ -n "$rest" ]; do
     head="${rest%%::*}"; argv+=("$head")
     [ "$head" = "$rest" ] && break
     rest="${rest#*::}"
   done
-  "${argv[@]}"
+  "${argv[@]}" "$@"
 }
 
 # Run a component command from the project root with ARTEFACTS_DIR exported.
@@ -437,9 +459,9 @@ run_action() {
       # without one only prints its help. Agent / CI mode is the only sane choice.
       local tool="$KIT/shared/lifecycle/tools/${cmd_field#::}.sh"
       if $NON_INTERACTIVE || [ ! -t 0 ]; then
-        "$tool" --non-interactive
+        "$tool" --non-interactive ${ACTION_ARGS[@]+"${ACTION_ARGS[@]}"}
       else
-        "$tool"
+        "$tool" ${ACTION_ARGS[@]+"${ACTION_ARGS[@]}"}
       fi
       ;;
     ::edit-project-md)
@@ -451,6 +473,10 @@ run_action() {
       "${EDITOR:-vi}" "$PROJECT_MD"
       ;;
     ::memory-prompt)
+      if [ ${#ACTION_ARGS[@]} -gt 0 ]; then
+        "$KIT/memory/tools/search.sh" ${ACTION_ARGS[@]+"${ACTION_ARGS[@]}"}
+        return
+      fi
       if [ ! -t 0 ]; then
         printf "  %s✗%s memory action requires a TTY (or pass query as: kit.sh memory \"<query>\")\n" \
           "$RED" "$RESET"
@@ -468,6 +494,10 @@ run_action() {
       components_menu
       ;;
     ::teardown-prompt)
+      if [ ${#ACTION_ARGS[@]} -gt 0 ]; then
+        "$KIT/shared/lifecycle/tools/teardown.sh" ${ACTION_ARGS[@]+"${ACTION_ARGS[@]}"}
+        return
+      fi
       if [ ! -t 0 ]; then
         # No TTY → safe default: dry-run so nothing destructive happens by accident.
         printf "  %s→%s no TTY — running teardown.sh --dry-run\n" "$YELLOW" "$RESET"
@@ -487,7 +517,7 @@ run_action() {
       ;;
     *)
       # split on "::" sentinel without eval
-      exec_cmd_field "$cmd_field"
+      exec_cmd_field "$cmd_field" ${ACTION_ARGS[@]+"${ACTION_ARGS[@]}"}
       ;;
   esac
 }
@@ -501,7 +531,8 @@ kit.sh — single entry point for all manual kit workflows.
 
 USAGE
   talaka/kit.sh                     # interactive menu
-  talaka/kit.sh <action>            # run a single action and exit
+  talaka/kit.sh <action> [args…]    # run a single action and exit; args go to its tool
+  tlk <action> [args…]              # the same, from anywhere in the project (see below)
   talaka/kit.sh init -n             # install in agent / CI mode (no prompts)
   talaka/kit.sh --list-json         # dump action registry as JSON
   talaka/kit.sh --help              # this help
@@ -522,6 +553,12 @@ STAGES
 
   'components' opens a sub-menu of optional add-ons (statusline, AutoResearch,
   memory Stop hook) with live [installed]/[off] status — install or remove each.
+
+THE tlk COMMAND
+  init installs a small launcher, `tlk`, into ~/.local/bin (~/bin on Git Bash)
+  — skip it with --no-cli. It finds the kit from the current folder upwards,
+  so `tlk status`, `tlk sync` or `tlk memory "query"` work from any subfolder
+  of any project with the kit. Manage it under 'components' (cli).
 
 NOTES
   Single-action mode auto-detects no-TTY and refuses interactive prompts

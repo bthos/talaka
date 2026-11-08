@@ -59,7 +59,8 @@ talaka / update.sh
       --skip-all | --overwrite-all | --force
       --tune | --no-tune
       --with-autoresearch | --no-autoresearch
-      --with-hook | --no-hook | --no-statusline | --no-output-style | --no-env
+      --with-hook | --no-hook | --no-statusline | --no-output-style | --no-env | --no-cli
+      --sync=personal|project|off  --sync-remote=URL  --sync-branch=NAME
     The artefacts location chosen at install (--artefacts-dir) is remembered.
 
     The --ide=* flag was removed; talaka now installs a single

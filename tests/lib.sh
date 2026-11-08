@@ -21,6 +21,14 @@
 set -uo pipefail
 
 TESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Keep the kit's per-user side effects out of the developer's machine: init.sh
+# installs the `tlk` launcher into a user bin dir, and reads artefact-sync
+# settings from the global git config. Tests that exercise either point these
+# at their own sandbox.
+TALAKA_BIN_DIR="$(mktemp -d "${TMPDIR:-/tmp}"/tlk-test-bin.XXXXXX)"
+export TALAKA_BIN_DIR
+export TALAKA_SYNC=off
 KIT_ROOT="$(cd "$TESTS_LIB_DIR/.." && pwd)"
 export KIT_ROOT
 
@@ -146,6 +154,7 @@ make_tmp_project() {
 
 _cleanup_tmp_dirs() {
   local d
+  [ -n "${TALAKA_BIN_DIR:-}" ] && rm -rf "$TALAKA_BIN_DIR" 2>/dev/null
   for d in "${_TMP_DIRS[@]:-}"; do
     [ -n "$d" ] && [ -d "$d" ] && rm -rf "$d" 2>/dev/null || true
   done

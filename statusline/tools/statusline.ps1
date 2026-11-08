@@ -343,6 +343,16 @@ if (Test-Path $debugDir) {
     }
 }
 
+# --- Alert: artefact sync (tlk sync) — same rule as statusline.sh: quiet while
+# in sync, an alert for a conflict, a held-back push or an unreachable remote.
+$syncState = Join-Path $tlkDir ".sync/state"
+if ((Test-Path $syncState) -and (Test-Path (Join-Path $tlkDir ".git"))) {
+    $ss = ((Get-Content $syncState -TotalCount 1) -split ' ')[0]
+    if ($ss -like 'conflict*') { $alerts += "${red}sync:conflict${reset}" }
+    elseif ($ss -eq 'secrets') { $alerts += "${yellow}sync:held${reset}" }
+    elseif ($ss -in @('offline', 'behind', 'error')) { $alerts += "${yellow}sync:${ss}${reset}" }
+}
+
 # --- Alert: side-tasks — small tracked work outside any feature (issue #45) ---
 # "ST: 2 open · 1 uncommitted": open/in-progress/blocked count as open, verified
 # (Bagnik passed, Zlydni not yet) as uncommitted. Same rule as statusline.sh.

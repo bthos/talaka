@@ -13,13 +13,16 @@
 #   memhook       jq      installer edits settings JSON
 #   autoresearch  jq claude   metrics analysis needs jq; the mutation step needs the claude CLI
 #   artefacts-dir jq      a custom location is remembered in settings JSON
+#   synchooks     jq      the sync hooks are written into settings JSON (sync
+#                         itself needs only git; `tlk sync` works without hooks)
+#   cli           —       a launcher script; needs nothing beyond bash
 #
 #   kit_feature_needs KEY     print the tools KEY needs (space-separated)
 #   kit_feature_missing KEY   print the needed tools not on PATH; status 1 if any
 
 kit_feature_needs() {
   case "$1" in
-    statusline|concise|kitenv|memhook|artefacts-dir) echo "jq" ;;
+    statusline|concise|kitenv|memhook|artefacts-dir|synchooks) echo "jq" ;;
     autoresearch) echo "jq claude" ;;
     *) echo "" ;;
   esac
@@ -38,4 +41,4 @@ kit_feature_missing() {
 }
 
 # Every feature key, for listings.
-KIT_FEATURES="statusline concise kitenv memhook autoresearch artefacts-dir"
+KIT_FEATURES="statusline concise kitenv memhook autoresearch artefacts-dir synchooks cli"
