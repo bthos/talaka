@@ -2,7 +2,7 @@
 # Run from the target project root after adding the submodule.
 # Usage: talaka/shared/lifecycle/tools/init.sh [--force | --overwrite-all | --skip | --skip-all | --non-interactive]
 #                                             [--artefacts-dir=NAME] [--with-autoresearch] [--with-hook]
-#                                             [--no-statusline] [--no-output-style] [--no-env] [--no-cli]
+#                                             [--no-statusline] [--no-output-style] [--no-env] [--no-cli] [--no-path]
 #                                             [--sync=personal|project|off] [--sync-remote=URL] [--sync-branch=NAME]
 #
 # What this script does (minimally invasive by design):
@@ -191,6 +191,9 @@ show_help() {
     --no-cli                Don't install the `tlk` command (a launcher in
                             ~/.local/bin, or ~/bin on Git Bash, so `tlk <action>`
                             runs talaka/kit.sh <action> from anywhere in a project).
+                            On Windows also tlk.cmd for PowerShell / cmd, with the
+                            bin dir added to your user PATH.
+    --no-path               Windows: install tlk.cmd but leave the user PATH alone.
                             (These four are on by default; --no-* only skips
                             installing — remove an existing one via kit.sh components.)
 
@@ -315,6 +318,7 @@ WITH_STATUSLINE=true
 WITH_OUTPUT_STYLE=true
 WITH_ENV=true
 WITH_CLI=true
+CLI_ARGS=()
 
 for arg in "$@"; do
   case "$arg" in
@@ -338,6 +342,7 @@ for arg in "$@"; do
     --no-output-style)               WITH_OUTPUT_STYLE=false ;;
     --no-env)                        WITH_ENV=false ;;
     --no-cli)                        WITH_CLI=false ;;
+    --no-path)                       CLI_ARGS+=(--no-path) ;;
     --artefacts-dir=*)               ;;  # handled before lib.sh was sourced
     --sync=*|--sync-remote=*|--sync-branch=*) ;;  # handled before migrations (sync.sh auto)
   esac
@@ -957,7 +962,7 @@ fi
 _cli_install="$SCRIPT_DIR/shared/lifecycle/tools/install-cli.sh"
 if $WITH_CLI && [ -f "$_cli_install" ]; then
   header "The tlk command"
-  bash "$_cli_install" || warn "install-cli.sh exited non-zero — run it again: $SUBMODULE_DIR/shared/lifecycle/tools/install-cli.sh"
+  bash "$_cli_install" ${CLI_ARGS[@]+"${CLI_ARGS[@]}"} || warn "install-cli.sh exited non-zero — run it again: $SUBMODULE_DIR/shared/lifecycle/tools/install-cli.sh"
 fi
 
 # Synced: send what this run created (PROJECT.md, the memory tree, …) to your

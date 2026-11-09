@@ -49,6 +49,78 @@ test_status_reports_an_outdated_launcher() {
   assert_ok env TALAKA_BIN_DIR="$bin" bash "$INSTALL" --status
 }
 
+# --- Windows: tlk.cmd and the user PATH -----------------------------------
+# _TLK_FORCE_OS takes the Windows branch anywhere; tests/lib.sh's stand-in for
+# powershell.exe keeps "the user PATH" in $TLK_FAKE_USERPATH.
+_win() { _TLK_FORCE_OS=windows TALAKA_BIN_DIR="$1" bash "$INSTALL" "${@:2}"; }
+
+test_windows_gets_a_cmd_shim_and_a_user_path_entry() {
+  local bin; bin=$(_bin)
+  printf '%s' 'C:\Windows;%USERPROFILE%\go\bin' > "$TLK_FAKE_USERPATH"
+  local out; out=$(_win "$bin" 2>&1) || fail "install failed: $out"
+  assert_file_contains "$bin/tlk.cmd" "talaka-launcher" "the shim is marked as ours"
+  assert_file_contains "$bin/tlk.cmd" '"%~dpn0" %*' "it runs the tlk next to it with every argument"
+  assert_eq $'\r' "$(head -n1 "$bin/tlk.cmd" | tail -c 2 | head -c 1)" "CRLF line endings"
+  assert_eq "C:\Windows;%USERPROFILE%\go\bin;$bin" "$(cat "$TLK_FAKE_USERPATH")" \
+    "appended, the other entries kept as written"
+  assert_file_exists "$bin/.talaka-path" "remembered as added by the kit"
+  assert_contains "$out" "added $bin to your user PATH"
+  _win "$bin" >/dev/null 2>&1
+  assert_eq "C:\Windows;%USERPROFILE%\go\bin;$bin" "$(cat "$TLK_FAKE_USERPATH")" "added once"
+  assert_ok env _TLK_FORCE_OS=windows TALAKA_BIN_DIR="$bin" bash "$INSTALL" --status
+  _win "$bin" --remove >/dev/null 2>&1
+  assert_file_absent "$bin/tlk.cmd"
+  assert_eq 'C:\Windows;%USERPROFILE%\go\bin' "$(cat "$TLK_FAKE_USERPATH")" "--remove takes the entry out"
+  assert_file_absent "$bin/.talaka-path"
+}
+
+test_windows_entry_already_there_is_not_ours_to_remove() {
+  local bin; bin=$(_bin); mkdir -p "$bin"
+  local upper; upper=$(printf '%s' "$bin" | tr '[:lower:]' '[:upper:]')
+  printf '%s' "C:\\Tools;$upper\\" > "$TLK_FAKE_USERPATH"
+  _win "$bin" >/dev/null 2>&1
+  assert_eq "C:\\Tools;$upper\\" "$(cat "$TLK_FAKE_USERPATH")" "same dir in other case / trailing \\ — not added again"
+  assert_file_absent "$bin/.talaka-path"
+  _win "$bin" --remove >/dev/null 2>&1
+  assert_eq "C:\\Tools;$upper\\" "$(cat "$TLK_FAKE_USERPATH")" "the user's own entry stays"
+}
+
+test_windows_trailing_semicolon_is_not_doubled() {
+  local bin; bin=$(_bin)
+  printf '%s' 'C:\Tools;' > "$TLK_FAKE_USERPATH"
+  _win "$bin" >/dev/null 2>&1
+  assert_eq "C:\Tools;$bin" "$(cat "$TLK_FAKE_USERPATH")"
+}
+
+# Only a real Windows runner can run the shim itself: cmd.exe → tlk.cmd →
+# Git for Windows' bash.exe → the launcher.
+test_windows_cmd_shim_really_runs_the_launcher() {
+  case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) ;; *) skip_test "needs Windows"; return ;; esac
+  command -v cygpath >/dev/null 2>&1 || { skip_test "no cygpath"; return; }
+  local bin; bin=$(_bin)
+  TALAKA_BIN_DIR="$bin" bash "$INSTALL" --no-path >/dev/null 2>&1
+  local out; out=$(cmd.exe //c "$(cygpath -w "$bin/tlk.cmd")" --launcher-version 2>&1 | tr -d '\r')
+  assert_eq "1" "$out" "tlk.cmd ran the launcher"
+}
+
+test_windows_no_path_prints_the_command_instead() {
+  local bin; bin=$(_bin)
+  : > "$TLK_FAKE_USERPATH"
+  local out; out=$(_win "$bin" --no-path 2>&1)
+  assert_file_exists "$bin/tlk.cmd"
+  assert_eq "" "$(cat "$TLK_FAKE_USERPATH")" "user PATH untouched"
+  assert_contains "$out" "SetEnvironmentVariable('Path'"
+}
+
+test_windows_keeps_a_foreign_cmd() {
+  local bin; bin=$(_bin); mkdir -p "$bin"
+  printf '@echo mine\r\n' > "$bin/tlk.cmd"
+  _win "$bin" --no-path >/dev/null 2>&1
+  assert_file_contains "$bin/tlk.cmd" "mine"
+  _win "$bin" --remove >/dev/null 2>&1
+  assert_file_exists "$bin/tlk.cmd" "not ours, not removed"
+}
+
 # A project with the kit's kit.sh and lifecycle tools.
 _proj() {
   local proj; proj=$(make_tmp_project)

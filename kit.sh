@@ -558,7 +558,9 @@ THE tlk COMMAND
   init installs a small launcher, `tlk`, into ~/.local/bin (~/bin on Git Bash)
   — skip it with --no-cli. It finds the kit from the current folder upwards,
   so `tlk status`, `tlk sync` or `tlk memory "query"` work from any subfolder
-  of any project with the kit. Manage it under 'components' (cli).
+  of any project with the kit. Manage it under 'components' (cli). On Windows
+  it works in PowerShell and cmd too (tlk.cmd + your user PATH; --no-path skips
+  the PATH change).
 
 NOTES
   Single-action mode auto-detects no-TTY and refuses interactive prompts

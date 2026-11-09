@@ -29,6 +29,18 @@ TESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TALAKA_BIN_DIR="$(mktemp -d "${TMPDIR:-/tmp}"/tlk-test-bin.XXXXXX)"
 export TALAKA_BIN_DIR
 export TALAKA_SYNC=off
+# install-cli.sh edits the Windows user PATH through powershell.exe. Under test
+# it calls this stand-in instead, which keeps "the user PATH" in a file — so a
+# Windows developer's real PATH never collects temp dirs.
+_TLK_PS="$TALAKA_BIN_DIR.ps.sh"
+TLK_FAKE_USERPATH="$TALAKA_BIN_DIR.userpath"
+cat > "$_TLK_PS" <<'PS'
+case "$1" in
+  *GetValue*) cat "$TLK_FAKE_USERPATH" 2>/dev/null; printf '\r\n' ;;
+  *SetValue*) printf '%s' "$TLK_NEWPATH" > "$TLK_FAKE_USERPATH" ;;
+esac
+PS
+export _TLK_PS TLK_FAKE_USERPATH
 KIT_ROOT="$(cd "$TESTS_LIB_DIR/.." && pwd)"
 export KIT_ROOT
 
@@ -154,7 +166,7 @@ make_tmp_project() {
 
 _cleanup_tmp_dirs() {
   local d
-  [ -n "${TALAKA_BIN_DIR:-}" ] && rm -rf "$TALAKA_BIN_DIR" 2>/dev/null
+  [ -n "${TALAKA_BIN_DIR:-}" ] && rm -rf "$TALAKA_BIN_DIR" "$TALAKA_BIN_DIR".ps.sh "$TALAKA_BIN_DIR".userpath 2>/dev/null
   for d in "${_TMP_DIRS[@]:-}"; do
     [ -n "$d" ] && [ -d "$d" ] && rm -rf "$d" 2>/dev/null || true
   done

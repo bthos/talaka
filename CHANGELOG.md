@@ -18,6 +18,10 @@ tags yet — entries are dated and grouped by submodule HEAD).
   included; `--no-cli` skips it. A `tlk` that is not the kit's is never overwritten (the launcher
   goes in as `talaka`). New `shared/lifecycle/tools/{tlk.sh,install-cli.sh}`; *Manage components*
   → `cli`. `teardown.sh` leaves it: it serves every project on the machine.
+  - **Windows:** `tlk.cmd` beside it runs the launcher through Git for Windows' `bash.exe`, and
+    the bin dir is added to the user `PATH` (registry value kept unexpanded), so `tlk` works in
+    PowerShell and cmd too. `--no-path` skips the `PATH` change; `install-cli.sh --remove` undoes
+    both, the `PATH` entry only when the kit added it.
 - **`kit.sh <action> [args…]`** passes everything after the action to its tool:
   `kit.sh memory "query"`, `kit.sh sync status`, `kit.sh init --tune`.
 - **Artefact sync — `tlk sync`** (`shared/sync/tools/sync.sh`). `.tlk/` can become a git repo of
