@@ -998,7 +998,7 @@ function smallMult(t){const rs=M.rounds.filter(r=>r.target===t&&r.prop!=null);co
    environment settings in .claude/settings*.json). PROJECT.md and program.md
    values are read here, from the files themselves, so they are live in Live mode. */
 let setQ="",setKind=store.get("setkind","all");
-const SET_AREAS=["Pipeline","Side-tasks","Memory","Metrics & cost","AutoResearch","Pace & statusline","Kit issues","Dashboard","Wiki","Design","Install"];
+const SET_AREAS=["Pipeline","Side-tasks","Memory","Metrics & cost","AutoResearch","Pace & statusline","Kit issues","Dashboard","Wiki","Design","Sync","Install"];
 const SET_KIND={env:["env","Environment — .claude/settings.local.json → env"],project:["PROJECT.md","A line in .tlk/PROJECT.md"],file:["file","A value in another file"],flag:["flag","A command-line default"],constant:["fixed","Built into the kit — changing it means editing the kit"]};
 async function loadParams(){TLK._p=null;try{await loadScript("params.js?t="+Date.now())}catch(e){}return TLK._p}
 function resolveParam(r,P){const [name,kind,def,unit,area,setIn,readBy,effect,match]=r;let value=def,source="default";

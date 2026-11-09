@@ -151,7 +151,7 @@ talaka/kit.sh
 talaka/shared/lifecycle/tools/init.sh --non-interactive
 ```
 
-`talaka/kit.sh` is a stage-aware menu: at stage **0 (not installed)** it only shows `init`; at stage **1 (needs config)** it adds `probe`, `edit PROJECT.md`, `validate`, `teardown`, and an **Optional components** submenu; at stage **2 (ready)** it surfaces the full set — feature status, the dashboard, memory search, version bumps, memory rollover/promotion, distill lessons, apply patches. The **Optional components** submenu installs/removes opt-in add-ons (statusline, AutoResearch, memory Stop hook) from one place, each showing live `[installed]`/`[off]` status — adding a new add-on is one registry row. Press `h` for inline descriptions of every action. For CI / agents, pass an action as a positional argument: `talaka/kit.sh status` runs once and exits; `talaka/kit.sh init -n` installs in agent mode (`init` and `update` also pick that mode on their own when there is no TTY). The stage is **ready** exactly when `validate-config.sh` passes, so the two never disagree; `talaka/kit.sh --list-json` dumps the action registry as JSON; `talaka/kit.sh --help` prints the full reference.
+`talaka/kit.sh` is a stage-aware menu: at stage **0 (not installed)** it only shows `init`; at stage **1 (needs config)** it adds `probe`, `edit PROJECT.md`, `validate`, `teardown`, and an **Optional components** submenu; at stage **2 (ready)** it surfaces the full set — feature status, the dashboard, memory search, version bumps, memory rollover/promotion, distill lessons, apply patches. The **Optional components** submenu installs/removes opt-in add-ons (statusline, AutoResearch, memory Stop hook, the `tlk` command, artefact sync) from one place, each showing live `[installed]`/`[off]` status — adding a new add-on is one registry row. Press `h` for inline descriptions of every action. For CI / agents, pass an action as a positional argument: `talaka/kit.sh status` runs once and exits, and anything after the action goes to its tool (`talaka/kit.sh memory "query"`, `talaka/kit.sh sync status`); `talaka/kit.sh init -n` installs in agent mode (`init` and `update` also pick that mode on their own when there is no TTY). The stage is **ready** exactly when `validate-config.sh` passes, so the two never disagree; `talaka/kit.sh --list-json` dumps the action registry as JSON; `talaka/kit.sh --help` prints the full reference.
 
 > **Requirements.** Bash ≥ 4.0 (uses `read -a`, associative-style arrays, `[[ … ]]`), git, and sha256sum or shasum. **jq** is recommended: the statusline and every Claude Code setting the kit writes need it. On Windows use **MSYS2 / Git Bash**. macOS ships bash 3.2, so run `brew install bash`. `talaka/shared/lifecycle/tools/doctor.sh` checks all of this, and `doctor.sh --install` installs what's missing (see `--help`).
 
@@ -187,6 +187,22 @@ Then open **`.tlk/PROJECT.md`** and fill in the **Project-Specific Configuration
 Start a feature by invoking the `/requirements-eliciting` skill. Skills are invoked with `/<skill-name>`; agents with `@<agent-name>`. The kit added managed blocks to `CLAUDE.md` and `AGENTS.md` that both point at `.tlk/PIPELINE.md` — your IDE picks up whichever entry-point file it reads.
 
 That's it.
+
+### The `tlk` command
+
+`init.sh` also installs **`tlk`**, a small launcher, into `~/.local/bin` (`~/bin` on Git Bash). It runs the same as `talaka/kit.sh`, from any folder of any project that has the kit, and passes everything after the action through:
+
+```bash
+tlk                          # the menu
+tlk status                   # feature pipeline status
+tlk memory "flaky login"     # search memory
+tlk sync                     # sync .tlk/ between your devices (see below)
+tlk init --tune              # any init.sh flag
+```
+
+It is on by default, `--non-interactive` included; `--no-cli` skips it. It finds the kit by walking up from the current folder (`talaka/kit.sh`, or any `*/kit.sh` next to the kit's `shared/`), so one launcher serves every project, each with its own kit version. A `tlk` that is not the kit's is never overwritten: the launcher goes in as `talaka` instead. If its folder is not on `PATH`, init prints the line to add.
+
+**Windows.** Git Bash finds `tlk` in `~/bin` by itself. For **PowerShell and cmd** the kit also writes `tlk.cmd` next to it — it finds Git for Windows' `bash.exe` and runs the launcher with the same arguments — and adds `~/bin` (`%USERPROFILE%\bin`) to your **user** `PATH` (no admin rights; the existing entries are kept exactly as written, `%VARS%` included). Windows opened after that run `tlk status` like anywhere else. `--no-path` (on `init.sh`, `update.sh` or `install-cli.sh`) leaves the `PATH` alone and prints the PowerShell line to add it yourself. `install-cli.sh --remove` deletes `tlk.cmd` and takes the `PATH` entry out again — only if the kit added it. Remove it from *Manage components* (`cli`) or with `talaka/shared/lifecycle/tools/install-cli.sh --remove`; `teardown.sh` leaves it, since other projects may use it. Agents' instructions keep the full `talaka/…` paths, which work even where `tlk` is not installed.
 
 ## Layout — what gets written
 
@@ -238,6 +254,8 @@ Talaka is a **per-developer** tool, not a team-sync mechanism — it installs in
 Git honours a `.gitignore` whether or not it is tracked, so after `init.sh` nothing under `.tlk/` or `.claude/` that the kit wrote shows up in `git status`. A managed block that an older kit left in the root `.gitignore` is stripped on the next `init.sh` / `update.sh` (commit that change).
 
 `teardown.sh` strips the `.claude/.gitignore` block (removing the file if the kit created it) and keeps `.tlk/.gitignore`, since what stays in `.tlk/` is still personal state. A teammate who does not use Talaka sees none of this; the committed `CLAUDE.md` / `AGENTS.md` include just points at `.tlk/PIPELINE.md`, which is a harmless no-op when that personal file isn't present.
+
+When `.tlk/` is [synced between your devices](#your-artefacts-on-several-devices), `.tlk/` is a git repo of its own: the project repo skips it through a line in `.git/info/exclude` (personal, never committed), and `.tlk/.gitignore` changes to the list of what stays on each device.
 
 The one deliberate exception is **knowledge-curating's `wiki/`**, which lives at the **project root** (outside `.tlk/`) precisely so it *can* be committed — it is curated, shareable knowledge rather than per-developer scratch.
 
@@ -294,7 +312,12 @@ Names carry no unit suffix: **every duration is in seconds**, and each value's u
 | `TALAKA_WIKI_DIR` | `wiki` | `knowledge-curating/new-wiki.sh` | Where the committed knowledge wiki lives, relative to the project root. |
 | `TALAKA_ISSUES_REPO` | `bthos/talaka` | `shared/feedback/tools/kit-issue.sh` | Repository field reports are filed on — point it at your fork. |
 | `TALAKA_PROMPT_TIMEOUT` | `15` s | `shared/lifecycle/tools/init.sh` | Seconds `init.sh` waits for an answer at its interactive prompts. Set it in your terminal, not `settings.json`. |
-| `TALAKA_BIN_DIR` | `~/.local/bin` (`~/bin` on Windows) | `shared/lifecycle/tools/doctor.sh` | Where `doctor.sh --install --allow-download` puts the downloaded jq binary. By default it uses the first of `~/.local/bin` and `~/bin` that is already on `PATH`. |
+| `TALAKA_BIN_DIR` | `~/.local/bin` (`~/bin` on Windows) | `doctor.sh`, `install-cli.sh` | Where `doctor.sh --install --allow-download` puts the downloaded jq binary, and where `init.sh` installs `tlk`. By default it uses the first of `~/.local/bin` and `~/bin` that is already on `PATH`. |
+| `TALAKA_CLI_NAME` | `tlk` | `shared/lifecycle/tools/install-cli.sh` | Name the launcher is installed under. |
+| `TALAKA_KIT` | unset | the `tlk` launcher | Kit directory to use instead of looking for one from the current folder upwards. |
+| `TALAKA_SYNC` | unset | `shared/sync/tools/sync.sh` | `personal`, `project` or `off`: overrides `git config talaka.sync.mode`. `off` also stops `init.sh` from setting sync up. |
+| `TALAKA_SYNC_REMOTE` | unset | `shared/sync/tools/sync.sh` | The repo for personal-mode sync; overrides `git config talaka.sync.remote`. |
+| `TALAKA_SYNC_PUSH_INTERVAL` | `600` s | `shared/sync/tools/sync.sh` | Least time between pushes from the Stop hook; in between, turns only commit locally. The session-end hook always pushes. |
 | `TALAKA_JQ_BASE_URL` | jq's GitHub releases | `shared/lifecycle/tools/doctor.sh` | A mirror for that download. The SHA-256 pinned in the kit is checked whatever the source. |
 
 Every one of these, plus `PROJECT.md`'s fields and the kit's fixed thresholds, is listed in `shared/config/parameters.tsv` and shown with its current value in the dashboard's **Settings** view. `PACE_SNAPSHOT_REFRESH` (`30` s, `statusline/tools/pace.sh`) sets how often the statusline rewrites `.tlk/usage.env` when nothing changed.
@@ -393,6 +416,8 @@ talaka/shared/lifecycle/tools/teardown.sh --dry-run
 - **`.tlk/{memory,features,archive,proposed-patches}/`** — never touched by teardown. They are your project's runtime state.
 - **`.tlk/scratch/`** — swept by `--full-clean`. Pure ephemera (commit messages, PR bodies, large request payloads) with no user state.
 - **`.tlk/dashboard/`** — swept by `--full-clean`. A snapshot of the rest of the tree, rebuilt by one command.
+- **Synced `.tlk/`** — the sync hooks are removed; `.tlk/.git` (your synced history) and its `.git/info/exclude` line stay, and so does `PROJECT.md` even with `--full-clean` — deleting it here would delete it on your other devices at the next sync. `tlk sync disable --purge` stops syncing for good.
+- **The `tlk` launcher** — kept: it serves every project on the machine. `install-cli.sh --remove` deletes it.
 
 ## Dashboard
 
@@ -784,6 +809,8 @@ Each skill bundles its own script. Shared scripts live under `talaka/shared/<cat
 | `shared/lifecycle/tools/doctor.sh` | Checks the tools the kit needs: bash ≥ 4, git, sha256sum/shasum (required), jq (recommended), and python3, gh, claude (optional). `--install [TOOL…]` installs missing ones through the system package manager without ever prompting for a password. `--allow-download` adds a fallback that downloads jq's official binary, checked against a pinned SHA-256, into a user bin dir. Exit 4 means the user has to run the printed command. Also `kit.sh doctor`. |
 | `shared/lifecycle/tools/update.sh` | `git submodule update --remote` for the kit, then re-runs `shared/lifecycle/tools/init.sh` with the same arguments you pass (optional `--no-pull` to skip the fetch). Warns once if `.cursor/` or `.github/` copies from a pre-Claude-only install are still present (it does not remove them — see [Leftovers from old installs](#leftovers-from-old-installs)). Warns if `templates/PIPELINE.md.template` drifted since last init. |
 | `shared/lifecycle/tools/teardown.sh` | Strips managed include blocks from `CLAUDE.md` and `AGENTS.md`; strips the `.claude/.gitignore` block; removes kit-installed copies when SHA-256 matches **`.tlk/.talaka.files`**. `--full-clean` also removes `.tlk/PROJECT.md`, `.tlk/.talaka.cfg`, and `.tlk/scratch/`; `--remove-submodule` deinits git. |
+| `shared/lifecycle/tools/install-cli.sh` | Installs the `tlk` launcher (`shared/lifecycle/tools/tlk.sh`) into a user bin dir — on Windows plus `tlk.cmd` and a user-`PATH` entry for PowerShell / cmd; `--remove`, `--status`, `--no-path`, `--dry-run`. Run by `init.sh` unless `--no-cli`. |
+| `shared/sync/tools/sync.sh` | Artefact sync between your devices — `tlk sync [status\|enable\|disable\|run\|resolve\|continue\|hooks]`. See [Your artefacts on several devices](#your-artefacts-on-several-devices). |
 | `talaka/shared/lifecycle/tools/lib.sh` | Shared helpers (colors, paths, managed blocks, `.gitignore` renderer) — sourced by `shared/lifecycle/tools/init.sh`, `shared/lifecycle/tools/update.sh`, `shared/lifecycle/tools/teardown.sh`, and some tools; not run directly. |
 
 ## Coordinator protocol
@@ -806,3 +833,45 @@ git commit -m "chore: add talaka submodule"
 Everything else — `.tlk/**`, the kit-installed `.claude/agents|skills` copies, `.talaka.cfg` / `.talaka.files` — is per-developer and stays out of git via the kit's own `.gitignore` files, which hide themselves too. A teammate who does not use the kit sees only the dangling (no-op) include and the submodule pointer.
 
 Kit users clone with `git clone --recurse-submodules` (or `git submodule update --init`), then run `talaka/shared/lifecycle/tools/init.sh`.
+
+## Your artefacts on several devices
+
+`.tlk/` stays out of the project's repo so that one developer's working files never mix with another's. To have **your own** memory, features and `PROJECT.md` on every machine you work on, let the kit make `.tlk/` a git repo of its own and push it somewhere that is yours:
+
+```bash
+tlk sync            # off: a short wizard; on: commit, pull, push
+```
+
+The wizard asks only what it cannot work out:
+
+1. **Where** — *a private repo of yours* (recommended: only you can read it; one branch per project, named after the project's `origin`, e.g. `acme/app`), or *branch `tlk/<you>` in this project's own repo* (nothing to create, but everyone with access to the repo can read it).
+2. **The repo**, for the first choice — if `gh` is signed in it offers to create a private `talaka-state` for you; otherwise paste a URL. The URL is checked (`git ls-remote`) before anything is changed.
+3. **Automatic sync** (default yes) — Claude Code hooks in `.claude/settings.local.json` pull when a session starts, commit after each turn and push at most every 10 minutes (`TALAKA_SYNC_PUSH_INTERVAL`) and when the session ends. They need jq; without it, run `tlk sync` yourself.
+4. **Remember for all projects** — saves `talaka.sync.mode` / `.remote` in `git config --global`. From then on `init.sh` connects every project by itself, in agent mode too: on a new device, `git clone --recurse-submodules …` then `init.sh` pulls your `.tlk/` down **before** it writes anything, so `PROJECT.md`, memory and features arrive from your other devices instead of from the templates.
+
+No wizard, for agents and scripts:
+
+```bash
+tlk sync enable --mode=personal --remote=git@github.com:me/talaka-state.git --global -y
+tlk sync enable --mode=personal --create-remote -y      # create the private repo with gh
+tlk sync enable --mode=project -y                       # branch tlk/<you> in origin
+talaka/shared/lifecycle/tools/init.sh -n --sync=personal --sync-remote=URL
+git config --global talaka.sync.mode personal           # what the wizard's last question saves
+git config --global talaka.sync.remote URL
+```
+
+**Where the settings come from**, most specific first: flags; an existing `.tlk/.git` (its remote and branch are the truth — `git -C .tlk remote set-url` is picked up); `TALAKA_SYNC` / `TALAKA_SYNC_REMOTE`; `git config talaka.sync.{mode,remote,branch,auto}` — the project's `.git/config` first, so `git config talaka.sync.mode off` opts one project out of a global default.
+
+**What travels and what does not.** Everything in `.tlk/` syncs except what describes *this* checkout: `.talaka.cfg`, `.talaka.files`, `.migrations`, `.base/`, `.conflicts/` (another device's would corrupt its 3-way merges and migration ledger), `PIPELINE.md` (a copy of this kit version's template — each device writes its own), and caches (`dashboard/`, `scratch/`, `usage.env`, `.sync/`). They are listed in `.tlk/.gitignore`, which the synced repo tracks.
+
+**Nothing is overwritten.** Changes from two devices are merged by git. When both changed the same lines, the sync stops, keeps both, and says so — in the terminal, in the statusline (`sync:conflict`), and to Claude at the next session start:
+
+```bash
+tlk sync resolve --ours      # keep this device's version of the overlapping lines
+tlk sync resolve --theirs    # take the remote's
+tlk sync resolve --manual    # conflict markers; fix them, then: tlk sync continue
+```
+
+The same goes for connecting a device that already has its own `.tlk/` to a branch that already has content: both are merged. Before every push, files that changed are checked for strings shaped like credentials (GitHub / AWS / Slack / OpenAI-style tokens, private keys); a match holds the push back (`sync:held`) until you remove it or push with `--allow-secrets`. Network calls never wait for a password and time out instead; an unreachable remote leaves the changes committed locally for the next sync (`sync:offline`).
+
+`tlk sync status` shows the remote, branch, unpushed and incoming commits, the last push and whether the hooks are on. `tlk sync disable` stops syncing and keeps your files and history; `--purge` also drops `.tlk/.git` and puts back the plain `*` `.gitignore`. The remote is never touched.

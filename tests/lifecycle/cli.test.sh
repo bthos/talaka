@@ -1,0 +1,192 @@
+#!/usr/bin/env bash
+# The `tlk` launcher (shared/lifecycle/tools/tlk.sh), its installer
+# (install-cli.sh), init.sh installing it by default, and kit.sh handing
+# everything after the action to that action's tool.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib.sh"
+
+INSTALL="$KIT_ROOT/shared/lifecycle/tools/install-cli.sh"
+
+# Each test gets its own bin dir (tests/lib.sh already points TALAKA_BIN_DIR
+# away from $HOME; this keeps tests from seeing each other's launcher).
+_bin() { local d; d=$(make_tmp_project); printf '%s/bin' "$d"; }
+
+test_installs_into_the_bin_dir_and_is_idempotent() {
+  local bin; bin=$(_bin)
+  TALAKA_BIN_DIR="$bin" bash "$INSTALL" >/dev/null 2>&1 || fail "install failed"
+  assert_file_exists "$bin/tlk"
+  [ -x "$bin/tlk" ] || fail "launcher is executable"
+  assert_file_contains "$bin/tlk" "talaka-launcher" "marked as ours"
+  local out; out=$(TALAKA_BIN_DIR="$bin" bash "$INSTALL" 2>&1)
+  assert_contains "$out" "already installed"
+  assert_ok env TALAKA_BIN_DIR="$bin" bash "$INSTALL" --status
+}
+
+test_warns_when_the_bin_dir_is_not_on_path() {
+  local bin; bin=$(_bin)
+  local out; out=$(TALAKA_BIN_DIR="$bin" bash "$INSTALL" 2>&1)
+  assert_contains "$out" "is not on PATH"
+  out=$(PATH="$bin:$PATH" TALAKA_BIN_DIR="$bin" bash "$INSTALL" 2>&1)
+  assert_not_contains "$out" "is not on PATH" "no hint once it is on PATH"
+}
+
+test_never_overwrites_a_foreign_tlk() {
+  local bin; bin=$(_bin); mkdir -p "$bin"
+  printf '#!/bin/sh\necho someone else\n' > "$bin/tlk"; chmod +x "$bin/tlk"
+  local out; out=$(TALAKA_BIN_DIR="$bin" bash "$INSTALL" 2>&1)
+  assert_file_contains "$bin/tlk" "someone else" "the other tlk is untouched"
+  assert_file_contains "$bin/talaka" "talaka-launcher" "installed under the fallback name"
+  assert_contains "$out" "installing the launcher as \`talaka\`"
+  TALAKA_BIN_DIR="$bin" bash "$INSTALL" --remove >/dev/null 2>&1
+  assert_file_exists "$bin/tlk" "--remove keeps what is not ours"
+  assert_file_absent "$bin/talaka" "--remove deletes ours"
+}
+
+test_status_reports_an_outdated_launcher() {
+  local bin; bin=$(_bin); mkdir -p "$bin"
+  printf '#!/usr/bin/env bash\n# talaka-launcher v0\n' > "$bin/tlk"
+  assert_fail env TALAKA_BIN_DIR="$bin" bash "$INSTALL" --status
+  TALAKA_BIN_DIR="$bin" bash "$INSTALL" >/dev/null 2>&1
+  assert_ok env TALAKA_BIN_DIR="$bin" bash "$INSTALL" --status
+}
+
+# --- Windows: tlk.cmd and the user PATH -----------------------------------
+# _TLK_FORCE_OS takes the Windows branch anywhere; tests/lib.sh's stand-in for
+# powershell.exe keeps "the user PATH" in $TLK_FAKE_USERPATH.
+_win() { _TLK_FORCE_OS=windows TALAKA_BIN_DIR="$1" bash "$INSTALL" "${@:2}"; }
+# The bin dir as install-cli.sh writes it into the user PATH: Windows form
+# (C:\Users\…) where cygpath exists, the path as is elsewhere.
+_wdir() { if command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"; else printf '%s' "$1"; fi; }
+
+test_windows_gets_a_cmd_shim_and_a_user_path_entry() {
+  local bin; bin=$(_bin)
+  printf '%s' 'C:\Windows;%USERPROFILE%\go\bin' > "$TLK_FAKE_USERPATH"
+  local wd; wd=$(_wdir "$bin")
+  local out; out=$(_win "$bin" 2>&1) || fail "install failed: $out"
+  assert_file_contains "$bin/tlk.cmd" "talaka-launcher" "the shim is marked as ours"
+  assert_file_contains "$bin/tlk.cmd" '"%~dpn0" %*' "it runs the tlk next to it with every argument"
+  assert_eq $'\r' "$(head -n1 "$bin/tlk.cmd" | tail -c 2 | head -c 1)" "CRLF line endings"
+  assert_eq "C:\Windows;%USERPROFILE%\go\bin;$wd" "$(cat "$TLK_FAKE_USERPATH")" \
+    "appended, the other entries kept as written"
+  assert_file_exists "$bin/.talaka-path" "remembered as added by the kit"
+  assert_contains "$out" "added $wd to your user PATH"
+  _win "$bin" >/dev/null 2>&1
+  assert_eq "C:\Windows;%USERPROFILE%\go\bin;$wd" "$(cat "$TLK_FAKE_USERPATH")" "added once"
+  assert_ok env _TLK_FORCE_OS=windows TALAKA_BIN_DIR="$bin" bash "$INSTALL" --status
+  _win "$bin" --remove >/dev/null 2>&1
+  assert_file_absent "$bin/tlk.cmd"
+  assert_eq 'C:\Windows;%USERPROFILE%\go\bin' "$(cat "$TLK_FAKE_USERPATH")" "--remove takes the entry out"
+  assert_file_absent "$bin/.talaka-path"
+}
+
+test_windows_entry_already_there_is_not_ours_to_remove() {
+  local bin; bin=$(_bin); mkdir -p "$bin"
+  local upper; upper=$(_wdir "$bin" | tr '[:lower:]' '[:upper:]')
+  printf '%s' "C:\\Tools;$upper\\" > "$TLK_FAKE_USERPATH"
+  _win "$bin" >/dev/null 2>&1
+  assert_eq "C:\\Tools;$upper\\" "$(cat "$TLK_FAKE_USERPATH")" "same dir in other case / trailing \\ — not added again"
+  assert_file_absent "$bin/.talaka-path"
+  _win "$bin" --remove >/dev/null 2>&1
+  assert_eq "C:\\Tools;$upper\\" "$(cat "$TLK_FAKE_USERPATH")" "the user's own entry stays"
+}
+
+test_windows_trailing_semicolon_is_not_doubled() {
+  local bin; bin=$(_bin)
+  printf '%s' 'C:\Tools;' > "$TLK_FAKE_USERPATH"
+  _win "$bin" >/dev/null 2>&1
+  assert_eq "C:\Tools;$(_wdir "$bin")" "$(cat "$TLK_FAKE_USERPATH")"
+}
+
+# Only a real Windows runner can run the shim itself: cmd.exe → tlk.cmd →
+# Git for Windows' bash.exe → the launcher.
+test_windows_cmd_shim_really_runs_the_launcher() {
+  case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) ;; *) skip_test "needs Windows"; return ;; esac
+  command -v cygpath >/dev/null 2>&1 || { skip_test "no cygpath"; return; }
+  local bin; bin=$(_bin)
+  TALAKA_BIN_DIR="$bin" bash "$INSTALL" --no-path >/dev/null 2>&1
+  local out; out=$(cmd.exe //c "$(cygpath -w "$bin/tlk.cmd")" --launcher-version 2>&1 | tr -d '\r')
+  assert_eq "1" "$out" "tlk.cmd ran the launcher"
+}
+
+test_windows_no_path_prints_the_command_instead() {
+  local bin; bin=$(_bin)
+  : > "$TLK_FAKE_USERPATH"
+  local out; out=$(_win "$bin" --no-path 2>&1)
+  assert_file_exists "$bin/tlk.cmd"
+  assert_eq "" "$(cat "$TLK_FAKE_USERPATH")" "user PATH untouched"
+  assert_contains "$out" "SetEnvironmentVariable('Path'"
+}
+
+test_windows_keeps_a_foreign_cmd() {
+  local bin; bin=$(_bin); mkdir -p "$bin"
+  printf '@echo mine\r\n' > "$bin/tlk.cmd"
+  _win "$bin" --no-path >/dev/null 2>&1
+  assert_file_contains "$bin/tlk.cmd" "mine"
+  _win "$bin" --remove >/dev/null 2>&1
+  assert_file_exists "$bin/tlk.cmd" "not ours, not removed"
+}
+
+# A project with the kit's kit.sh and lifecycle tools.
+_proj() {
+  local proj; proj=$(make_tmp_project)
+  mkdir -p "$proj/talaka/shared"
+  cp "$KIT_ROOT/kit.sh" "$proj/talaka/"
+  cp -r "$KIT_ROOT/shared/lifecycle" "$KIT_ROOT/shared/sync" "$proj/talaka/shared/"
+  printf '%s' "$proj"
+}
+
+test_launcher_finds_the_kit_from_any_subfolder() {
+  local proj; proj=$(_proj)
+  mkdir -p "$proj/src/deep/er"
+  local out; out=$(cd "$proj/src/deep/er" && bash "$KIT_ROOT/shared/lifecycle/tools/tlk.sh" --which)
+  assert_eq "$proj/talaka" "$out"
+  out=$(cd "$proj" && bash "$KIT_ROOT/shared/lifecycle/tools/tlk.sh" --help 2>&1)
+  assert_contains "$out" "kit.sh — single entry point" "hands over to kit.sh"
+}
+
+test_launcher_finds_a_kit_under_another_name() {
+  local proj; proj=$(_proj)
+  mv "$proj/talaka" "$proj/tools-kit"
+  local out; out=$(cd "$proj" && bash "$KIT_ROOT/shared/lifecycle/tools/tlk.sh" --which)
+  assert_eq "$proj/tools-kit" "$out"
+}
+
+test_launcher_outside_a_project_says_so() {
+  local d; d=$(make_tmp_project)
+  local out rc=0; out=$(cd "$d" && bash "$KIT_ROOT/shared/lifecycle/tools/tlk.sh" status 2>&1) || rc=$?
+  assert_eq 1 "$rc"
+  assert_contains "$out" "no talaka kit"
+}
+
+test_kit_sh_passes_args_after_the_action() {
+  local proj; proj=$(_proj)
+  mkdir -p "$proj/.tlk"; : > "$proj/.tlk/.talaka.cfg"   # stage 1: installed
+  local out; out=$(cd "$proj" && bash talaka/kit.sh sync status 2>&1) || fail "kit.sh sync status failed: $out"
+  assert_contains "$out" "Artefact sync" "status went to sync.sh"
+  out=$(cd "$proj" && bash talaka/kit.sh sync --help 2>&1)
+  assert_contains "$out" "keep the artefacts dir (.tlk/) in sync"
+}
+
+# A trimmed kit for init runs (see init_teardown.test.sh for why).
+_kit_proj() {
+  local proj; proj=$(make_tmp_project)
+  install_kit_into "$proj"
+  find "$proj/talaka/agents" -maxdepth 1 -name '*.md' ! -name 'cmok.md' -delete 2>/dev/null || true
+  find "$proj/talaka/skills" -mindepth 1 -maxdepth 1 -type d ! -name 'requirements-eliciting' -exec rm -rf {} + 2>/dev/null || true
+  printf '%s' "$proj"
+}
+
+test_init_installs_tlk_by_default_even_non_interactive() {
+  local proj bin; proj=$(_kit_proj); bin=$(_bin)
+  ( cd "$proj" && TALAKA_BIN_DIR="$bin" bash talaka/shared/lifecycle/tools/init.sh -n ) >/dev/null 2>&1 \
+    || fail "init failed"
+  assert_file_exists "$bin/tlk" "installed in agent mode"
+}
+
+test_init_no_cli_skips_it() {
+  local proj bin; proj=$(_kit_proj); bin=$(_bin)
+  local out; out=$( cd "$proj" && TALAKA_BIN_DIR="$bin" bash talaka/shared/lifecycle/tools/init.sh -n --no-cli 2>&1 )
+  assert_file_absent "$bin/tlk"
+  assert_contains "$out" "tlk command:"
+}
+
+run_tests "$@"

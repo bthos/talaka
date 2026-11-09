@@ -2,7 +2,8 @@
 # Run from the target project root after adding the submodule.
 # Usage: talaka/shared/lifecycle/tools/init.sh [--force | --overwrite-all | --skip | --skip-all | --non-interactive]
 #                                             [--artefacts-dir=NAME] [--with-autoresearch] [--with-hook]
-#                                             [--no-statusline] [--no-output-style] [--no-env]
+#                                             [--no-statusline] [--no-output-style] [--no-env] [--no-cli] [--no-path]
+#                                             [--sync=personal|project|off] [--sync-remote=URL] [--sync-branch=NAME]
 #
 # What this script does (minimally invasive by design):
 #
@@ -98,6 +99,29 @@ fi
 # shellcheck source=install-helpers.sh
 source "$_TOOLS_DIR/install-helpers.sh"
 
+# Artefact sync goes first, before anything reads or writes kit state: on a
+# fresh device it brings the synced files down, so PROJECT.md, memory and
+# features come from your other devices instead of from the templates. It runs
+# only when asked — flags, TALAKA_SYNC* or git config talaka.sync.* — and asks
+# itself only on a first install with a TTY. Never on a bare no-TTY call (that
+# prints help below).
+_sync_tool="$_TOOLS_DIR/../../sync/tools/sync.sh"
+if [ -f "$_sync_tool" ] && { [ $# -gt 0 ] || [ -t 0 ] || [ -t 1 ]; }; then
+  _sync_args=() _sync_ni=false
+  for _a in "$@"; do
+    case "$_a" in
+      --sync=*|--sync-remote=*|--sync-branch=*) _sync_args+=("$_a") ;;
+      --non-interactive|-n|--yes|-y)           _sync_ni=true ;;
+      --help|-h)                               _sync_args=(--sync=off); break ;;
+    esac
+  done
+  [ -f "$KIT_CFG" ] || _sync_args+=(--first-install)
+  $_sync_ni || [ ! -t 0 ] || _sync_args+=(--interactive)
+  ( ARTEFACTS_DIR="$ARTEFACTS_NAME" bash "$_sync_tool" auto ${_sync_args[@]+"${_sync_args[@]}"} ) \
+    || warn "artefact sync step failed — carry on; retry with: $SUBMODULE_DIR/kit.sh sync"
+  unset _a _sync_args _sync_ni
+fi
+
 kit_run_migrations || true   # a failure is reported; install carries on
 
 # Canonical project-local locations (after migration from .artefacts/)
@@ -164,8 +188,26 @@ show_help() {
     --no-statusline         Don't install the pipeline-aware statusline.
     --no-output-style       Don't set outputStyle=Concise.
     --no-env                Don't add the TALAKA_* settings to settings.local.json env.
-                            (These three are on by default; --no-* only skips
+    --no-cli                Don't install the `tlk` command (a launcher in
+                            ~/.local/bin, or ~/bin on Git Bash, so `tlk <action>`
+                            runs talaka/kit.sh <action> from anywhere in a project).
+                            On Windows also tlk.cmd for PowerShell / cmd, with the
+                            bin dir added to your user PATH.
+    --no-path               Windows: install tlk.cmd but leave the user PATH alone.
+                            (These four are on by default; --no-* only skips
                             installing — remove an existing one via kit.sh components.)
+
+    --sync=personal|project|off
+                            Sync the artefacts dir between your devices (its own
+                            git repo; see shared/sync/tools/sync.sh). personal: a
+                            private repo of yours (--sync-remote=URL, or saved in
+                            git config talaka.sync.remote); project: branch
+                            tlk/<you> in this project's origin. Without the flag,
+                            git config talaka.sync.mode decides; on a first
+                            interactive install you are asked. Already synced:
+                            refreshed, never undone (tlk sync disable does that).
+    --sync-remote=URL       The repo for --sync=personal.
+    --sync-branch=NAME      Override the branch name.
 
     --artefacts-dir=NAME    Keep all kit state in NAME/ instead of .tlk/ (a relative
                             path inside the project). Saved as ARTEFACTS_DIR in
@@ -275,6 +317,8 @@ MEMORY_HOOK=""   # "yes" | "no" | "" (ask)
 WITH_STATUSLINE=true
 WITH_OUTPUT_STYLE=true
 WITH_ENV=true
+WITH_CLI=true
+CLI_ARGS=()
 
 for arg in "$@"; do
   case "$arg" in
@@ -297,7 +341,10 @@ for arg in "$@"; do
     --no-statusline)                 WITH_STATUSLINE=false ;;
     --no-output-style)               WITH_OUTPUT_STYLE=false ;;
     --no-env)                        WITH_ENV=false ;;
+    --no-cli)                        WITH_CLI=false ;;
+    --no-path)                       CLI_ARGS+=(--no-path) ;;
     --artefacts-dir=*)               ;;  # handled before lib.sh was sourced
+    --sync=*|--sync-remote=*|--sync-branch=*) ;;  # handled before migrations (sync.sh auto)
   esac
 done
 
@@ -908,6 +955,26 @@ if $WITH_STATUSLINE && [ -x "$_sl_install" ] && feature_ready statusline "Status
 fi
 
 # ---------------------------------------------------------------------------
+# The `tlk` command: one launcher in a user bin dir for every project on this
+# machine. On by default, in agent / CI mode too — it is a single file outside
+# the project, never overwrites a foreign `tlk`, and needs no extra tools.
+# ---------------------------------------------------------------------------
+_cli_install="$SCRIPT_DIR/shared/lifecycle/tools/install-cli.sh"
+if $WITH_CLI && [ -f "$_cli_install" ]; then
+  header "The tlk command"
+  bash "$_cli_install" ${CLI_ARGS[@]+"${CLI_ARGS[@]}"} || warn "install-cli.sh exited non-zero — run it again: $SUBMODULE_DIR/shared/lifecycle/tools/install-cli.sh"
+fi
+
+# Synced: send what this run created (PROJECT.md, the memory tree, …) to your
+# other devices now rather than at the next sync.
+if [ -d "$ARTEFACTS/.git" ] && [ -f "$_sync_tool" ] \
+   && git -C "$ARTEFACTS" config --get remote.origin.url >/dev/null 2>&1; then
+  header "Artefact sync"
+  ( ARTEFACTS_DIR="$ARTEFACTS_NAME" bash "$_sync_tool" run ) \
+    || warn "not synced yet — run: tlk sync   (status: tlk sync status)"
+fi
+
+# ---------------------------------------------------------------------------
 # Done
 # ---------------------------------------------------------------------------
 printf "\n${BOLD}${GREEN}  ✓ Done.${RESET}\n\n"
@@ -949,6 +1016,11 @@ if grep -qs 'memory/tools/tick.sh' "$KIT_SETTINGS_FILE" "$KIT_SETTINGS_SHARED"; 
 else _comp "Memory Stop hook:" "$(_off "$(_off_why memhook 'enable: --with-hook' "$([ "$MEMORY_HOOK" = no ] && echo opted-out)")")"; fi
 if [ -f "$ARTEFACTS/autoresearch/program.md" ]; then _comp "AutoResearch:" "$(_on "$ARTEFACTS_NAME/autoresearch/")"
 else _comp "AutoResearch:" "$(_off "$(_off_why autoresearch 'enable: --with-autoresearch' "$([ "$AUTORESEARCH" = no ] && echo opted-out)")")"; fi
+if [ -d "$ARTEFACTS/.git" ] && _sync_url=$(git -C "$ARTEFACTS" config --get remote.origin.url 2>/dev/null); then
+  _comp "Artefact sync:" "$(_on "$_sync_url ($(git -C "$ARTEFACTS" symbolic-ref --short -q HEAD 2>/dev/null))")"
+else _comp "Artefact sync:" "$(_off '(between your devices: tlk sync)')"; fi
+if _cli_at=$(bash "$_cli_install" --status 2>/dev/null); then _comp "tlk command:" "$(_on "$_cli_at")"
+else _comp "tlk command:" "$(_off "$(_off_why cli '--no-cli' "$(_optout $WITH_CLI)")")"; fi
 if [ -f "$ARTEFACTS/PROJECT_PROFILE.md" ]; then _comp "Project profile:" "$(_on "$ARTEFACTS_NAME/PROJECT_PROFILE.md")"
 else _comp "Project profile:" "$(_off '(enable: --tune)')"; fi
 

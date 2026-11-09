@@ -727,6 +727,8 @@ $TALAKA_BLOCK_BEGIN
 > appends a return entry to the feature's \`handoff-log.md\`, and returns to you. You read that
 > log and decide who runs next. Their \`Recommend:\` line is an input, not a jump.
 > Project-specific config: [\`$ARTEFACTS_NAME/PROJECT.md\`]($ARTEFACTS_NAME/PROJECT.md).
+> Kit commands: \`$SUBMODULE_DIR/kit.sh <action>\` (\`--help\` lists them). To sync \`$ARTEFACTS_NAME/\` between the
+> user's devices: \`$SUBMODULE_DIR/kit.sh sync status\`, then \`… sync enable --mode=personal|project …\` (see \`sync --help\`).
 ${relocated}
 @$pipeline_rel
 $TALAKA_BLOCK_END
@@ -783,6 +785,29 @@ talaka_block_append() {
 # ---------------------------------------------------------------------------
 TALAKA_GITIGNORE_SELF="/.gitignore"
 
+# kit_sync_local_only — the .gitignore lines of a synced artefacts dir: what is
+# about THIS checkout and must not travel to another device. The install
+# bookkeeping describes this machine's .claude/ copies and kit version (another
+# device's would corrupt its 3-way merges and migration ledger); PIPELINE.md is
+# a copy of this kit version's template, rewritten by init; the rest is cache.
+kit_sync_local_only() {
+  cat <<'EOF'
+# Synced between your devices (tlk sync). These stay on this one:
+/.talaka.cfg
+/.talaka.files
+/.migrations
+/.base/
+/.conflicts/
+/.sync/
+/PIPELINE.md
+/dashboard/
+/scratch/
+/usage.env
+/kit-issues-remote.tsv
+*.tmp
+EOF
+}
+
 # talaka_gitignore_render SCOPE [SELF]
 #   SCOPE  artefacts | claude
 #   SELF   true → the kit owns the whole file: also ignore the .gitignore itself
@@ -790,7 +815,14 @@ talaka_gitignore_render() {
   local scope="$1" self="${2:-false}" lines="" f name
   case "$scope" in
     artefacts)
-      lines='# All of it: memory, features, PIPELINE.md, PROJECT.md, bookkeeping.'$'\n''*'$'\n'
+      if [ -d "$ARTEFACTS/.git" ]; then
+        # Synced (shared/sync/tools/sync.sh): the project repo skips this dir
+        # through .git/info/exclude, and this file is tracked by the dir's own
+        # repo — it lists what stays on this device only.
+        lines="$(kit_sync_local_only)"$'\n'
+      else
+        lines='# All of it: memory, features, PIPELINE.md, PROJECT.md, bookkeeping.'$'\n''*'$'\n'
+      fi
       ;;
     claude)
       [ "$self" = true ] && lines+="$TALAKA_GITIGNORE_SELF"$'\n'
