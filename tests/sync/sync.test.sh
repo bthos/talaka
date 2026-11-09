@@ -178,7 +178,8 @@ test_global_saves_defaults_for_other_projects() {
   mkdir -p "$a/.tlk"
   _sync "$a" enable --mode=personal --remote="$W/state.git" --no-auto --global -y >/dev/null 2>&1
   assert_eq personal "$(git config --global talaka.sync.mode)"
-  assert_eq "$W/state.git" "$(git config --global talaka.sync.remote)"
+  # Git for Windows stores the path in its own form (C:/Users/…/state.git).
+  assert_contains "$(git config --global talaka.sync.remote)" "${W##*/}/state.git"
   assert_eq false "$(git config --global talaka.sync.auto)"
 }
 

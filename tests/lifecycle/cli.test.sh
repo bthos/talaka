@@ -53,20 +53,24 @@ test_status_reports_an_outdated_launcher() {
 # _TLK_FORCE_OS takes the Windows branch anywhere; tests/lib.sh's stand-in for
 # powershell.exe keeps "the user PATH" in $TLK_FAKE_USERPATH.
 _win() { _TLK_FORCE_OS=windows TALAKA_BIN_DIR="$1" bash "$INSTALL" "${@:2}"; }
+# The bin dir as install-cli.sh writes it into the user PATH: Windows form
+# (C:\Users\…) where cygpath exists, the path as is elsewhere.
+_wdir() { if command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"; else printf '%s' "$1"; fi; }
 
 test_windows_gets_a_cmd_shim_and_a_user_path_entry() {
   local bin; bin=$(_bin)
   printf '%s' 'C:\Windows;%USERPROFILE%\go\bin' > "$TLK_FAKE_USERPATH"
+  local wd; wd=$(_wdir "$bin")
   local out; out=$(_win "$bin" 2>&1) || fail "install failed: $out"
   assert_file_contains "$bin/tlk.cmd" "talaka-launcher" "the shim is marked as ours"
   assert_file_contains "$bin/tlk.cmd" '"%~dpn0" %*' "it runs the tlk next to it with every argument"
   assert_eq $'\r' "$(head -n1 "$bin/tlk.cmd" | tail -c 2 | head -c 1)" "CRLF line endings"
-  assert_eq "C:\Windows;%USERPROFILE%\go\bin;$bin" "$(cat "$TLK_FAKE_USERPATH")" \
+  assert_eq "C:\Windows;%USERPROFILE%\go\bin;$wd" "$(cat "$TLK_FAKE_USERPATH")" \
     "appended, the other entries kept as written"
   assert_file_exists "$bin/.talaka-path" "remembered as added by the kit"
-  assert_contains "$out" "added $bin to your user PATH"
+  assert_contains "$out" "added $wd to your user PATH"
   _win "$bin" >/dev/null 2>&1
-  assert_eq "C:\Windows;%USERPROFILE%\go\bin;$bin" "$(cat "$TLK_FAKE_USERPATH")" "added once"
+  assert_eq "C:\Windows;%USERPROFILE%\go\bin;$wd" "$(cat "$TLK_FAKE_USERPATH")" "added once"
   assert_ok env _TLK_FORCE_OS=windows TALAKA_BIN_DIR="$bin" bash "$INSTALL" --status
   _win "$bin" --remove >/dev/null 2>&1
   assert_file_absent "$bin/tlk.cmd"
@@ -76,7 +80,7 @@ test_windows_gets_a_cmd_shim_and_a_user_path_entry() {
 
 test_windows_entry_already_there_is_not_ours_to_remove() {
   local bin; bin=$(_bin); mkdir -p "$bin"
-  local upper; upper=$(printf '%s' "$bin" | tr '[:lower:]' '[:upper:]')
+  local upper; upper=$(_wdir "$bin" | tr '[:lower:]' '[:upper:]')
   printf '%s' "C:\\Tools;$upper\\" > "$TLK_FAKE_USERPATH"
   _win "$bin" >/dev/null 2>&1
   assert_eq "C:\\Tools;$upper\\" "$(cat "$TLK_FAKE_USERPATH")" "same dir in other case / trailing \\ — not added again"
@@ -89,7 +93,7 @@ test_windows_trailing_semicolon_is_not_doubled() {
   local bin; bin=$(_bin)
   printf '%s' 'C:\Tools;' > "$TLK_FAKE_USERPATH"
   _win "$bin" >/dev/null 2>&1
-  assert_eq "C:\Tools;$bin" "$(cat "$TLK_FAKE_USERPATH")"
+  assert_eq "C:\Tools;$(_wdir "$bin")" "$(cat "$TLK_FAKE_USERPATH")"
 }
 
 # Only a real Windows runner can run the shim itself: cmd.exe → tlk.cmd →
