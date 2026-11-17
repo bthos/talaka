@@ -324,6 +324,145 @@ Every one of these, plus `PROJECT.md`'s fields and the kit's fixed thresholds, i
 
 `COST_PER_TOKEN`, `COST_PER_MIN` and `BELUN_WIKI_DIR` are the pre-prefix names and are still honoured. Two related knobs are **not** environment variables: the ratchet's cost weight λ lives in `.tlk/autoresearch/program.md` (`λ = 0.3`), and `ARTEFACTS_DIR` (default `.tlk`) relocates the whole artefacts tree for every kit script.
 
+## Claude cloud environment
+
+`install-cloud-env.sh` (at the kit's root) installs or updates the kit in a project inside a Claude cloud container. It is idempotent, so it works as the environment's **setup script** or from a `SessionStart` hook:
+
+```bash
+# Environment setup script (runs as root, from the directory that holds the checkouts)
+curl -fsSL https://raw.githubusercontent.com/bthos/talaka/main/install-cloud-env.sh -o /tmp/install-cloud-env.sh
+bash /tmp/install-cloud-env.sh --project=myapp --sync=personal --sync-remote=git@github.com:me/talaka-state.git
+
+# Already have the submodule? It is there too:
+bash talaka/install-cloud-env.sh
+```
+
+What it does: checks bash ≥ 4, git and sha256sum/shasum; installs `jq` through apt, apk or dnf when it is missing (root or `sudo -n`); adds the kit as a submodule at `./talaka` (or runs `git submodule update --init` when it is there); then runs `init.sh --non-interactive` on a fresh tree, or `update.sh --non-interactive --no-pull` when the kit is installed already. Flags it does not know are passed on to `init.sh` / `update.sh` (see [Flags reference](#flags-reference)).
+
+- **Network.** The environment's allowed hosts need `github.com` (the submodule clone, and the raw download above).
+- **Nothing is committed.** The submodule add stages `.gitmodules`; commit it if you want later sessions and teammates to get the submodule from the repo.
+- **State is lost with the container.** Pass `--sync=personal --sync-remote=URL` (or `--sync=project`) so `.tlk/` comes back from your own repo on the next container — see [Your artefacts on several devices](#your-artefacts-on-several-devices). The git credentials for that remote have to reach the environment.
+- **`PROJECT.md`** still needs its test and build commands; `init.sh` prints an `[AGENT ACTION REQUIRED]` block for that.
+
+## Flags reference
+
+Every flag of the kit's scripts. Run any of them with `--help` for the same text. `tlk <action>` is the same as `talaka/kit.sh <action>`, and everything after the action goes to its tool.
+
+### `init.sh`
+
+`talaka/shared/lifecycle/tools/init.sh [FLAGS]` — run from the project root.
+
+| Flag | Effect |
+|------|--------|
+| `--non-interactive`, `-n`, `--yes`, `-y` | Agent / CI mode: no prompts, defaults accepted, existing files skipped, prints `[AGENT ACTION REQUIRED]` for `PROJECT.md`. |
+| `--skip`, `--skip-all` | Skip every existing kit-managed path without prompting (automatic when stdin is not a TTY). |
+| `--force`, `--overwrite-all` | Overwrite every existing kit-managed path without prompting, including `PROJECT.md` (reset from the template). |
+| `--with-autoresearch` | Set up AutoResearch (eval set, `program.md`, `record-metrics.sh`); an initialised one is always refreshed. |
+| `--no-autoresearch` | Skip AutoResearch even if it is initialised. |
+| `--with-hook` | Install the Claude Code Stop hook that runs memory promote + rollover (opt-in). |
+| `--no-hook` | Don't install it, and don't ask. |
+| `--no-statusline` | Don't install the pipeline-aware statusline. |
+| `--no-output-style` | Don't set `outputStyle` to `Concise`. |
+| `--no-env` | Don't add the `TALAKA_*` settings to `settings.local.json` → `env`. |
+| `--no-cli` | Don't install the `tlk` launcher. |
+| `--no-path` | Windows: install `tlk.cmd` but leave the user `PATH` alone. |
+| `--sync=personal\|project\|off` | Sync the artefacts dir between your devices; `off` also stops the automatic set-up. |
+| `--sync-remote=URL` | The repo for `--sync=personal`. |
+| `--sync-branch=NAME` | Override the sync branch name. |
+| `--artefacts-dir=NAME` | Keep all kit state in `NAME/` instead of `.tlk/` (relative path inside the project; refused when state already lives elsewhere). Needs `jq`. |
+| `--tune` | After the install, probe the project and write `PROJECT_PROFILE.md`. |
+| `--no-tune` | Skip the probe (default). |
+| `--help`, `-h` | Show the help and exit. |
+
+`--ide=*` was removed and exits 2.
+
+### `update.sh`
+
+`talaka/shared/lifecycle/tools/update.sh [--no-pull] [INIT_FLAGS…]`
+
+| Flag | Effect |
+|------|--------|
+| `--no-pull` | Skip `git submodule update --remote`; only re-run `init.sh` (the submodule is already updated). |
+| anything else | Passed to `init.sh` unchanged (`--skip`, `--non-interactive`, `--with-hook`, …). |
+
+### `teardown.sh`
+
+`talaka/shared/lifecycle/tools/teardown.sh [FLAGS]`
+
+| Flag | Effect |
+|------|--------|
+| `--full-clean` | Also remove `PROJECT.md`, `.talaka.cfg`, `scratch/` and `dashboard/`, and the artefacts dir when nothing of yours remains. |
+| `--remove-submodule` | Also `git submodule deinit` and remove the kit submodule. |
+| `--yes`, `-y` | Auto-confirm prompts. |
+| `--dry-run` | Show what would be removed; remove nothing. |
+
+### `doctor.sh`
+
+`talaka/shared/lifecycle/tools/doctor.sh [--strict]` · `doctor.sh --install [TOOL…] [FLAGS]`
+
+| Flag | Effect |
+|------|--------|
+| `--strict` | Exit 1 when a recommended tool (jq) is missing, not only a required one. |
+| `--install [TOOL…]` | Install missing tools — default: the missing recommended ones; installable: `jq`, `python3`, `gh`, `bash`. Never prompts for a password. |
+| `--allow-download` | With `--install`: fall back to downloading jq's official binary (SHA-256 pinned) into a user bin dir. Only jq. |
+| `--dry-run` | Print the commands `--install` would run; run none. |
+
+Exit codes: `0` ok · `1` a required (or, with `--strict`, recommended) tool is missing · `2` bad usage · `4` `--install` could not install something (the output says what to run).
+
+### `install-cli.sh`, `install-env.sh`, `install-output-style.sh`
+
+| Script | Flag | Effect |
+|--------|------|--------|
+| `install-cli.sh` | *(none)* | Install or refresh the `tlk` launcher (idempotent). |
+| | `--remove` | Delete it (only a launcher that is ours); on Windows also the `PATH` entry the script added. |
+| | `--status` | Exit 0 when an up-to-date launcher is installed, 1 otherwise. |
+| | `--no-path` | Windows: don't touch the user `PATH`. |
+| | `--dry-run` | Say what would change; change nothing. |
+| `install-env.sh` | `--remove` | Delete the kit's `TALAKA_*` keys from `settings.local.json` → `env`. |
+| | `--dry-run` | Print what would change; write nothing. |
+| `install-output-style.sh` | `--force` | Overwrite an `outputStyle` set to something else. |
+| | `--remove` | Delete the key, only when it is still `Concise`. |
+| | `--dry-run` | Print what would change; write nothing. |
+
+### `sync.sh` (`tlk sync`)
+
+| Command / flag | Effect |
+|----------------|--------|
+| *(no command)* | Sync now when on; otherwise the setup wizard (TTY) or the status (no TTY). |
+| `status [--fetch]` | Where it syncs to, where the settings came from, commits ahead/behind; `--fetch` asks the remote first. |
+| `enable [OPTIONS]` | Turn it on, asking only what it cannot work out. |
+| `run [--quiet] [--allow-secrets]` | Commit, pull, push. |
+| `resolve --ours\|--theirs\|--manual` | Finish a sync that hit a conflict. |
+| `continue` | After `--manual`: commit the merged files and push. |
+| `disable [--purge]` | Stop syncing; files stay. `--purge` also drops `.tlk/.git`; the remote is untouched. |
+| `hooks [--remove]` | (Re)install or remove the Claude Code hooks. |
+| `hook start\|stop\|end` | What the hooks run (quiet, never fail). |
+| `auto [INIT FLAGS]` | What `init.sh` runs: connect or refresh, no questions unless `--first-install` on a TTY. |
+
+`enable` options: `--mode=personal|project`, `--remote=URL`, `--create-remote[=NAME]` (create a private repo with `gh`; default `talaka-state`), `--branch=NAME`, `--global` (remember mode/remote in `git config --global`), `--no-auto` (no hooks), `--allow-secrets` (push even if something looks like a token), `--yes`, `-y`.
+
+### `kit.sh` (`tlk`)
+
+| Flag | Effect |
+|------|--------|
+| `<action> [args…]` | Run one action and exit; the args go to its tool. |
+| `--non-interactive`, `-n` | Forwarded to `init`; implied when stdin is not a TTY. |
+| `--list-json` | Dump the action registry as JSON. |
+| `--help`, `-h` | Print the full reference. |
+
+### `install-cloud-env.sh`
+
+`install-cloud-env.sh [OPTIONS] [-- INIT_FLAGS…]` — see [Claude cloud environment](#claude-cloud-environment).
+
+| Flag | Effect |
+|------|--------|
+| `--project=DIR` | Project to install into (default: the current dir; its git root is used). |
+| `--repo=URL` | Kit repo to add as the submodule (default `https://github.com/bthos/talaka`). |
+| `--ref=REF` | Branch or tag for a fresh submodule add (default: the repo's default branch). |
+| `--no-install-jq` | Don't try to install `jq`. |
+| `--help`, `-h` | Show the help and exit. |
+| anything else, or after `--` | Passed to `init.sh` (fresh install) or `update.sh` (already installed). `--non-interactive` is always added. |
+
 ## Updating the kit
 
 One command (pulls the submodule's **remote** tracking branch, then runs `init.sh` with your usual flags):
@@ -805,6 +944,7 @@ Each skill bundles its own script. Shared scripts live under `talaka/shared/<cat
 | Script | What it does |
 |--------|-------------|
 | `kit.sh` | **Recommended human entry point.** Stage-aware interactive launcher. Detects install state (not installed / needs config / ready) and surfaces only actions that make sense at the current stage: `init`, `probe`, edit + `validate` `PROJECT.md`, `update`, `teardown`, feature `status`, the `dashboard`, memory `search`, version `bump`, memory `rollover` / `promote`, `distill` lessons, apply `patches`. Press `h` inside the menu for one-line descriptions. |
+| `install-cloud-env.sh` | Installs or updates the kit in a Claude cloud environment — adds the submodule, installs jq, runs `init.sh` / `update.sh` non-interactively. See [Claude cloud environment](#claude-cloud-environment). |
 | `shared/lifecycle/tools/init.sh` | Sets up `.tlk/`; copies agents to `.claude/agents/` and skills to `.claude/skills/`; manages include blocks in `CLAUDE.md` and `AGENTS.md`; writes `.tlk/.gitignore` and `.claude/.gitignore`; maintains **`.tlk/.talaka.files`**. |
 | `shared/lifecycle/tools/doctor.sh` | Checks the tools the kit needs: bash ≥ 4, git, sha256sum/shasum (required), jq (recommended), and python3, gh, claude (optional). `--install [TOOL…]` installs missing ones through the system package manager without ever prompting for a password. `--allow-download` adds a fallback that downloads jq's official binary, checked against a pinned SHA-256, into a user bin dir. Exit 4 means the user has to run the printed command. Also `kit.sh doctor`. |
 | `shared/lifecycle/tools/update.sh` | `git submodule update --remote` for the kit, then re-runs `shared/lifecycle/tools/init.sh` with the same arguments you pass (optional `--no-pull` to skip the fetch). Warns once if `.cursor/` or `.github/` copies from a pre-Claude-only install are still present (it does not remove them — see [Leftovers from old installs](#leftovers-from-old-installs)). Warns if `templates/PIPELINE.md.template` drifted since last init. |

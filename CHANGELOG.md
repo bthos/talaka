@@ -10,6 +10,11 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Added — `install-cloud-env.sh`, and a flags reference
+
+- **`install-cloud-env.sh`** (kit root) installs or updates the kit in a Claude cloud environment: jq if missing, the submodule, then `init.sh` / `update.sh --non-interactive`. Idempotent; usable as the environment's setup script or a SessionStart hook. Unknown flags go to `init.sh` / `update.sh`.
+- **README: *Claude cloud environment* and *Flags reference*** — every flag of `init`, `update`, `teardown`, `doctor`, the `install-*` scripts, `sync`, `kit.sh` and the new installer in one place.
+
 ### Added — `tlk`, and `.tlk/` synced between your own devices
 
 - **The `tlk` command.** `init.sh` installs a launcher into `~/.local/bin` (`~/bin` on Git Bash):
