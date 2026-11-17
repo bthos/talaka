@@ -372,22 +372,29 @@ Every one of these, plus `PROJECT.md`'s fields and the kit's fixed thresholds, i
 
 ## Claude cloud environment
 
-A cloud container starts from a fresh clone of your repo. The kit's install is per-developer and gitignored (`.claude/agents` and `skills`, the `CLAUDE.md` blocks, `settings.local.json`, `tlk`), so it has to be run again in every container; `.tlk/` comes back from [artefact sync](#your-artefacts-on-several-devices). Commit `.gitmodules` (and the submodule pointer) in the project, then put this in the environment's **Setup script** (it runs as root, from the directory that holds the checkouts, after the clone and before Claude starts):
+A cloud container starts from a fresh clone of your repo. The kit's install is per-developer and gitignored (`.claude/agents` and `skills`, the `CLAUDE.md` blocks, `settings.local.json`, `tlk`), so it has to be run again in every container; `.tlk/` comes back from [artefact sync](#your-artefacts-on-several-devices). With `.gitmodules` (and the submodule pointer) committed in the project, put this in the environment's **Setup script** (it runs as root, from the directory that holds the checkouts, after the clone and before Claude starts):
 
 ```bash
-command -v jq >/dev/null || apt-get install -y -qq jq      # statusline and every Claude Code setting need jq
-if [ -d myapp ]; then
-  git -C myapp submodule update --init --recursive
-  bash myapp/talaka/shared/lifecycle/tools/init.sh -n --sync=personal --sync-remote=git@github.com:me/talaka-state.git
-fi
+command -v jq >/dev/null || apt-get install -y -qq jq     # statusline and every Claude Code setting need jq
+for repo in . */; do
+  [ -f "$repo/.gitmodules" ] || continue
+  # the kit's submodule: the .gitmodules entry whose URL ends in /talaka(.git), and its path
+  name=$(git -C "$repo" config -f .gitmodules --get-regexp '^submodule\..*\.url$' |
+         awk '$2 ~ /\/talaka(\.git)?$/ { sub(/^submodule\./,"",$1); sub(/\.url$/,"",$1); print $1; exit }')
+  [ -n "$name" ] || continue
+  kit=$(git -C "$repo" config -f .gitmodules "submodule.$name.path")
+  git -C "$repo" submodule update --init --recursive -- "$kit"
+  bash "$repo/$kit/shared/lifecycle/tools/init.sh" -n --sync=personal --sync-remote=git@github.com:me/talaka-state.git
+done
 ```
 
 `init.sh --sync=personal` connects sync and pulls your `.tlk/` down **before** it writes anything, so `PROJECT.md`, memory and features arrive instead of the templates. `--sync=project` uses branch `tlk/<you>` in the project's origin instead. Without a `--sync` flag the state is lost with the container.
 
-- **No committed submodule?** Add `git -C myapp submodule add https://github.com/bthos/talaka talaka` before the update line; it stages `.gitmodules` and tracks the kit's default branch.
+- **It finds the project itself.** The loop looks at the directory it starts in and at each checkout below it, and acts only on one whose `.gitmodules` lists the kit; repos without it are skipped, whatever they are called. If your kit's URL doesn't end in `/talaka` or `/talaka.git` (a mirror or fork under another name), change the `awk` pattern.
+- **No committed submodule?** Add it to the project once (`git submodule add https://github.com/bthos/talaka talaka`) and commit `.gitmodules` and the pointer; the setup script has nothing to find until then.
 - **Network.** The environment's allowed hosts need `github.com` (the submodule clone and the sync remote).
 - **Credentials.** The setup script cannot read the environment's saved secrets, so git access to the sync remote has to come from somewhere else; check this before relying on it.
-- **A failing setup script stops the session from starting**, hence the `[ -d myapp ]` guard. Other `init.sh` flags work as usual — see [Flags reference](#flags-reference).
+- **A failing setup script stops the session from starting**, hence the skips for checkouts without the kit. Other `init.sh` flags work as usual — see [Flags reference](#flags-reference).
 - **`PROJECT.md`** still needs its test and build commands; `init.sh` prints an `[AGENT ACTION REQUIRED]` block for that.
 
 ## Flags reference
