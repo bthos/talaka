@@ -4,7 +4,53 @@ A reusable AI development pipeline — 6 agents, 18 skills, and a coordinator-dr
 
 The kit is **minimally invasive** and **per-developer** (it commits nothing of its own): every kit-touched path is either inside the git-ignored `.tlk/`, inside `.claude/`, the optional committed `wiki/`, or wrapped in a removable `<!-- talaka:start --> … <!-- talaka:end -->` block in `CLAUDE.md` / `AGENTS.md`. Your root `.gitignore` is never touched: each directory the kit writes into carries its own `.gitignore`. `teardown.sh` strips the block (or removes the file when its SHA-256 still matches the kit copy recorded in `.tlk/.talaka.files`), so manual edits are always preserved.
 
-Import as a git submodule in under a minute — or tell your AI agent *"install https://github.com/bthos/talaka per its README"* and it follows the next section.
+Import as a git submodule in under a minute — or tell your AI agent *"install https://github.com/bthos/talaka per its README"* and it follows [the install steps](#install-for-an-llm-agent).
+
+## Contents
+
+- [Install (for an LLM agent)](#install-for-an-llm-agent)
+- [What it is](#what-it-is)
+  - [Agents](#agents)
+  - [Skills](#skills)
+- [Quick start](#quick-start)
+  - [The `tlk` command](#the-tlk-command)
+- [Layout — what gets written](#layout--what-gets-written)
+  - [Per-directory `.gitignore` files](#per-directory-gitignore-files)
+- [What `init.sh` does](#what-initsh-does)
+- [Environment variables](#environment-variables)
+- [Claude cloud environment](#claude-cloud-environment)
+- [Flags reference](#flags-reference)
+  - [`init.sh`](#initsh)
+  - [`update.sh`](#updatesh)
+  - [`teardown.sh`](#teardownsh)
+  - [`doctor.sh`](#doctorsh)
+  - [`install-cli.sh`, `install-env.sh`, `install-output-style.sh`](#install-clish-install-envsh-install-output-stylesh)
+  - [`sync.sh` (`tlk sync`)](#syncsh-tlk-sync)
+  - [`kit.sh` (`tlk`)](#kitsh-tlk)
+- [Updating the kit](#updating-the-kit)
+  - [Renamed agents and skills](#renamed-agents-and-skills)
+  - [Leftovers from old installs](#leftovers-from-old-installs)
+- [Overriding an agent or skill](#overriding-an-agent-or-skill)
+- [Removing the kit](#removing-the-kit)
+- [Dashboard](#dashboard)
+- [Self-improving agents](#self-improving-agents)
+  - [Measured cost, not estimated cost](#measured-cost-not-estimated-cost)
+  - [Memory layers](#memory-layers)
+  - [Scheduling regular maintenance](#scheduling-regular-maintenance)
+- [Knowledge wiki (knowledge-curating)](#knowledge-wiki-knowledge-curating)
+- [CLI factory (cli-designing)](#cli-factory-cli-designing)
+- [Goal loop (`/loop` + `.claude/loop.md`)](#goal-loop-loop--claudeloopmd)
+- [Kit issues (field reports)](#kit-issues-field-reports)
+- [Feature artifacts](#feature-artifacts)
+- [Side-tasks](#side-tasks)
+- [Invocation reference](#invocation-reference)
+- [Scripts](#scripts)
+  - [Skill scripts (bundled, copied into `.claude/skills/` by `init.sh`)](#skill-scripts-bundled-copied-into-claudeskills-by-initsh)
+  - [Shared tools](#shared-tools)
+  - [Lifecycle scripts](#lifecycle-scripts)
+- [Coordinator protocol](#coordinator-protocol)
+- [Team use](#team-use)
+- [Your artefacts on several devices](#your-artefacts-on-several-devices)
 
 ## Install (for an LLM agent)
 
