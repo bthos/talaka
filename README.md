@@ -326,21 +326,19 @@ Every one of these, plus `PROJECT.md`'s fields and the kit's fixed thresholds, i
 
 ## Claude cloud environment
 
-`install-cloud-env.sh` (at the kit's root) installs or updates the kit in a project inside a Claude cloud container. It is idempotent, so it works as the environment's **setup script** or from a `SessionStart` hook:
+`shared/lifecycle/tools/install-cloud-env.sh` installs or updates the kit in a project inside a Claude cloud container. Add the kit as a submodule first, then run it; it is idempotent, so it works as the environment's **setup script** (runs as root, from the directory that holds the checkouts) or from a `SessionStart` hook:
 
 ```bash
-# Environment setup script (runs as root, from the directory that holds the checkouts)
-curl -fsSL https://raw.githubusercontent.com/bthos/talaka/main/install-cloud-env.sh -o /tmp/install-cloud-env.sh
-bash /tmp/install-cloud-env.sh --project=myapp --sync=personal --sync-remote=git@github.com:me/talaka-state.git
-
-# Already have the submodule? It is there too:
-bash talaka/install-cloud-env.sh
+cd myapp
+git submodule add https://github.com/bthos/talaka talaka     # skip when talaka/ is already there
+bash talaka/shared/lifecycle/tools/install-cloud-env.sh \
+  --sync=personal --sync-remote=git@github.com:me/talaka-state.git
 ```
 
-What it does: checks bash ≥ 4, git and sha256sum/shasum; installs `jq` through apt, apk or dnf when it is missing (root or `sudo -n`); adds the kit as a submodule at `./talaka` (or runs `git submodule update --init` when it is there); then runs `init.sh --non-interactive` on a fresh tree, or `update.sh --non-interactive --no-pull` when the kit is installed already. Flags it does not know are passed on to `init.sh` / `update.sh` (see [Flags reference](#flags-reference)).
+It finds the project from its own location (the folder the submodule sits in), makes sure the submodule is checked out, installs `jq` through apt, apk or dnf when it is missing (root or `sudo -n`), then runs `init.sh --non-interactive` on a fresh tree, or `update.sh --non-interactive --no-pull` when the kit is installed already. Flags it does not know are passed on to `init.sh` / `update.sh` (see [Flags reference](#flags-reference)); `--no-install-jq` skips the jq step.
 
-- **Network.** The environment's allowed hosts need `github.com` (the submodule clone, and the raw download above).
-- **Nothing is committed.** The submodule add stages `.gitmodules`; commit it if you want later sessions and teammates to get the submodule from the repo.
+- **Network.** The environment's allowed hosts need `github.com` (the submodule clone).
+- **Nothing is committed.** The submodule add stages `.gitmodules`; commit it if you want later sessions and teammates to get the submodule from the repo — then the setup script is just the second command.
 - **State is lost with the container.** Pass `--sync=personal --sync-remote=URL` (or `--sync=project`) so `.tlk/` comes back from your own repo on the next container — see [Your artefacts on several devices](#your-artefacts-on-several-devices). The git credentials for that remote have to reach the environment.
 - **`PROJECT.md`** still needs its test and build commands; `init.sh` prints an `[AGENT ACTION REQUIRED]` block for that.
 
@@ -452,16 +450,13 @@ Exit codes: `0` ok · `1` a required (or, with `--strict`, recommended) tool is 
 
 ### `install-cloud-env.sh`
 
-`install-cloud-env.sh [OPTIONS] [-- INIT_FLAGS…]` — see [Claude cloud environment](#claude-cloud-environment).
+`talaka/shared/lifecycle/tools/install-cloud-env.sh [OPTIONS] [INIT_FLAGS…]` — see [Claude cloud environment](#claude-cloud-environment).
 
 | Flag | Effect |
 |------|--------|
-| `--project=DIR` | Project to install into (default: the current dir; its git root is used). |
-| `--repo=URL` | Kit repo to add as the submodule (default `https://github.com/bthos/talaka`). |
-| `--ref=REF` | Branch or tag for a fresh submodule add (default: the repo's default branch). |
 | `--no-install-jq` | Don't try to install `jq`. |
 | `--help`, `-h` | Show the help and exit. |
-| anything else, or after `--` | Passed to `init.sh` (fresh install) or `update.sh` (already installed). `--non-interactive` is always added. |
+| anything else | Passed to `init.sh` (fresh install) or `update.sh` (already installed). `--non-interactive` is always added. |
 
 ## Updating the kit
 
@@ -944,7 +939,7 @@ Each skill bundles its own script. Shared scripts live under `talaka/shared/<cat
 | Script | What it does |
 |--------|-------------|
 | `kit.sh` | **Recommended human entry point.** Stage-aware interactive launcher. Detects install state (not installed / needs config / ready) and surfaces only actions that make sense at the current stage: `init`, `probe`, edit + `validate` `PROJECT.md`, `update`, `teardown`, feature `status`, the `dashboard`, memory `search`, version `bump`, memory `rollover` / `promote`, `distill` lessons, apply `patches`. Press `h` inside the menu for one-line descriptions. |
-| `install-cloud-env.sh` | Installs or updates the kit in a Claude cloud environment — adds the submodule, installs jq, runs `init.sh` / `update.sh` non-interactively. See [Claude cloud environment](#claude-cloud-environment). |
+| `shared/lifecycle/tools/install-cloud-env.sh` | Installs or updates the kit in a Claude cloud environment — checks out the submodule, installs jq, runs `init.sh` / `update.sh` non-interactively. See [Claude cloud environment](#claude-cloud-environment). |
 | `shared/lifecycle/tools/init.sh` | Sets up `.tlk/`; copies agents to `.claude/agents/` and skills to `.claude/skills/`; manages include blocks in `CLAUDE.md` and `AGENTS.md`; writes `.tlk/.gitignore` and `.claude/.gitignore`; maintains **`.tlk/.talaka.files`**. |
 | `shared/lifecycle/tools/doctor.sh` | Checks the tools the kit needs: bash ≥ 4, git, sha256sum/shasum (required), jq (recommended), and python3, gh, claude (optional). `--install [TOOL…]` installs missing ones through the system package manager without ever prompting for a password. `--allow-download` adds a fallback that downloads jq's official binary, checked against a pinned SHA-256, into a user bin dir. Exit 4 means the user has to run the printed command. Also `kit.sh doctor`. |
 | `shared/lifecycle/tools/update.sh` | `git submodule update --remote` for the kit, then re-runs `shared/lifecycle/tools/init.sh` with the same arguments you pass (optional `--no-pull` to skip the fetch). Warns once if `.cursor/` or `.github/` copies from a pre-Claude-only install are still present (it does not remove them — see [Leftovers from old installs](#leftovers-from-old-installs)). Warns if `templates/PIPELINE.md.template` drifted since last init. |

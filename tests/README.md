@@ -21,7 +21,7 @@ Exit status is non-zero if any file fails. Requires **bash ≥ 4** (macOS ships
 | Path | Covers |
 |------|--------|
 | `tests/lib.sh` | Assertions, `make_tmp_project`, `install_kit_into`, `make_fake_judge`, the runner. |
-| `tests/lifecycle/` | `shared/lifecycle/tools/lib.sh` (managed blocks, manifest, SHA-gated teardown) + `init.sh`↔`teardown.sh` round-trip. `install-cloud-env.sh` (submodule add, install, update). |
+| `tests/lifecycle/` | `shared/lifecycle/tools/lib.sh` (managed blocks, manifest, SHA-gated teardown) + `init.sh`↔`teardown.sh` round-trip. `install-cloud-env.sh` (install, update, project found from the script's location). |
 | `tests/memory/` | `memory/tools/` — `init`, `promote` (2-strike, id hashing, supersedes, L4), `rollover`, `search`. |
 | `tests/autoresearch/` | `build-eval-set`, `judge`, `generate` (generator side: prompt, cost, cache), `ratchet` (generate → judge scoring, cost term, accept/revert, invariant guard), `mutate-agent` guards, `decay-variants` (age-gated prune + audit log). |
 | `tests/skills/` | Skill-bundled scripts — `knowledge-curating` (`new-wiki.sh`), `cli-designing` (`new-cli.sh`): tree bootstrap, idempotency, output contract. |

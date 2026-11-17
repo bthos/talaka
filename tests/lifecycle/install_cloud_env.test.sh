@@ -1,22 +1,21 @@
 #!/usr/bin/env bash
-# install-cloud-env.sh — installs the kit into a project for a Claude cloud
-# environment: submodule add (or reuse), init on a fresh tree, update after.
+# install-cloud-env.sh — installs the kit into the project it sits in, for a
+# Claude cloud environment: init on a fresh tree, update after.
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib.sh"
 
-SCRIPT="$KIT_ROOT/install-cloud-env.sh"
+_script() { printf '%s/talaka/shared/lifecycle/tools/install-cloud-env.sh' "$1"; }
 
-test_help_documents_every_option() {
-  local out; out=$(bash "$SCRIPT" --help 2>&1)
-  local o
-  for o in --project= --repo= --ref= --no-install-jq; do
-    assert_contains "$out" "$o" "--help lists $o"
-  done
+test_help_documents_the_options() {
+  local out; out=$(bash "$KIT_ROOT/shared/lifecycle/tools/install-cloud-env.sh" --help 2>&1)
+  assert_contains "$out" "--no-install-jq"
+  assert_contains "$out" "git submodule add"
 }
 
-test_installs_when_the_kit_is_already_in_the_project() {
+test_installs_into_the_project_the_kit_sits_in() {
   local proj; proj=$(make_tmp_project)
   install_kit_into "$proj"
-  local out; out=$(bash "$SCRIPT" --project="$proj" --no-install-jq --no-statusline 2>&1) \
+  # Run from elsewhere: the project is found from the script's own location.
+  local out; out=$(cd / && bash "$(_script "$proj")" --no-install-jq --no-statusline 2>&1) \
     || fail "install failed: $out"
   assert_contains "$out" "installing"
   assert_file_exists "$proj/.tlk/PROJECT.md"
@@ -26,32 +25,17 @@ test_installs_when_the_kit_is_already_in_the_project() {
 test_second_run_updates_instead_of_reinstalling() {
   local proj; proj=$(make_tmp_project)
   install_kit_into "$proj"
-  bash "$SCRIPT" --project="$proj" --no-install-jq --no-statusline >/dev/null 2>&1 || fail "first run"
-  local out; out=$(bash "$SCRIPT" --project="$proj" --no-install-jq --no-statusline 2>&1) \
+  bash "$(_script "$proj")" --no-install-jq --no-statusline >/dev/null 2>&1 || fail "first run"
+  local out; out=$(bash "$(_script "$proj")" --no-install-jq --no-statusline 2>&1) \
     || fail "second run failed: $out"
   assert_contains "$out" "already installed"
 }
 
-test_adds_the_submodule_when_it_is_missing() {
-  # A committed copy of the kit stands in for github.com; git needs to be told
-  # a local path is an acceptable submodule source.
-  local src proj
-  src=$(make_tmp_project); install_kit_into "$src/k"
-  ( cd "$src/k/talaka" && git init -q && git add -A && git -c user.email=t@t -c user.name=t commit -qm kit ) \
-    >/dev/null 2>&1 || fail "could not build the fake kit repo"
-  proj=$(make_tmp_project)
-  local out
-  out=$(GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=protocol.file.allow GIT_CONFIG_VALUE_0=always \
-        bash "$SCRIPT" --project="$proj" --repo="$src/k/talaka" --no-install-jq --no-statusline 2>&1) \
-    || fail "install failed: $out"
-  assert_contains "$out" "adding submodule"
-  assert_file_exists "$proj/.gitmodules"
-  assert_file_exists "$proj/.tlk/PROJECT.md"
-}
-
-test_refuses_a_directory_that_is_not_a_git_repo() {
+test_refuses_a_project_that_is_not_a_git_repo() {
   local d; d=$(mktemp -d "${TMPDIR:-/tmp}"/tlk-nogit.XXXXXX); _TMP_DIRS+=( "$d" )
-  local out; out=$(bash "$SCRIPT" --project="$d" --no-install-jq 2>&1) && fail "should refuse"
+  install_kit_into "$d"
+  local out; out=$(GIT_CEILING_DIRECTORIES="$(dirname "$d")" bash "$(_script "$d")" --no-install-jq 2>&1) \
+    && fail "should refuse"
   assert_contains "$out" "not a git repository"
 }
 
