@@ -10,6 +10,17 @@ tags yet — entries are dated and grouped by submodule HEAD).
 
 ## [Unreleased]
 
+### Fixed — synced `.tlk/` is LF on every device, whatever `core.autocrlf` says
+
+- **`tlk sync` keeps a managed `.gitattributes` (`* text=auto eol=lf`) in the artefacts repo.** Git for
+  Windows installs with `core.autocrlf=true`, so a synced `.tlk/` was checked out as CRLF, every
+  `tlk sync` printed one `LF will be replaced by CRLF` warning per file, and an edit made on one
+  device could show up as an all-lines diff on another. The attribute travels with the repo and
+  outranks `autocrlf`, so no device needs a git-config change. A dir synced by an older kit picks
+  it up on its next sync: CRLF already committed is renormalised, and files on disk are rewritten
+  to LF (only on a clean tree, right after the sync commit). `tlk sync disable --purge` removes it.
+  The sync's own git calls also run with `core.safecrlf=false`, so the warnings are gone at once.
+
 ### Added — a flags reference and Claude cloud setup docs
 
 - **README: *Claude cloud environment* and *Flags reference*** — the setup-script lines for a cloud container (jq, submodule, `init.sh --sync=…`), and every flag of `init`, `update`, `teardown`, `doctor`, the `install-*` scripts, `sync` and `kit.sh` in one place.

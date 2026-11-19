@@ -190,9 +190,63 @@ refresh_gitignore() {
   fi
 }
 
-# Restore the unsynced layout: a .gitignore that hides everything.
+# The dir's .gitattributes: every text file is LF in the repo AND on disk, on
+# every device. Git for Windows installs with core.autocrlf=true, which would
+# check the artefacts out as CRLF (and warn per file on every add) while the
+# agents write LF — so one device's edit becomes an all-lines diff on another.
+# The attribute travels with the repo and outranks autocrlf, so no device's
+# git config matters. Same managed block as the .gitignore; lines outside it
+# are the developer's.
+render_gitattributes() {
+  cat <<EOF
+$TALAKA_GITIGNORE_BEGIN
+# Managed by talaka (tlk sync): text files are LF on every device, whatever
+# core.autocrlf says. Edits inside this block are overwritten on sync.
+* text=auto eol=lf
+$TALAKA_GITIGNORE_END
+EOF
+}
+
+refresh_gitattributes() {
+  local f="$ARTEFACTS/.gitattributes" tmp
+  if [ -f "$f" ] && _kit_block_present "$f" "$TALAKA_GITIGNORE_BEGIN"; then
+    tmp=$(kit_mktemp tlk-ga) || return 1
+    render_gitattributes > "$tmp"
+    _kit_block_replace "$f" "$TALAKA_GITIGNORE_BEGIN" "$TALAKA_GITIGNORE_END" "$tmp" || true
+  elif [ -f "$f" ]; then
+    { printf '\n'; render_gitattributes; } >> "$f"
+  else
+    render_gitattributes > "$f"
+  fi
+}
+
+# The files sync keeps in the dir's repo.
+refresh_managed() { refresh_gitignore; refresh_gitattributes; }
+
+# After .gitattributes first arrives (or changes), files already on disk keep
+# the CRLF an autocrlf checkout gave them. Rewrite those from the index, which
+# holds the same content in LF. Only called on a clean tree (right after a
+# commit of everything), so nothing unsaved can be touched.
+normalise_worktree_eol() {
+  local rec meta path
+  while IFS= read -r -d '' rec; do
+    meta="${rec%%$'\t'*}"; path="${rec#*$'\t'}"
+    case "$meta" in *w/crlf*) ;; *) continue ;; esac
+    case "$meta" in *eol=lf*) ;; *) continue ;; esac
+    rm -f -- "$ARTEFACTS/$path"
+    tg checkout -q -- "$path" 2>/dev/null || true
+  done < <(tg ls-files -z --eol 2>/dev/null)
+}
+
+# Restore the unsynced layout: a .gitignore that hides everything, and no
+# .gitattributes block (there is no repo left for it to steer).
 restore_plain_gitignore() {
-  local f="$ARTEFACTS/.gitignore" tmp
+  local f="$ARTEFACTS/.gitattributes" tmp
+  if [ -f "$f" ]; then
+    _kit_strip_block "$f" "$TALAKA_GITIGNORE_BEGIN" "$TALAKA_GITIGNORE_END" || true
+    [ -s "$f" ] || rm -f "$f"
+  fi
+  f="$ARTEFACTS/.gitignore"
   [ -f "$f" ] || return 0
   tmp=$(kit_mktemp tlk-gi) || return 1
   talaka_gitignore_render artefacts false > "$tmp"
@@ -283,10 +337,19 @@ lock() {
 # Core: commit, merge the remote, push
 # ---------------------------------------------------------------------------
 commit_local() {   # commit_local MESSAGE → 0 when a commit was made
-  refresh_gitignore
+  local eol=false
+  refresh_managed
   tg add -A
+  # A new or changed .gitattributes: re-apply it to what is tracked already
+  # (CRLF committed by a device without it becomes LF), then to the disk.
+  if [ -n "$(tg diff --cached --name-only -- .gitattributes 2>/dev/null)" ]; then
+    eol=true
+    tg add --renormalize . 2>/dev/null || true
+  fi
   tg diff --cached --quiet && return 1
-  tg commit -q -m "$1"
+  tg commit -q -m "$1" || return 1
+  $eol && normalise_worktree_eol
+  return 0
 }
 
 remote_has_branch() {   # remote_has_branch URL BRANCH
@@ -352,13 +415,18 @@ do_sync() {
     return 2
   fi
   if tg rev-parse -q --verify "refs/remotes/origin/$b" >/dev/null; then
+    local before; before=$(tg rev-parse -q --verify HEAD || true)
     if ! tg merge -q --no-edit --allow-unrelated-histories "origin/$b" >/dev/null 2>&1; then
       if [ -f "$ARTEFACTS/.git/MERGE_HEAD" ]; then record_conflict; return 1; fi
       state_set error; $QUIET || err "merge of origin/$b failed"; return 1
     fi
+    # Another device brought the .gitattributes: apply it to this disk too.
+    if [ -n "$before" ] && [ -n "$(tg diff --name-only "$before" HEAD -- .gitattributes 2>/dev/null)" ]; then
+      normalise_worktree_eol
+    fi
   fi
-  refresh_gitignore
-  commit_local "sync: refresh .gitignore" || true
+  refresh_managed
+  commit_local "sync: refresh .gitignore, .gitattributes" || true
   if $push; then
     local rc=0
     push_now "$b" "$allow" || rc=$?
@@ -402,12 +470,12 @@ connect() {   # connect MODE URL BRANCH ALLOW_SECRETS
   else tg remote add origin "$url"; fi
   tg config talaka.sync.mode "$mode"
   mkdir -p "$SYNC_DIR"
-  refresh_gitignore
+  refresh_managed
 
-  # What is here already, besides the .gitignore we just wrote?
+  # What is here already, besides the .gitignore and .gitattributes we just wrote?
   local has_local=false
   tg add -A
-  if [ -n "$(tg diff --cached --name-only | grep -vx '.gitignore' || true)" ]; then has_local=true; fi
+  if [ -n "$(tg diff --cached --name-only | grep -vxE '\.git(ignore|attributes)' || true)" ]; then has_local=true; fi
   if tg rev-parse -q --verify HEAD >/dev/null; then has_local=true; fi
 
   if [ "$exists" = 0 ]; then
@@ -415,7 +483,7 @@ connect() {   # connect MODE URL BRANCH ALLOW_SECRETS
     if ! $has_local; then
       # Fresh device: take the remote as it is.
       tg rm -rq --cached --ignore-unmatch . >/dev/null
-      rm -f "$ARTEFACTS/.gitignore"
+      rm -f "$ARTEFACTS/.gitignore" "$ARTEFACTS/.gitattributes"
       tg checkout -q -B "$b" "origin/$b"
       tg branch -q --set-upstream-to="origin/$b" "$b" 2>/dev/null || true
       ok "connected — pulled $(tg ls-files | wc -l | tr -d ' ') file(s) from $url ($b)"
@@ -432,8 +500,8 @@ connect() {   # connect MODE URL BRANCH ALLOW_SECRETS
       tg config "branch.$b.remote" origin; tg config "branch.$b.merge" "refs/heads/$b"
       ok "connected — merged this device's files with $url ($b)"
     fi
-    refresh_gitignore
-    commit_local "sync: refresh .gitignore" || true
+    refresh_managed
+    commit_local "sync: refresh .gitignore, .gitattributes" || true
   else
     commit_local "talaka: artefacts from $(device_name)" \
       || tg commit -q --allow-empty -m "talaka: start syncing from $(device_name)"
@@ -801,7 +869,7 @@ auto() {
   done
   if is_repo; then
     exclude_add
-    refresh_gitignore
+    refresh_managed
     return 0
   fi
   [ "$mode" = off ] && return 0

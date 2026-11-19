@@ -132,6 +132,39 @@ test_secrets_hold_the_push_back() {
   assert_contains "$(_remote_files acme/app)" "leak.md"
 }
 
+# Git for Windows installs with core.autocrlf=true; git honours it on Linux too.
+_has_cr() { grep -q $'\r' "$1"; }
+
+test_text_stays_lf_on_an_autocrlf_device() {
+  _world; local a b; a=$(_device A); b=$(_device B)
+  mkdir -p "$a/.tlk/memory"; printf 'one\ntwo\n' > "$a/.tlk/memory/n.md"
+  _sync "$a" enable --mode=personal --remote="$W/state.git" --no-auto -y >/dev/null 2>&1
+  assert_contains "$(_remote_files acme/app)" ".gitattributes" "the eol rule travels"
+  git config --global core.autocrlf true
+  _sync "$b" enable --mode=personal --remote="$W/state.git" --no-auto -y >/dev/null 2>&1 || fail "connect B"
+  _has_cr "$b/.tlk/memory/n.md" && fail "autocrlf checked the file out as CRLF"
+  printf 'three\n' >> "$b/.tlk/memory/n.md"; printf 'x\n' > "$b/.tlk/memory/m.md"
+  local out; out=$(_sync "$b" run 2>&1) || fail "B run: $out"
+  assert_not_contains "$out" "CRLF" "no per-file line-ending warnings"
+  _sync "$a" run >/dev/null 2>&1
+  assert_eq "1" "$(cd "$a/.tlk" && git diff --stat HEAD~1 -- memory/n.md | grep -c '1 insertion')" \
+    "B's edit is one line, not the whole file"
+}
+
+test_crlf_from_before_the_eol_rule_is_normalised() {
+  _world; local a; a=$(_device A)
+  mkdir -p "$a/.tlk"; printf 'one\ntwo\n' > "$a/.tlk/n.md"
+  _sync "$a" enable --mode=personal --remote="$W/state.git" --no-auto -y >/dev/null 2>&1
+  # A synced dir from an older kit: no .gitattributes, CRLF committed and on disk.
+  ( cd "$a/.tlk" && git rm -q .gitattributes && printf 'one\r\ntwo\r\n' > n.md \
+      && git add -A && git commit -qm old ) || fail "set-up"
+  _sync "$a" run >/dev/null 2>&1 || fail "run"
+  assert_file_exists "$a/.tlk/.gitattributes" "the rule comes back"
+  _has_cr "$a/.tlk/n.md" && fail "still CRLF on disk"
+  assert_eq "" "$(cd "$a/.tlk" && git show HEAD:n.md | tr -d -c '\r')" "LF in the repo"
+  assert_eq "" "$(cd "$a/.tlk" && git status --porcelain)" "nothing left dirty"
+}
+
 test_project_mode_uses_a_personal_branch_of_origin() {
   _world; local a; a=$(_device A)
   git init -q --bare "$W/origin.git"
@@ -159,6 +192,7 @@ test_disable_purge_restores_the_plain_layout() {
   assert_file_exists "$a/.tlk/x.md" "files kept"
   assert_file_not_contains "$a/.git/info/exclude" "/.tlk/" "exclude line gone"
   assert_file_contains "$a/.tlk/.gitignore" "# All of it"
+  assert_file_absent "$a/.tlk/.gitattributes" "no eol rule without a repo"
   assert_eq "" "$(cd "$a" && git status --porcelain -- .tlk)" ".tlk/ hidden again"
 }
 
