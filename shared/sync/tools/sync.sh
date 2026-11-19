@@ -74,7 +74,9 @@ fi
 
 say()  { $QUIET || info "$@"; }
 ok()   { $QUIET || success "$@"; }
-tg()   { git -C "$ARTEFACTS" "$@"; }           # git in the artefacts repo
+# safecrlf=false: on Windows (autocrlf=true) git warns "LF will be replaced by
+# CRLF" per file on every add; the artefacts are LF markdown, so it is noise.
+tg()   { git -c core.safecrlf=false -C "$ARTEFACTS" "$@"; }   # git in the artefacts repo
 pg()   { git -C "$PROJECT_ROOT" "$@"; }        # git in the project repo
 tty_in() { [ -t 0 ]; }
 
